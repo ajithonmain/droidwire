@@ -1,4 +1,3 @@
-import React from 'react'
 import type { FileNode } from '@droidwire/shared'
 
 const PINNED_DIRS = ['DCIM', 'Download', 'Documents', 'Music', 'Pictures', 'Movies', 'WhatsApp']

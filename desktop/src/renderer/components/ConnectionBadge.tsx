@@ -1,4 +1,3 @@
-import React from 'react'
 import type { ConnectionStatus } from '@droidwire/shared'
 import type { DeviceInfo } from '../hooks/useDevice'
 

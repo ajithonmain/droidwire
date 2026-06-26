@@ -1,6 +1,5 @@
-import React from 'react'
 import type { TransferProgress } from '@droidwire/shared'
-import { formatSize, formatSpeed, formatEta, formatPercent } from '../lib/format'
+import { formatSpeed, formatEta, formatPercent } from '../lib/format'
 
 interface Props {
   transfers: TransferProgress[]

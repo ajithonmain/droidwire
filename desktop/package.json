@@ -2,6 +2,7 @@
   "name": "@droidwire/desktop",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
