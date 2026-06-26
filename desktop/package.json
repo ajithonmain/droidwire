@@ -2,13 +2,12 @@
   "name": "@droidwire/desktop",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "main": "dist-electron/main/index.js",
+  "main": "out/main/index.mjs",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "electron": "electron .",
-    "dist": "npm run build && electron-builder"
+    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "build": "electron-vite build",
+    "electron": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "dist": "electron-vite build && electron-builder"
   },
   "build": {
     "appId": "com.droidwire.desktop",
@@ -31,8 +30,9 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
-    "electron": "^33.0.0",
+    "electron": "^42.5.0",
     "electron-builder": "^25.0.0",
+    "electron-vite": "^5.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.4.0",

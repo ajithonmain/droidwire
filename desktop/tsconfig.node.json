@@ -11,5 +11,5 @@
       "@droidwire/shared": ["../shared/types"]
     }
   },
-  "include": ["vite.config.ts", "src/main/**/*", "src/preload/**/*"]
+  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*"]
 }

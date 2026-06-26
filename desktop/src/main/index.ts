@@ -25,10 +25,10 @@ function createWindow(): BrowserWindow {
     },
   })
 
-  if (isDev) {
-    win.loadURL('http://localhost:5173')
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    win.loadFile(path.join(__dirname, '../../dist/index.html'))
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
   return win
