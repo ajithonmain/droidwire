@@ -1,0 +1,16 @@
+{
+  "name": "droidwire",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "android",
+    "desktop",
+    "shared"
+  ],
+  "scripts": {
+    "android": "cd android && npx react-native run-android",
+    "desktop:dev": "cd desktop && npm run dev",
+    "desktop:electron": "cd desktop && npm run electron",
+    "desktop:dist": "cd desktop && npm run dist"
+  }
+}
