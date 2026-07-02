@@ -116,7 +116,12 @@ export function ContextMenu({
     <div
       onClick={onClose}
       onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        // Neutralize the titlebar's native drag region so clicks there
+        // reach this overlay and close the menu
+        WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
+      }}
     >
       <div
         ref={menuRef}

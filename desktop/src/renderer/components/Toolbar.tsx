@@ -111,6 +111,16 @@ function Dropdown<T extends string>({
       </button>
 
       {open && (
+        <div
+          onMouseDown={() => setOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 199,
+            // Covers the titlebar drag region too, so a click there closes
+            WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
+          }}
+        />
+      )}
+      {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 5px)', left: 0,
           background: theme.surface,
