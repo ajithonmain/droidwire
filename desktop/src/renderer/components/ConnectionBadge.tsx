@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import type { ConnectionStatus } from '@droidwire/shared'
 import type { DeviceInfo, AdbDevice } from '../hooks/useDevice'
 import { useTheme } from '../lib/ThemeContext'
@@ -83,12 +83,21 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
           </span>
 
           {switcherOpen && (
+            <>
+            {/* Full-window overlay: closes on any click, including the titlebar drag region */}
+            <div
+              onMouseDown={() => setSwitcherOpen(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 299,
+                WebkitAppRegion: 'no-drag' as CSSProperties['WebkitAppRegion'],
+              }}
+            />
             <div style={{
               position: 'absolute', top: 'calc(100% + 8px)', right: 0,
               background: theme.surface,
               border: `1px solid ${theme.border}`,
               borderRadius: '10px', padding: '4px',
-              minWidth: '180px', zIndex: 300,
+              minWidth: '200px', zIndex: 300,
               boxShadow: `0 16px 48px ${theme.shadow}`,
             }}>
               {devices.map(d => {
@@ -98,23 +107,35 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
                     key={d.serial}
                     onClick={() => { setSwitcherOpen(false); if (!active) onSelectDevice?.(d.serial) }}
                     style={{
-                      padding: '7px 10px', fontSize: '13px', cursor: 'pointer',
+                      padding: '8px 10px', fontSize: '13px', cursor: 'pointer',
                       borderRadius: '6px',
                       color: active ? theme.accent : theme.textPrimary,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                      fontWeight: active ? 600 : 400,
+                      background: active ? `${theme.accent}18` : 'transparent',
+                      display: 'flex', alignItems: 'center', gap: '8px',
                       userSelect: 'none',
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = theme.surfaceHover }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLDivElement).style.background = theme.surfaceHover }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = active ? `${theme.accent}18` : 'transparent' }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.model || d.serial}</span>
+                    <span style={{ width: '13px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      {active && (
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.model || d.serial}</span>
                     {active && (
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: theme.accent, flexShrink: 0 }} />
+                      <span style={{ fontSize: '10px', fontWeight: 600, color: theme.accent, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
+                        Current
+                      </span>
                     )}
                   </div>
                 )
               })}
             </div>
+            </>
           )}
         </div>
       )}
