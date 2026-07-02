@@ -142,6 +142,25 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
         </div>
       )}
 
+      {status === 'connected' && (
+        <button
+          onClick={onRescan}
+          data-tip="Scan for devices"
+          style={{
+            background: 'none', border: `1px solid ${theme.border}`, borderRadius: '4px',
+            width: '20px', height: '20px', padding: 0, cursor: 'pointer',
+            color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'color 80ms, background 80ms',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = theme.textSecondary }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <span
           style={{
