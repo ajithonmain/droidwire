@@ -396,6 +396,9 @@ export function FileGrid({
   const scrollTopRef = useRef(0)
   const viewHRef = useRef(700)
   const viewWRef = useRef(900)
+  // Width also mirrored as state: the rendered column count derives from it,
+  // so resizes / preview-panel toggles must trigger an immediate re-render
+  const [viewW, setViewW] = useState(900)
 
   // Visible slice — state updated only when row window actually changes
   const [slice, setSlice] = useState({ s: 0, e: 80 })
@@ -434,12 +437,14 @@ export function FileGrid({
       for (const entry of entries) {
         viewHRef.current = entry.contentRect.height
         viewWRef.current = entry.contentRect.width
+        setViewW(entry.contentRect.width)
         recomputeSlice()
       }
     })
     ro.observe(el)
     viewHRef.current = el.clientHeight
     viewWRef.current = el.clientWidth
+    setViewW(el.clientWidth)
     recomputeSlice()
     return () => ro.disconnect()
   }, [viewMode, recomputeSlice])
@@ -676,7 +681,7 @@ export function FileGrid({
   )
 
   if (viewMode === 'grid') {
-    const cols = Math.max(1, Math.floor((viewWRef.current - 20) / GRID_MIN_W))
+    const cols = Math.max(1, Math.floor((viewW - 20) / GRID_MIN_W))
     const totalRows = Math.ceil(files.length / cols)
     const rowS = Math.floor(slice.s / cols)
     const rowE = Math.ceil(slice.e / cols)

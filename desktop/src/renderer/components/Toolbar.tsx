@@ -84,8 +84,8 @@ function Dropdown<T extends string>({
           border: `1px solid ${active ? theme.borderFocus : theme.border}`,
           borderRadius: '7px',
           color: active ? theme.accent : theme.textSecondary,
-          fontSize: '12px', fontWeight: active ? 600 : 400,
-          padding: '5px 9px', cursor: 'pointer',
+          fontSize: '13px', fontWeight: active ? 600 : 400,
+          height: '28px', padding: '0 10px', cursor: 'pointer',
           minWidth: minWidth ? `${minWidth}px` : undefined,
           justifyContent: 'space-between',
           whiteSpace: 'nowrap',
@@ -147,15 +147,15 @@ function ToolBtn({ children, onClick, title, active, theme }: {
   return (
     <button
       onClick={onClick}
-      title={title}
+      data-tip={title}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         background: active ? theme.accentDim : hov ? theme.surfaceHover : 'transparent',
         border: active ? `1px solid ${theme.borderFocus}` : '1px solid transparent',
         color: active ? theme.accent : hov ? theme.textPrimary : theme.textSecondary,
-        cursor: 'pointer', padding: '5px 7px', display: 'flex',
-        alignItems: 'center', borderRadius: '7px', transition: 'all 80ms',
+        cursor: 'pointer', height: '28px', width: '30px', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', borderRadius: '7px', transition: 'all 80ms',
       }}
     >
       {children}
@@ -189,32 +189,33 @@ export function Toolbar({
 
   return (
     <div style={{
-      padding: '5px 12px',
+      padding: '0 12px',
       borderBottom: `1px solid ${theme.border}`,
       background: theme.surface,
       display: 'flex',
-      gap: '6px',
+      gap: '8px',
       alignItems: 'center',
-      height: '40px',
+      height: '42px',
       flexShrink: 0,
     }}>
       {/* Left: view + filter + sort + actions */}
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
         {/* View toggle */}
         <div style={{
           display: 'flex',
           background: theme.surfaceHover,
           border: `1px solid ${theme.border}`,
           borderRadius: '7px', padding: '2px', gap: '1px',
+          height: '28px', boxSizing: 'border-box', alignItems: 'center',
         }}>
           <button
             onClick={() => onViewMode('list')}
-            title="List view"
+            data-tip="List view"
             style={{
               background: viewMode === 'list' ? theme.surface : 'transparent',
               border: 'none', borderRadius: '5px',
               color: viewMode === 'list' ? theme.textPrimary : theme.textMuted,
-              cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center',
+              cursor: 'pointer', height: '22px', padding: '0 8px', display: 'flex', alignItems: 'center',
               boxShadow: viewMode === 'list' ? `0 1px 3px ${theme.shadow}` : 'none',
               transition: 'all 100ms',
             }}
@@ -225,12 +226,12 @@ export function Toolbar({
           </button>
           <button
             onClick={() => onViewMode('grid')}
-            title="Grid view"
+            data-tip="Grid view"
             style={{
               background: viewMode === 'grid' ? theme.surface : 'transparent',
               border: 'none', borderRadius: '5px',
               color: viewMode === 'grid' ? theme.textPrimary : theme.textMuted,
-              cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center',
+              cursor: 'pointer', height: '22px', padding: '0 8px', display: 'flex', alignItems: 'center',
               boxShadow: viewMode === 'grid' ? `0 1px 3px ${theme.shadow}` : 'none',
               transition: 'all 100ms',
             }}
@@ -244,7 +245,7 @@ export function Toolbar({
           </button>
         </div>
 
-        <div style={{ width: '1px', height: '18px', background: theme.border, margin: '0 1px' }} />
+        <div style={{ width: '1px', height: '16px', background: theme.border, margin: '0 3px' }} />
 
         <Dropdown<FilterType>
           value={filterType}
@@ -266,12 +267,12 @@ export function Toolbar({
           />
           <button
             onClick={() => onSort(sortField)}
-            title={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
+            data-tip={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
             style={{
               background: 'transparent', border: `1px solid ${theme.border}`,
-              borderRadius: '7px', padding: '5px 7px',
+              borderRadius: '7px', height: '28px', width: '28px',
               color: sortActive ? theme.accent : theme.textMuted,
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 80ms',
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
@@ -293,7 +294,7 @@ export function Toolbar({
           </button>
         </div>
 
-        <div style={{ width: '1px', height: '18px', background: theme.border, margin: '0 1px' }} />
+        <div style={{ width: '1px', height: '16px', background: theme.border, margin: '0 3px' }} />
 
         <ToolBtn title="New folder (⌘⇧N)" onClick={onNewFolder} theme={theme}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -304,13 +305,13 @@ export function Toolbar({
 
         <button
           onClick={onPickDownloadDir}
-          title={`Save to: ${downloadDir}`}
+          data-tip={`Save to: ${downloadDir}`}
           style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
+            display: 'flex', alignItems: 'center', gap: '5px',
             background: 'transparent', border: `1px solid ${theme.border}`,
-            borderRadius: '7px', padding: '5px 8px',
-            color: theme.textSecondary, fontSize: '12px', cursor: 'pointer',
-            maxWidth: '110px', transition: 'background 80ms',
+            borderRadius: '7px', height: '28px', padding: '0 10px',
+            color: theme.textSecondary, fontSize: '13px', cursor: 'pointer',
+            maxWidth: '130px', transition: 'background 80ms',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
@@ -370,13 +371,13 @@ export function Toolbar({
             style={{
               width: searchQuery ? '210px' : '160px',
               boxSizing: 'border-box',
+              height: '28px',
               background: theme.inputBg,
               border: `1px solid ${searchQuery ? theme.borderFocus : theme.border}`,
-              borderRadius: '20px',
+              borderRadius: '14px',
               paddingLeft: '30px',
               paddingRight: searchQuery ? '28px' : '10px',
-              paddingTop: '5px', paddingBottom: '5px',
-              fontSize: '12px',
+              fontSize: '13px',
               color: theme.textPrimary,
               outline: 'none',
               transition: 'width 150ms, border-color 80ms',

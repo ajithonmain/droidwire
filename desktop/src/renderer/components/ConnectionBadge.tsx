@@ -68,7 +68,7 @@ export function ConnectionBadge({ status, device, safeToUnplug, onRescan, onDisc
       {status === 'connected' && (
         <button
           onClick={onDisconnect}
-          title="Eject device"
+          data-tip="Eject device"
           style={{
             fontSize: '11px',
             color: theme.textMuted,

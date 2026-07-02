@@ -300,7 +300,7 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
           <div style={{ marginTop: '4px', paddingTop: '8px', borderTop: `1px solid ${theme.border}` }}>
             <span style={{ fontSize: '11px', color: theme.textMuted, display: 'block', marginBottom: '3px' }}>Path</span>
             <span
-              title={file.path}
+              data-tip={file.path}
               style={{
                 fontSize: '11px', color: theme.textMuted, fontFamily: 'monospace',
                 wordBreak: 'break-all', lineHeight: '1.4', display: 'block',

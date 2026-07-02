@@ -135,7 +135,7 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onNew, onDropOnTa
 
       <button
         onClick={onNew}
-        title="New tab (⌘T)"
+        data-tip="New tab (⌘T)"
         style={{
           background: 'none',
           border: 'none',

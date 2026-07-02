@@ -24,6 +24,7 @@ import type { ConflictChoice, ConflictResolution } from './components/FileConfli
 import { TabBar } from './components/TabBar'
 import type { Tab } from './components/TabBar'
 import { useTheme } from './lib/ThemeContext'
+import { TooltipLayer } from './components/TooltipLayer'
 
 type SortField = 'name' | 'size' | 'date' | 'type'
 type SortDir = 'asc' | 'desc'
@@ -674,11 +675,11 @@ export default function App() {
               <button
                 onClick={goBack}
                 disabled={!canGoBack}
-                title="Back (⌘[)"
+                data-tip="Back (⌘[)"
                 style={{
                   background: 'none', border: 'none', cursor: canGoBack ? 'pointer' : 'default',
                   color: canGoBack ? theme.textSecondary : theme.textMuted,
-                  padding: '5px 6px', display: 'flex', alignItems: 'center', borderRadius: '5px',
+                  width: '28px', height: '28px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px',
                   transition: 'color 80ms, background 80ms',
                 }}
                 onMouseEnter={e => { if (canGoBack) (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
@@ -691,11 +692,11 @@ export default function App() {
               <button
                 onClick={goForward}
                 disabled={!canGoForward}
-                title="Forward (⌘])"
+                data-tip="Forward (⌘])"
                 style={{
                   background: 'none', border: 'none', cursor: canGoForward ? 'pointer' : 'default',
                   color: canGoForward ? theme.textSecondary : theme.textMuted,
-                  padding: '5px 6px', display: 'flex', alignItems: 'center', borderRadius: '5px',
+                  width: '28px', height: '28px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px',
                   transition: 'color 80ms, background 80ms',
                 }}
                 onMouseEnter={e => { if (canGoForward) (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
@@ -719,17 +720,17 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'] }}>
               <button
                 onClick={() => window.droidwire.newWindow().catch(() => {})}
-                title="New Window (⌘N)"
+                data-tip="New Window (⌘N)"
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
-                  padding: '5px 6px', color: theme.textMuted,
-                  display: 'flex', alignItems: 'center', borderRadius: '5px',
+                  width: '28px', height: '28px', padding: 0, color: theme.textMuted,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px',
                   transition: 'color 80ms, background 80ms',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = theme.textSecondary }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
                   <rect x="1" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
                   <path d="M1 6h12" stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.5"/>
                   <path d="M4 1.5h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -737,17 +738,17 @@ export default function App() {
               </button>
               <button
                 onClick={bookmarkCurrent}
-                title={isBookmarked ? 'Remove bookmark' : 'Bookmark this folder'}
+                data-tip={isBookmarked ? 'Remove bookmark' : 'Bookmark this folder'}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
-                  padding: '5px 6px', color: isBookmarked ? theme.accent : theme.textMuted,
-                  display: 'flex', alignItems: 'center', borderRadius: '5px',
+                  width: '28px', height: '28px', padding: 0, color: isBookmarked ? theme.accent : theme.textMuted,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px',
                   transition: 'color 80ms, background 80ms',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill={isBookmarked ? 'currentColor' : 'none'}>
+                <svg width="15" height="15" viewBox="0 0 14 14" fill={isBookmarked ? 'currentColor' : 'none'}>
                   <path d="M3.5 2h7v10l-3.5-2.5L3.5 12V2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                 </svg>
               </button>
@@ -763,8 +764,8 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'] }}>
           <button
             onClick={toggle}
-            style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', borderRadius: '5px', transition: 'color 80ms, background 80ms' }}
-            title={mode === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', width: '28px', height: '28px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', transition: 'color 80ms, background 80ms' }}
+            data-tip={mode === 'dark' ? 'Switch to light' : 'Switch to dark'}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
           >
@@ -1052,6 +1053,8 @@ export default function App() {
           onResolve={conflictState.resolve}
         />
       )}
+
+      <TooltipLayer />
     </div>
   )
 }
