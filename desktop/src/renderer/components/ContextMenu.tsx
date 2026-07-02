@@ -6,7 +6,7 @@ import { useTheme } from '../lib/ThemeContext'
 interface Props {
   x: number
   y: number
-  file: FileNode
+  file: FileNode | null
   onClose: () => void
   onDownload: (file: FileNode) => void
   onDelete: (file: FileNode) => void
@@ -21,6 +21,8 @@ interface Props {
   onPaste?: () => void
   hasClipboard?: boolean
   downloadCount?: number
+  onSelectAll?: () => void
+  onRefresh?: () => void
 }
 
 interface Item {
@@ -56,7 +58,7 @@ function MenuItem({ item, onClose, theme }: { item: Item; onClose: () => void; t
 export function ContextMenu({
   x, y, file, onClose, onDownload, onDelete, onRename, onCopyPath, onNewFolder,
   onZipDownload, onInstallApk, onOpenInNewTab, onCopy, onCut, onPaste, hasClipboard,
-  downloadCount,
+  downloadCount, onSelectAll, onRefresh,
 }: Props) {
   const { theme } = useTheme()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -87,30 +89,39 @@ export function ContextMenu({
     }
   }, [onClose])
 
-  const isApk = file.type === 'file' && file.name.toLowerCase().endsWith('.apk')
-  const isDir = file.type === 'dir'
-
   const items: Item[] = []
-  if (isDir) {
-    if (onZipDownload) items.push({ label: 'Download as ZIP', onClick: () => onZipDownload(file) })
-    if (onOpenInNewTab) items.push({ label: 'Open in New Tab', onClick: () => onOpenInNewTab(file) })
+  if (!file) {
+    // Empty-space menu: folder-level operations only
+    if (onPaste && hasClipboard) items.push({ label: 'Paste    ⌘V', onClick: () => onPaste() })
+    items.push({ label: 'New Folder', onClick: onNewFolder })
+    if (onSelectAll || onRefresh) items.push({ separator: true, label: '', onClick: () => {} })
+    if (onSelectAll) items.push({ label: 'Select All    ⌘A', onClick: onSelectAll })
+    if (onRefresh) items.push({ label: 'Refresh    ⌘R', onClick: onRefresh })
   } else {
-    items.push({
-      label: downloadCount && downloadCount > 1 ? `Download ${downloadCount} Files` : 'Download',
-      onClick: () => onDownload(file),
-    })
-    if (isApk && onInstallApk) items.push({ label: 'Install APK', onClick: () => onInstallApk(file) })
+    const isApk = file.type === 'file' && file.name.toLowerCase().endsWith('.apk')
+    const isDir = file.type === 'dir'
+
+    if (isDir) {
+      if (onZipDownload) items.push({ label: 'Download as ZIP', onClick: () => onZipDownload(file) })
+      if (onOpenInNewTab) items.push({ label: 'Open in New Tab', onClick: () => onOpenInNewTab(file) })
+    } else {
+      items.push({
+        label: downloadCount && downloadCount > 1 ? `Download ${downloadCount} Files` : 'Download',
+        onClick: () => onDownload(file),
+      })
+      if (isApk && onInstallApk) items.push({ label: 'Install APK', onClick: () => onInstallApk(file) })
+    }
+    items.push({ separator: true, label: '', onClick: () => {} })
+    if (onCopy) items.push({ label: 'Copy     ⌘C', onClick: () => onCopy(file) })
+    if (onCut) items.push({ label: 'Cut        ⌘X', onClick: () => onCut(file) })
+    if (onPaste && hasClipboard) items.push({ label: 'Paste    ⌘V', onClick: () => onPaste() })
+    items.push({ label: 'Rename', onClick: () => onRename(file) })
+    items.push({ label: 'Copy Path', onClick: () => onCopyPath(file) })
+    items.push({ separator: true, label: '', onClick: () => {} })
+    items.push({ label: 'New Folder', onClick: onNewFolder })
+    items.push({ separator: true, label: '', onClick: () => {} })
+    items.push({ label: 'Delete', onClick: () => onDelete(file), danger: true })
   }
-  items.push({ separator: true, label: '', onClick: () => {} })
-  if (onCopy) items.push({ label: 'Copy     ⌘C', onClick: () => onCopy(file) })
-  if (onCut) items.push({ label: 'Cut        ⌘X', onClick: () => onCut(file) })
-  if (onPaste && hasClipboard) items.push({ label: 'Paste    ⌘V', onClick: () => onPaste() })
-  items.push({ label: 'Rename', onClick: () => onRename(file) })
-  items.push({ label: 'Copy Path', onClick: () => onCopyPath(file) })
-  items.push({ separator: true, label: '', onClick: () => {} })
-  items.push({ label: 'New Folder', onClick: onNewFolder })
-  items.push({ separator: true, label: '', onClick: () => {} })
-  items.push({ label: 'Delete', onClick: () => onDelete(file), danger: true })
 
   return (
     <div

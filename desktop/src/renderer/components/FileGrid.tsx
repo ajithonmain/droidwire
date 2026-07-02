@@ -38,6 +38,7 @@ interface Props {
   onRangeSelect: (files: FileNode[]) => void
   onDownload: (file: FileNode) => void
   onContextMenu: (file: FileNode, x: number, y: number) => void
+  onEmptyContextMenu?: (x: number, y: number) => void
   onDeselectAll: () => void
   onGoUp: () => void
   onSelectAll: () => void
@@ -408,7 +409,7 @@ const OVERSCAN = 8   // buffer rows — 8*124=992px grid, 8*36=288px list
 export function FileGrid({
   files, loading, currentPath: _currentPath, selectedPaths, cutPaths, viewMode,
   sortField, sortDir, onSort,
-  onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu,
+  onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu, onEmptyContextMenu,
   onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRenameInline, onPreview, onNativeDrag: _onNativeDrag,
   onInternalDragStart, onInternalDragEnd, keyboardDisabled,
 }: Props) {
@@ -605,6 +606,14 @@ export function FileGrid({
     e.preventDefault()
   }
 
+  // Right-click on empty space (not on an item) — folder-level menu
+  function handleEmptyContextMenu(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest('[data-item], thead')) return
+    e.preventDefault()
+    clearRenameTimer()
+    onEmptyContextMenu?.(e.clientX, e.clientY)
+  }
+
   const marqueeOverlay = marqueeRect && (
     <div style={{
       position: 'absolute',
@@ -706,7 +715,10 @@ export function FileGrid({
   )
 
   if (files.length === 0) return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', color: theme.textMuted }}>
+    <div
+      onContextMenu={handleEmptyContextMenu}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', color: theme.textMuted }}
+    >
       <FolderIconLg selected={false} theme={theme} />
       <span style={{ fontSize: '13px' }}>This folder is empty</span>
     </div>
@@ -728,6 +740,7 @@ export function FileGrid({
         onMouseDown={handleMarqueeMouseDown}
         onClickCapture={suppressMarqueeClick}
         onClick={(e) => { if (e.target === e.currentTarget) { onDeselectAll(); clearRenameTimer() } }}
+        onContextMenu={handleEmptyContextMenu}
       >
         {marqueeOverlay}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px', padding: '10px' }}>
@@ -841,6 +854,7 @@ export function FileGrid({
       onMouseDown={handleMarqueeMouseDown}
       onClickCapture={suppressMarqueeClick}
       onClick={(e) => { if (e.target === e.currentTarget) { onDeselectAll(); clearRenameTimer() } }}
+      onContextMenu={handleEmptyContextMenu}
     >
       {marqueeOverlay}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>

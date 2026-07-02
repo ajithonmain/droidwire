@@ -73,7 +73,7 @@ export default function App() {
   const [searchMode, setSearchMode] = useState<SearchMode>('local')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<FileNode[] | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ file: FileNode; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ file: FileNode | null; x: number; y: number } | null>(null)
   const [renameTarget, setRenameTarget] = useState<FileNode | null>(null)
   const [deleteTargets, setDeleteTargets] = useState<FileNode[]>([])
   const [showNewFolder, setShowNewFolder] = useState(false)
@@ -903,6 +903,7 @@ export default function App() {
                   if (!selectedFiles.some(f => f.path === file.path)) setSelectedFiles([file])
                   setContextMenu({ file, x, y })
                 }}
+                onEmptyContextMenu={(x, y) => setContextMenu({ file: null, x, y })}
                 onDeselectAll={() => setSelectedFiles([])}
                 onGoUp={goUp}
                 onSelectAll={() => setSelectedFiles(displayFiles)}
@@ -1014,14 +1015,16 @@ export default function App() {
           onDownload={file => {
             contextTargets(file).filter(f => f.type === 'file').forEach(f => download(f.path, f.name))
           }}
-          downloadCount={contextTargets(contextMenu.file).filter(f => f.type === 'file').length}
+          downloadCount={contextMenu.file ? contextTargets(contextMenu.file).filter(f => f.type === 'file').length : 0}
           onDelete={file => setDeleteTargets(contextTargets(file))}
           onRename={file => setRenameTarget(file)}
           onCopyPath={handleCopyPath}
           onNewFolder={() => setShowNewFolder(true)}
           onZipDownload={handleZipDownload}
           onInstallApk={handleInstallApk}
-          onOpenInNewTab={contextMenu.file.type === 'dir' ? file => openInNewTab(file.path) : undefined}
+          onOpenInNewTab={contextMenu.file?.type === 'dir' ? file => openInNewTab(file.path) : undefined}
+          onSelectAll={() => setSelectedFiles(displayFiles)}
+          onRefresh={refresh}
           onCopy={file => setClipboard({ nodes: contextTargets(file), mode: 'copy' })}
           onCut={file => setClipboard({ nodes: contextTargets(file), mode: 'cut' })}
           onPaste={handlePaste}
