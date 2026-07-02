@@ -36,6 +36,13 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, storage, safeToUnplug, disconnect, rescan } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
+  // Branded splash on launch — covers the first device probe so the
+  // connection picker doesn't pop in abruptly
+  const [booting, setBooting] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setBooting(false), 1400)
+    return () => clearTimeout(t)
+  }, [])
   // Setup tutorial only appears if the device hasn't connected within the grace period
   const [guideGraceOver, setGuideGraceOver] = useState(false)
   useEffect(() => {
@@ -855,7 +862,17 @@ export default function App() {
           )}
 
           {!isConnected ? (
-            !connectionPicked ? (
+            booting ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+                  <rect x="14" y="4" width="24" height="44" rx="5" stroke={theme.accent} strokeWidth="2.5" />
+                  <path d="M22 42h8" stroke={theme.accent} strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M4 20v12M48 20v12" stroke={theme.textMuted} strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+                <span style={{ fontSize: '17px', fontWeight: 600, color: theme.textPrimary, letterSpacing: '0.02em' }}>Droidwire</span>
+                <span style={{ fontSize: '12px', color: theme.textMuted }}>Looking for your device…</span>
+              </div>
+            ) : !connectionPicked ? (
               <ConnectionTypePicker onSelect={() => { setConnectionPicked(true); rescan() }} />
             ) : !guideGraceOver ? (
               // Grace period: a device with USB debugging already on connects in
