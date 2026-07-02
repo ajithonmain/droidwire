@@ -82,6 +82,10 @@ function adbBin(): string {
 let _activeSerial: string | null = null
 const _modelCache = new Map<string, string>()
 
+// Per-device eject: these serials are hidden from the app until the user
+// rescans or physically replugs a device
+const _ejectedSerials = new Set<string>()
+
 function adbArgs(args: string[]): string[] {
   // 'devices' is global; callers passing an explicit -s manage their own scope
   if (!_activeSerial || args[0] === 'devices' || args[0] === '-s') return args
@@ -333,6 +337,9 @@ function setupUsbAutoOpen(): void {
     const { usb } = require('usb') as typeof import('usb')
     usb.on('attach', (device) => {
       if (!ANDROID_VENDOR_IDS.has(device.deviceDescriptor.idVendor)) return
+      // Physically replugging a phone is an explicit reconnect request —
+      // bring back any individually ejected devices
+      _ejectedSerials.clear()
       if (!mainWindow) return
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.show()
@@ -350,10 +357,6 @@ app.on('window-all-closed', () => {
 // ---------------------------------------------------------------------------
 // IPC: device
 // ---------------------------------------------------------------------------
-
-// Per-device eject: these serials are hidden from the app until the user
-// rescans, so ejecting one phone doesn't kick out the others
-const _ejectedSerials = new Set<string>()
 
 ipcMain.handle('adb:eject-device', async (_e, serial: string) => {
   _ejectedSerials.add(serial)
