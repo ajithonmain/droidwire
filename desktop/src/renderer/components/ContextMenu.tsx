@@ -20,6 +20,7 @@ interface Props {
   onCut?: (file: FileNode) => void
   onPaste?: () => void
   hasClipboard?: boolean
+  downloadCount?: number
 }
 
 interface Item {
@@ -55,6 +56,7 @@ function MenuItem({ item, onClose, theme }: { item: Item; onClose: () => void; t
 export function ContextMenu({
   x, y, file, onClose, onDownload, onDelete, onRename, onCopyPath, onNewFolder,
   onZipDownload, onInstallApk, onOpenInNewTab, onCopy, onCut, onPaste, hasClipboard,
+  downloadCount,
 }: Props) {
   const { theme } = useTheme()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -82,7 +84,10 @@ export function ContextMenu({
     if (onZipDownload) items.push({ label: 'Download as ZIP', onClick: () => onZipDownload(file) })
     if (onOpenInNewTab) items.push({ label: 'Open in New Tab', onClick: () => onOpenInNewTab(file) })
   } else {
-    items.push({ label: 'Download', onClick: () => onDownload(file) })
+    items.push({
+      label: downloadCount && downloadCount > 1 ? `Download ${downloadCount} Files` : 'Download',
+      onClick: () => onDownload(file),
+    })
     if (isApk && onInstallApk) items.push({ label: 'Install APK', onClick: () => onInstallApk(file) })
   }
   items.push({ separator: true, label: '', onClick: () => {} })

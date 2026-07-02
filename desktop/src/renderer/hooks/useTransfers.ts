@@ -80,8 +80,8 @@ export function useTransfers() {
     }
   }, [recordDone])
 
-  const upload = useCallback(async (localPath: string, remoteDirPath: string) => {
-    const fileName = localPath.split('/').pop() ?? 'file'
+  const upload = useCallback(async (localPath: string, remoteDirPath: string, destName?: string) => {
+    const fileName = destName ?? localPath.split('/').pop() ?? 'file'
     const remotePath = remoteDirPath.replace(/\/$/, '') + '/' + fileName
     const id = `ul-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const entry: TransferProgress = {
@@ -92,9 +92,11 @@ export function useTransfers() {
     setTransfers(prev => [entry, ...prev])
     try {
       await window.droidwire.pushFile(localPath, remotePath, id)
+      return true
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e)
       setTransfers(prev => prev.map(t => t.id === id ? { ...t, status: 'error', error } : t))
+      return false
     }
   }, [])
 

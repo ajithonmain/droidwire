@@ -8,6 +8,7 @@ interface Props {
   files: FileNode[]
   onDownload: (file: FileNode) => void
   onDownloadAll: (files: FileNode[]) => void
+  onZipDownload?: (file: FileNode) => void
   onClose: () => void
 }
 
@@ -38,9 +39,10 @@ function isText(mime: string | null): boolean {
   )
 }
 
-function TypeBadge({ mimeType, theme }: { mimeType: string | null; theme: Theme }) {
-  const label = mimeType ? (mimeType.split('/')[1]?.toUpperCase() ?? 'FILE') : 'FILE'
-  const color = isImage(mimeType) ? theme.accent
+function TypeBadge({ mimeType, theme, isDir }: { mimeType: string | null; theme: Theme; isDir?: boolean }) {
+  const label = isDir ? 'FOLDER' : mimeType ? (mimeType.split('/')[1]?.toUpperCase() ?? 'FILE') : 'FILE'
+  const color = isDir ? '#5E9CF5'
+    : isImage(mimeType) ? theme.accent
     : isVideo(mimeType) ? theme.warning
     : isAudio(mimeType) ? '#5E9CF5'
     : isPdf(mimeType) ? theme.error
@@ -106,14 +108,39 @@ function PlaceholderIcon({ mimeType, theme }: { mimeType: string | null; theme: 
   )
 }
 
-function SinglePreview({ file, onDownload, onClose, theme }: { file: FileNode; onDownload: (f: FileNode) => void; onClose: () => void; theme: Theme }) {
+function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
+  file: FileNode; onDownload: (f: FileNode) => void; onZipDownload?: (f: FileNode) => void; onClose: () => void; theme: Theme
+}) {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [textContent, setTextContent] = useState<string | null>(null)
   const [statInfo, setStatInfo] = useState<{ permissions: string | null; octal: string | null } | null>(null)
+  const [videoFrame, setVideoFrame] = useState<string | null>(null)
+  const [dirSize, setDirSize] = useState<number | null | 'loading'>(null)
 
-  const canFetchPreview = (isImage(file.mimeType) || isPdf(file.mimeType) || isAudio(file.mimeType) || isText(file.mimeType)) && file.size <= 25 * 1024 * 1024
-  const tooBig = file.size > 25 * 1024 * 1024
+  const isDir = file.type === 'dir'
+
+  useEffect(() => {
+    if (!isDir) { setDirSize(null); return }
+    let cancelled = false
+    setDirSize('loading')
+    window.droidwire.dirSize(file.path)
+      .then(s => { if (!cancelled) setDirSize(s) })
+      .catch(() => { if (!cancelled) setDirSize(null) })
+    return () => { cancelled = true }
+  }, [file.path, isDir])
+  const canFetchPreview = !isDir && (isImage(file.mimeType) || isPdf(file.mimeType) || isAudio(file.mimeType) || isText(file.mimeType)) && file.size <= 25 * 1024 * 1024
+  const tooBig = !isDir && !isVideo(file.mimeType) && file.size > 25 * 1024 * 1024
+
+  useEffect(() => {
+    setVideoFrame(null)
+    if (!isVideo(file.mimeType)) return
+    let cancelled = false
+    window.droidwire.videoThumb(file.path, file.size)
+      .then(r => { if (!cancelled && r) setVideoFrame(r) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [file.path, file.size, file.mimeType])
 
   useEffect(() => {
     setPreviewSrc(null)
@@ -208,22 +235,55 @@ function SinglePreview({ file, onDownload, onClose, theme }: { file: FileNode; o
         borderBottom: `1px solid ${theme.border}`,
         overflow: 'hidden',
       }}>
-        {isVideo(file.mimeType) ? (
-          <PlaceholderIcon mimeType={file.mimeType} theme={theme} />
+        {isDir ? (
+          <svg width="44" height="44" viewBox="0 0 40 36" fill="none">
+            <path d="M2 6C2 4.343 3.343 3 5 3h9l4 4h17c1.657 0 3 1.343 3 3v20c0 1.657-1.343 3-3 3H5c-1.657 0-3-1.343-3-3V6Z"
+              fill="#5E9CF5" fillOpacity="0.25" stroke="#5E9CF5" strokeWidth="1.5" />
+          </svg>
+        ) : isVideo(file.mimeType) ? (
+          videoFrame ? (
+            <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', display: 'flex' }}>
+              <img src={videoFrame} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M4 2.5L11.5 7L4 11.5V2.5Z" fill="#FFFFFF" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PlaceholderIcon mimeType={file.mimeType} theme={theme} />
+          )
         ) : (
           renderPreviewArea()
         )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-        <p style={{ fontSize: '13px', fontWeight: 600, color: theme.textPrimary, wordBreak: 'break-word', lineHeight: '1.4', marginBottom: '10px' }}>
+        <p style={{ fontSize: '14px', fontWeight: 600, color: theme.textPrimary, wordBreak: 'break-word', lineHeight: '1.4', marginBottom: '10px' }}>
           {file.name}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <TypeBadge mimeType={file.mimeType} theme={theme} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+          <TypeBadge mimeType={file.mimeType} theme={theme} isDir={isDir} />
+          {isDir && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+              <span style={{ fontSize: '12px', color: theme.textMuted }}>Kind</span>
+              <span style={{ fontSize: '12px', color: theme.textSecondary }}>Folder</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDir ? 0 : '4px' }}>
             <span style={{ fontSize: '12px', color: theme.textMuted }}>Size</span>
-            <span style={{ fontSize: '12px', color: theme.textSecondary }}>{formatSize(file.size)}</span>
+            <span style={{ fontSize: '12px', color: theme.textSecondary }}>
+              {isDir
+                ? dirSize === 'loading' ? 'Calculating…' : dirSize !== null ? formatSize(dirSize) : '—'
+                : formatSize(file.size)}
+            </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '12px', color: theme.textMuted }}>Modified</span>
@@ -242,7 +302,7 @@ function SinglePreview({ file, onDownload, onClose, theme }: { file: FileNode; o
             <span
               title={file.path}
               style={{
-                fontSize: '10px', color: theme.textMuted, fontFamily: 'monospace',
+                fontSize: '11px', color: theme.textMuted, fontFamily: 'monospace',
                 wordBreak: 'break-all', lineHeight: '1.4', display: 'block',
               }}
             >
@@ -254,11 +314,11 @@ function SinglePreview({ file, onDownload, onClose, theme }: { file: FileNode; o
 
       <div style={{ padding: '10px 12px', borderTop: `1px solid ${theme.border}` }}>
         <button
-          onClick={() => onDownload(file)}
+          onClick={() => (isDir ? onZipDownload?.(file) : onDownload(file))}
           style={{
             width: '100%', padding: '7px',
             background: theme.accent, border: 'none', borderRadius: '7px',
-            color: theme.accentText, fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            color: theme.accentText, fontSize: '14px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
           }}
         >
@@ -266,7 +326,7 @@ function SinglePreview({ file, onDownload, onClose, theme }: { file: FileNode; o
             <path d="M7 2v7M4 6.5L7 9.5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M2 11h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          Download
+          {isDir ? 'Download as ZIP' : 'Download'}
         </button>
       </div>
     </>
@@ -324,7 +384,7 @@ function BulkPanel({ files, onDownloadAll, onClose, theme }: { files: FileNode[]
           style={{
             width: '100%', padding: '7px',
             background: theme.accent, border: 'none', borderRadius: '7px',
-            color: theme.accentText, fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            color: theme.accentText, fontSize: '14px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
           }}
         >
@@ -339,7 +399,7 @@ function BulkPanel({ files, onDownloadAll, onClose, theme }: { files: FileNode[]
   )
 }
 
-export function FilePreview({ files, onDownload, onDownloadAll, onClose }: Props) {
+export function FilePreview({ files, onDownload, onDownloadAll, onZipDownload, onClose }: Props) {
   const { theme } = useTheme()
   if (files.length === 0) return null
 
@@ -351,7 +411,7 @@ export function FilePreview({ files, onDownload, onDownloadAll, onClose }: Props
       background: theme.surface, overflow: 'hidden',
     }}>
       {files.length === 1
-        ? <SinglePreview file={files[0]} onDownload={onDownload} onClose={onClose} theme={theme} />
+        ? <SinglePreview file={files[0]} onDownload={onDownload} onZipDownload={onZipDownload} onClose={onClose} theme={theme} />
         : <BulkPanel files={files} onDownloadAll={onDownloadAll} onClose={onClose} theme={theme} />
       }
     </div>

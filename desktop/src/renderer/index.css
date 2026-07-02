@@ -46,3 +46,18 @@ input::placeholder {
 input:focus {
   outline: none;
 }
+
+/* Buttons inherit the app font and never show the OS focus ring (orange on
+   macOS); keyboard users still get a themed ring via :focus-visible. */
+button {
+  font-family: inherit;
+}
+
+button:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(0, 200, 74, 0.7);
+  outline-offset: 1px;
+}

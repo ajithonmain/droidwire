@@ -27,14 +27,14 @@ export const darkTheme: Theme = {
   surface: '#1C1C20',      // cards, panels — clear step up from bg
   surfaceHover: '#242428', // hover state — visible jump
   surfaceActive: '#2A2A2F',
-  border: 'rgba(255,255,255,0.10)',   // more visible than before
+  border: 'rgba(255,255,255,0.14)',   // visible separation on dark surfaces
   borderFocus: 'rgba(0,216,74,0.40)',
   accent: '#00D84A',
   accentDim: 'rgba(0,216,74,0.12)',
   accentText: '#000000',
-  textPrimary: '#F0F0F2',   // near-white, not pure white
-  textSecondary: '#9898A0', // clear muted, not invisible
-  textMuted: '#505058',     // darker muted for labels/captions
+  textPrimary: '#F2F2F5',   // near-white, not pure white
+  textSecondary: '#B4B4BD', // readable secondary text
+  textMuted: '#82828C',     // labels/captions still clearly legible
   error: '#FF3B30',
   errorDim: 'rgba(255,59,48,0.14)',
   warning: '#FF9F0A',

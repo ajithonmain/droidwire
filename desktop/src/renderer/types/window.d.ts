@@ -28,11 +28,15 @@ interface DroidwireAPI {
   statFile(remotePath: string): Promise<{ permissions: string | null; octal: string | null; modified: string | null } | null>
   setTitle(title: string): Promise<void>
   readLocalFile(localPath: string): Promise<string | null>
-  startDrag(remotePath: string, fileName: string): Promise<string>
+  startDrag(dragFiles: { remotePath: string; fileName: string }[]): Promise<void>
   newWindow(): Promise<void>
   storeDragNode(node: unknown): Promise<void>
   retrieveDragNode(): Promise<unknown>
   deleteLocalFile(localPath: string): Promise<void>
+  getPathForFile(file: File): string
+  localConflictCheck(fileName: string): Promise<{ exists: boolean; uniqueName: string }>
+  videoThumb(remotePath: string, size: number): Promise<string | null>
+  dirSize(remotePath: string): Promise<number | null>
   onTransferProgress(callback: (progress: unknown) => void): () => void
 }
 

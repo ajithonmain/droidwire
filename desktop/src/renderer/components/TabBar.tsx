@@ -18,11 +18,13 @@ interface Props {
   onSwitch: (id: string) => void
   onClose: (id: string) => void
   onNew: () => void
+  onDropOnTab?: (path: string) => void
 }
 
-export function TabBar({ tabs, activeTabId, onSwitch, onClose, onNew }: Props) {
+export function TabBar({ tabs, activeTabId, onSwitch, onClose, onNew, onDropOnTab }: Props) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState<string | null>(null)
+  const [dragHovId, setDragHovId] = useState<string | null>(null)
   const dragSwitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   return (
@@ -47,14 +49,22 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onNew }: Props) {
             onMouseEnter={() => setHovered(tab.id)}
             onMouseLeave={() => setHovered(null)}
             onClick={() => onSwitch(tab.id)}
-            onDragOver={e => e.preventDefault()}
+            onDragOver={e => { e.preventDefault(); setDragHovId(tab.id) }}
             onDragEnter={() => {
               if (tab.id === activeTabId) return
               if (dragSwitchTimer.current) clearTimeout(dragSwitchTimer.current)
               dragSwitchTimer.current = setTimeout(() => onSwitch(tab.id), 400)
             }}
             onDragLeave={() => {
+              setDragHovId(prev => (prev === tab.id ? null : prev))
               if (dragSwitchTimer.current) { clearTimeout(dragSwitchTimer.current); dragSwitchTimer.current = null }
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragHovId(null)
+              if (dragSwitchTimer.current) { clearTimeout(dragSwitchTimer.current); dragSwitchTimer.current = null }
+              onDropOnTab?.(tab.path)
             }}
             style={{
               display: 'flex',
@@ -64,10 +74,12 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onNew }: Props) {
               padding: '0 8px 0 10px',
               borderRadius: '6px',
               cursor: 'pointer',
-              background: isActive
-                ? theme.surface
-                : isHov ? theme.surfaceHover : 'transparent',
-              border: `1px solid ${isActive ? theme.border : 'transparent'}`,
+              background: dragHovId === tab.id
+                ? `${theme.accent}28`
+                : isActive
+                  ? theme.surface
+                  : isHov ? theme.surfaceHover : 'transparent',
+              border: `1px solid ${dragHovId === tab.id ? theme.accent : isActive ? theme.border : 'transparent'}`,
               flexShrink: 0,
               userSelect: 'none',
               transition: 'background 80ms, border-color 80ms',

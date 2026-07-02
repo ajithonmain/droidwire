@@ -1,23 +1,26 @@
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { useTheme } from '../lib/ThemeContext'
 
 export type ConflictChoice = 'replace' | 'keep-both' | 'cancel'
 
-interface Props {
-  conflictNames: string[]
-  onResolve: (choice: ConflictChoice) => void
+export interface ConflictResolution {
+  choice: ConflictChoice
+  applyToAll: boolean
 }
 
-export function FileConflictModal({ conflictNames, onResolve }: Props) {
-  const { theme } = useTheme()
+interface Props {
+  conflictNames: string[]
+  showApplyAll?: boolean
+  onResolve: (resolution: ConflictResolution) => void
+}
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onResolve('cancel')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onResolve])
+export function FileConflictModal({ conflictNames, showApplyAll, onResolve }: Props) {
+  const { theme } = useTheme()
+  const [applyToAll, setApplyToAll] = useState(false)
+
+  // Deliberately no Escape/outside-click dismissal — a conflict needs an
+  // explicit decision, accidental dismissal cancels queued transfers.
+  const resolve = (choice: ConflictChoice) => onResolve({ choice, applyToAll })
 
   const label = conflictNames.length === 1
     ? `"${conflictNames[0]}"`
@@ -25,7 +28,6 @@ export function FileConflictModal({ conflictNames, onResolve }: Props) {
 
   return (
     <div
-      onClick={() => onResolve('cancel')}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.55)',
@@ -43,47 +45,78 @@ export function FileConflictModal({ conflictNames, onResolve }: Props) {
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
         }}
       >
-        <p style={{ fontSize: '13px', fontWeight: 600, color: theme.textPrimary, margin: '0 0 6px' }}>
+        <p style={{ fontSize: '15px', fontWeight: 600, color: theme.textPrimary, margin: '0 0 6px' }}>
           Item already exists
         </p>
-        <p style={{ fontSize: '12px', color: theme.textMuted, margin: '0 0 20px', lineHeight: 1.5 }}>
+        <p style={{ fontSize: '13px', color: theme.textSecondary, margin: '0 0 20px', lineHeight: 1.5 }}>
           {label} {conflictNames.length === 1 ? 'already exists' : 'already exist'} at the destination.
           What would you like to do?
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button
-            onClick={() => onResolve('keep-both')}
+            onClick={() => resolve('keep-both')}
             autoFocus
             style={{
               background: theme.accent, border: 'none', borderRadius: '7px',
-              color: '#000', fontSize: '13px', fontWeight: 600,
+              color: theme.accentText, fontSize: '14px', fontWeight: 600,
               padding: '9px 16px', cursor: 'pointer', textAlign: 'left',
             }}
           >
             Keep Both
-            <span style={{ fontSize: '11px', fontWeight: 400, display: 'block', opacity: 0.7, marginTop: '1px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 400, display: 'block', opacity: 0.75, marginTop: '2px' }}>
               Rename the new {conflictNames.length === 1 ? 'item' : 'items'} automatically
             </span>
           </button>
           <button
-            onClick={() => onResolve('replace')}
+            onClick={() => resolve('replace')}
             style={{
               background: theme.surfaceHover, border: `1px solid ${theme.border}`,
               borderRadius: '7px', color: theme.textPrimary,
-              fontSize: '13px', fontWeight: 500,
+              fontSize: '14px', fontWeight: 500,
               padding: '9px 16px', cursor: 'pointer', textAlign: 'left',
             }}
           >
             Replace
-            <span style={{ fontSize: '11px', fontWeight: 400, display: 'block', color: theme.textMuted, marginTop: '1px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 400, display: 'block', color: theme.textSecondary, marginTop: '2px' }}>
               Overwrite the existing {conflictNames.length === 1 ? 'item' : 'items'}
             </span>
           </button>
+          {showApplyAll && (
+            <label
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '4px 2px', cursor: 'pointer', userSelect: 'none',
+              }}
+            >
+              <span
+                onClick={e => { e.preventDefault(); setApplyToAll(v => !v) }}
+                style={{
+                  width: '15px', height: '15px', flexShrink: 0,
+                  borderRadius: '4px',
+                  border: `1px solid ${applyToAll ? theme.accent : theme.border}`,
+                  background: applyToAll ? theme.accent : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {applyToAll && (
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                    <path d="M1.5 5.5L4 8L8.5 2.5" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              <span
+                onClick={e => { e.preventDefault(); setApplyToAll(v => !v) }}
+                style={{ fontSize: '12px', color: theme.textMuted }}
+              >
+                Do this for all remaining conflicts
+              </span>
+            </label>
+          )}
           <button
-            onClick={() => onResolve('cancel')}
+            onClick={() => resolve('cancel')}
             style={{
               background: 'none', border: 'none', borderRadius: '7px',
-              color: theme.textMuted, fontSize: '12px',
+              color: theme.textSecondary, fontSize: '13px',
               padding: '7px 16px', cursor: 'pointer', textAlign: 'center',
             }}
           >

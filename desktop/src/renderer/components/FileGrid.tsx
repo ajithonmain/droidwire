@@ -48,6 +48,7 @@ interface Props {
   onNativeDrag?: (file: FileNode) => void
   onInternalDragStart?: (file: FileNode) => void
   onInternalDragEnd?: () => void
+  keyboardDisabled?: boolean
 }
 
 function FolderIconSm({ selected, theme }: { selected: boolean; theme: Theme }) {
@@ -261,6 +262,47 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
   return <FileIconLg mimeType={file.mimeType} fileName={file.name} theme={theme} />
 }
 
+function VideoThumbLg({ file, theme }: { file: FileNode; theme: Theme }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    let acquired = false
+    thumbAcquire().then(() => {
+      acquired = true
+      if (cancelled) { thumbRelease(); return }
+      return window.droidwire.videoThumb(file.path, file.size)
+        .then(r => { if (!cancelled && r) setSrc(r) })
+        .catch(() => {})
+        .finally(() => thumbRelease())
+    })
+    return () => {
+      cancelled = true
+      if (!acquired) {
+        const idx = _thumbQueue.length - 1
+        if (idx >= 0) _thumbQueue.splice(idx, 1, () => { _thumbActive++; thumbRelease() })
+      }
+    }
+  }, [file.path, file.size])
+
+  if (!src) return <FileIconLg mimeType={file.mimeType} fileName={file.name} theme={theme} />
+  return (
+    <div style={{ position: 'relative', width: 56, height: 56 }}>
+      <img src={src} alt={file.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px' }} />
+      <div style={{
+        position: 'absolute', right: 3, bottom: 3,
+        width: 16, height: 16, borderRadius: '50%',
+        background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <path d="M2 1.2L6.6 4L2 6.8V1.2Z" fill="#FFFFFF" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 function SortHeader({ field, label, sortField, sortDir, onSort, style }: {
   field: SortField; label: string; sortField: SortField; sortDir: SortDir
   onSort: (f: SortField) => void; style?: React.CSSProperties
@@ -336,7 +378,7 @@ export function FileGrid({
   sortField, sortDir, onSort,
   onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu,
   onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRenameInline, onPreview, onNativeDrag: _onNativeDrag,
-  onInternalDragStart, onInternalDragEnd,
+  onInternalDragStart, onInternalDragEnd, keyboardDisabled,
 }: Props) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState<string | null>(null)
@@ -344,6 +386,9 @@ export function FileGrid({
   const [editingPath, setEditingPath] = useState<string | null>(null)
   const lastClickIndexRef = useRef(-1)
   const shiftAnchorRef = useRef(-1)
+  // When the current selection was made — slow-click rename only arms on an
+  // item selected well before, so slow double-clicks don't trigger rename.
+  const selectedAtRef = useRef(0)
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -408,34 +453,187 @@ export function FileGrid({
     if (renameTimerRef.current) { clearTimeout(renameTimerRef.current); renameTimerRef.current = null }
   }
 
+  // Dragging a file that is part of a multi-selection carries the whole selection
+  const dragNodes = (file: FileNode): FileNode[] =>
+    selectedPaths.has(file.path) && selectedPaths.size > 1
+      ? files.filter(f => selectedPaths.has(f.path))
+      : [file]
+
+  // Native OS drag: cancel the HTML5 drag and let the main process pull the
+  // files to a temp dir and hand macOS a real file drag. Works for drops in
+  // Finder, on our tabs/sidebar, and in other apps alike.
+  function beginNativeDrag(e: React.DragEvent, file: FileNode) {
+    e.preventDefault()
+    const nodes = dragNodes(file)
+    window.droidwire.storeDragNode({ nodes, ts: Date.now() }).catch(() => {})
+    onInternalDragStart?.(file)
+    const dragFiles = nodes.filter(n => n.type === 'file').map(n => ({ remotePath: n.path, fileName: n.name }))
+    // startDrag resolves when the OS drag session ends (drop or cancel)
+    window.droidwire.startDrag(dragFiles).catch(() => {}).finally(() => onInternalDragEnd?.())
+  }
+
+  // ---------------------------------------------------------------------------
+  // Marquee (rubber-band) selection — Finder-style click-drag on empty space.
+  // Item rects are computed mathematically (grid is virtualized, so offscreen
+  // items have no DOM nodes to measure).
+  // ---------------------------------------------------------------------------
+  const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  // A real drag fires a trailing click on mouseup which would instantly
+  // deselect what the marquee just selected — swallow that one click.
+  const marqueeDidDragRef = useRef(false)
+  const suppressMarqueeClick = (e: React.MouseEvent) => {
+    if (marqueeDidDragRef.current) {
+      marqueeDidDragRef.current = false
+      e.stopPropagation()
+    }
+  }
+
+  function marqueeHitTest(x1: number, y1: number, x2: number, y2: number): FileNode[] {
+    if (viewMode === 'grid') {
+      const vw = viewWRef.current
+      const cols = Math.max(1, Math.floor((vw - 20) / GRID_MIN_W))
+      const cellW = (vw - 20 - (cols - 1) * 2) / cols
+      return files.filter((_f, i) => {
+        const ix = 10 + (i % cols) * (cellW + 2)
+        const iy = 10 + Math.floor(i / cols) * GRID_H
+        return ix < x2 && ix + cellW > x1 && iy < y2 && iy + GRID_H > y1
+      })
+    }
+    const headerH = scrollRef.current?.querySelector('thead')?.getBoundingClientRect().height ?? 31
+    return files.filter((_f, i) => {
+      const iy = headerH + i * LIST_H
+      return iy < y2 && iy + LIST_H > y1
+    })
+  }
+
+  function handleMarqueeMouseDown(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('[data-item], thead')) return
+    const el = scrollRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const startX = e.clientX - rect.left
+    const startY = e.clientY - rect.top + el.scrollTop
+    let active = false
+    let lastClientX = e.clientX
+    let lastClientY = e.clientY
+    let raf = 0
+
+    const update = () => {
+      const curX = Math.max(0, Math.min(lastClientX - rect.left, rect.width))
+      const curY = Math.max(0, lastClientY - rect.top) + el.scrollTop
+      if (!active && Math.abs(curX - startX) + Math.abs(curY - startY) < 5) return
+      active = true
+      const x = Math.min(startX, curX)
+      const y = Math.min(startY, curY)
+      const w = Math.abs(curX - startX)
+      const h = Math.abs(curY - startY)
+      setMarqueeRect({ x, y, w, h })
+      const hits = marqueeHitTest(x, y, x + w, y + h)
+      if (hits.length > 0) onRangeSelect(hits)
+      else onDeselectAll()
+    }
+
+    // Edge auto-scroll: keep scrolling while the pointer is held past the
+    // top/bottom edge, even if the mouse itself isn't moving.
+    const tick = () => {
+      if (active) {
+        const dy = lastClientY < rect.top + 28 ? -14 : lastClientY > rect.bottom - 28 ? 14 : 0
+        if (dy !== 0) {
+          el.scrollTop += dy
+          scrollTopRef.current = el.scrollTop
+          recomputeSlice()
+          update()
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+
+    const move = (ev: MouseEvent) => {
+      lastClientX = ev.clientX
+      lastClientY = ev.clientY
+      update()
+    }
+    const up = () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+      cancelAnimationFrame(raf)
+      setMarqueeRect(null)
+      if (active) marqueeDidDragRef.current = true
+      else { onDeselectAll(); clearRenameTimer() }
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+    raf = requestAnimationFrame(tick)
+    e.preventDefault()
+  }
+
+  const marqueeOverlay = marqueeRect && (
+    <div style={{
+      position: 'absolute',
+      left: marqueeRect.x, top: marqueeRect.y,
+      width: marqueeRect.w, height: marqueeRect.h,
+      background: `${theme.accent}15`,
+      border: `1px solid ${theme.accent}66`,
+      borderRadius: '2px',
+      pointerEvents: 'none',
+      zIndex: 5,
+    }} />
+  )
+
   useEffect(() => { setCursorIndex(-1); lastClickIndexRef.current = -1; clearRenameTimer() }, [files])
   useEffect(() => () => clearRenameTimer(), [])
 
+  // Scroll the cursor row into view — items are virtualized, so compute
+  // positions instead of querying DOM nodes.
+  const ensureVisible = useCallback((idx: number) => {
+    const el = scrollRef.current
+    if (!el || idx < 0) return
+    let y0: number, y1: number
+    if (viewMode === 'grid') {
+      const cols = Math.max(1, Math.floor((viewWRef.current - 20) / GRID_MIN_W))
+      y0 = 10 + Math.floor(idx / cols) * GRID_H
+      y1 = y0 + GRID_H
+    } else {
+      const headerH = el.querySelector('thead')?.getBoundingClientRect().height ?? 31
+      y0 = headerH + idx * LIST_H
+      y1 = y0 + LIST_H
+    }
+    if (y0 < el.scrollTop) el.scrollTop = y0 - 8
+    else if (y1 > el.scrollTop + el.clientHeight) el.scrollTop = y1 - el.clientHeight + 8
+  }, [viewMode])
+
   useEffect(() => {
+    function moveCursor(delta: number, shift: boolean) {
+      const from = cursorIndex >= 0 ? cursorIndex : 0
+      const next = Math.max(0, Math.min(cursorIndex < 0 ? 0 : from + delta, files.length - 1))
+      if (shift) {
+        if (shiftAnchorRef.current === -1) shiftAnchorRef.current = from
+        onRangeSelect(files.slice(Math.min(shiftAnchorRef.current, next), Math.max(shiftAnchorRef.current, next) + 1))
+      } else {
+        shiftAnchorRef.current = -1
+        onSelect(files[next], false)
+        lastClickIndexRef.current = next
+        selectedAtRef.current = Date.now()
+      }
+      setCursorIndex(next)
+      ensureVisible(next)
+    }
+
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
       const meta = e.metaKey || e.ctrlKey
+      // In grid view vertical arrows move by a full row, horizontal by one item
+      const cols = viewMode === 'grid' ? Math.max(1, Math.floor((viewWRef.current - 20) / GRID_MIN_W)) : 1
 
       if (e.key === 'Escape') { onDeselectAll(); setCursorIndex(-1); shiftAnchorRef.current = -1; clearRenameTimer() }
       else if (e.key === 'Backspace' && !meta) { e.preventDefault(); onGoUp() }
-      else if (e.key === 'ArrowDown' && !meta) {
-        e.preventDefault()
-        const next = Math.min(cursorIndex + 1, files.length - 1)
-        if (e.shiftKey) {
-          if (shiftAnchorRef.current === -1) shiftAnchorRef.current = Math.max(cursorIndex, 0)
-          onRangeSelect(files.slice(Math.min(shiftAnchorRef.current, next), Math.max(shiftAnchorRef.current, next) + 1))
-        } else { shiftAnchorRef.current = -1 }
-        setCursorIndex(next)
-      } else if (e.key === 'ArrowUp' && !meta) {
-        e.preventDefault()
-        const prev = Math.max(cursorIndex - 1, 0)
-        if (e.shiftKey) {
-          if (shiftAnchorRef.current === -1) shiftAnchorRef.current = Math.max(cursorIndex, 0)
-          onRangeSelect(files.slice(Math.min(shiftAnchorRef.current, prev), Math.max(shiftAnchorRef.current, prev) + 1))
-        } else { shiftAnchorRef.current = -1 }
-        setCursorIndex(prev)
-      } else if (e.key === 'ArrowDown' && meta) {
+      else if (e.key === 'ArrowDown' && !meta) { e.preventDefault(); moveCursor(cols, e.shiftKey) }
+      else if (e.key === 'ArrowUp' && !meta) { e.preventDefault(); moveCursor(-cols, e.shiftKey) }
+      else if (e.key === 'ArrowRight' && !meta && viewMode === 'grid') { e.preventDefault(); moveCursor(1, e.shiftKey) }
+      else if (e.key === 'ArrowLeft' && !meta && viewMode === 'grid') { e.preventDefault(); moveCursor(-1, e.shiftKey) }
+      else if (e.key === 'ArrowDown' && meta) {
         e.preventDefault()
         const active = cursorIndex >= 0 ? files[cursorIndex]
           : selectedPaths.size === 1 ? files.find(f => f.path === [...selectedPaths][0]) ?? null : null
@@ -458,10 +656,11 @@ export function FileGrid({
       else if (meta && e.key === 'Backspace') { if (selectedPaths.size > 0) { e.preventDefault(); onDeleteSelected() } }
       else if (meta && e.key.toLowerCase() === 'r') { e.preventDefault(); onRefresh() }
     }
+    if (keyboardDisabled) return
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [files, selectedPaths, cursorIndex, editingPath, onDeselectAll, onGoUp, onSelectAll,
-      onDeleteSelected, onRefresh, onRangeSelect, onPreview, onNavigate, onSelect])
+  }, [files, selectedPaths, cursorIndex, editingPath, viewMode, keyboardDisabled, ensureVisible,
+      onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRangeSelect, onPreview, onNavigate, onSelect])
 
   if (loading) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textMuted, fontSize: '14px' }}>
@@ -487,10 +686,13 @@ export function FileGrid({
     return (
       <div
         ref={scrollRef}
-        style={{ flex: 1, overflowY: 'auto' }}
+        style={{ flex: 1, overflowY: 'auto', position: 'relative' }}
         onScroll={handleScroll}
+        onMouseDown={handleMarqueeMouseDown}
+        onClickCapture={suppressMarqueeClick}
         onClick={(e) => { if (e.target === e.currentTarget) { onDeselectAll(); clearRenameTimer() } }}
       >
+        {marqueeOverlay}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px', padding: '10px' }}>
           {topPad > 0 && <div style={{ height: topPad, gridColumn: '1 / -1' }} />}
           {files.slice(slice.s, slice.e).map((file, relIdx) => {
@@ -503,13 +705,9 @@ export function FileGrid({
             return (
               <div
                 key={file.path}
+                data-item="1"
                 draggable={file.type === 'file'}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'copyMove'
-                  e.dataTransfer.setData('application/droidwire-file', JSON.stringify(file))
-                  window.droidwire.storeDragNode({ node: file, ts: Date.now() }).catch(() => {})
-                  onInternalDragStart?.(file)
-                }}
+                onDragStart={(e) => beginNativeDrag(e, file)}
                 onDragEnd={() => { onInternalDragEnd?.() }}
                 onMouseEnter={() => setHovered(file.path)}
                 onMouseLeave={() => setHovered(null)}
@@ -523,12 +721,14 @@ export function FileGrid({
                   } else if (e.metaKey || e.ctrlKey) {
                     onSelect(file, true)
                     lastClickIndexRef.current = idx
+                    selectedAtRef.current = Date.now()
                   } else {
-                    if (isSelected && selectedPaths.size === 1 && !isEditing) {
+                    if (isSelected && selectedPaths.size === 1 && !isEditing && Date.now() - selectedAtRef.current > 900) {
                       renameTimerRef.current = setTimeout(() => setEditingPath(file.path), 450)
                     } else {
                       onSelect(file, false)
                       lastClickIndexRef.current = idx
+                      selectedAtRef.current = Date.now()
                     }
                   }
                   setCursorIndex(idx)
@@ -560,6 +760,8 @@ export function FileGrid({
                     <FolderIconLg selected={isSelected} theme={theme} />
                   ) : file.mimeType?.startsWith('image/') ? (
                     <ThumbnailLg file={file} theme={theme} />
+                  ) : file.mimeType?.startsWith('video/') ? (
+                    <VideoThumbLg file={file} theme={theme} />
                   ) : (
                     <FileIconLg mimeType={file.mimeType} fileName={file.name} theme={theme} />
                   )}
@@ -572,7 +774,7 @@ export function FileGrid({
                   />
                 ) : (
                   <span style={{
-                    fontSize: '11px', fontWeight: 500,
+                    fontSize: '12px', fontWeight: 500,
                     color: isSelected ? theme.textPrimary : theme.textSecondary,
                     textAlign: 'center', width: '100%',
                     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -597,10 +799,13 @@ export function FileGrid({
   return (
     <div
       ref={scrollRef}
-      style={{ flex: 1, overflowY: 'auto' }}
+      style={{ flex: 1, overflowY: 'auto', position: 'relative' }}
       onScroll={handleScroll}
+      onMouseDown={handleMarqueeMouseDown}
+      onClickCapture={suppressMarqueeClick}
       onClick={(e) => { if (e.target === e.currentTarget) { onDeselectAll(); clearRenameTimer() } }}
     >
+      {marqueeOverlay}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: '50%' }} />
@@ -636,13 +841,9 @@ export function FileGrid({
             return (
               <tr
                 key={file.path}
+                data-item="1"
                 draggable={file.type === 'file'}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'copyMove'
-                  e.dataTransfer.setData('application/droidwire-file', JSON.stringify(file))
-                  window.droidwire.storeDragNode({ node: file, ts: Date.now() }).catch(() => {})
-                  onInternalDragStart?.(file)
-                }}
+                onDragStart={(e) => beginNativeDrag(e, file)}
                 onDragEnd={() => { onInternalDragEnd?.() }}
                 onClick={(e) => {
                   if (isEditing) return
@@ -654,12 +855,14 @@ export function FileGrid({
                   } else if (e.metaKey || e.ctrlKey) {
                     onSelect(file, true)
                     lastClickIndexRef.current = idx
+                    selectedAtRef.current = Date.now()
                   } else {
-                    if (isSelected && selectedPaths.size === 1) {
+                    if (isSelected && selectedPaths.size === 1 && Date.now() - selectedAtRef.current > 900) {
                       renameTimerRef.current = setTimeout(() => setEditingPath(file.path), 450)
                     } else {
                       onSelect(file, false)
                       lastClickIndexRef.current = idx
+                      selectedAtRef.current = Date.now()
                     }
                   }
                   setCursorIndex(idx)

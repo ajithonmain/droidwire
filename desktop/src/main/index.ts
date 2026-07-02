@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import http from 'http'
+import crypto from 'crypto'
 import { execFile, spawn } from 'child_process'
 import type { FileNode, TransferProgress, StorageInfo } from '@droidwire/shared'
 
@@ -165,6 +167,120 @@ function previewDir(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Video thumbnails — a local HTTP range server backed by `adb exec-out dd`
+// lets ffmpeg seek to the moov atom (which camera MP4s put at the end)
+// without pulling the whole file. Typical cost: ~8MB transfer per video.
+// ---------------------------------------------------------------------------
+
+function ffmpegBin(): string | null {
+  for (const p of ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']) {
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
+let _rangeServer: http.Server | null = null
+let _rangePort = 0
+const _remoteSizeCache = new Map<string, number>()
+
+function ensureRangeServer(): Promise<number> {
+  if (_rangePort) return Promise.resolve(_rangePort)
+  return new Promise(resolve => {
+    _rangeServer = http.createServer((req, res) => {
+      try {
+        const url = new URL(req.url ?? '', 'http://localhost')
+        const remotePath = url.searchParams.get('p')
+        const size = remotePath ? _remoteSizeCache.get(remotePath) : undefined
+        if (!remotePath || size === undefined) { res.writeHead(404); res.end(); return }
+        let start = 0
+        let end = size - 1
+        const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/)
+        if (range) {
+          if (range[1]) start = parseInt(range[1], 10)
+          // Cap open-ended reads — ffmpeg probes with them and never needs much
+          end = range[2] ? parseInt(range[2], 10) : Math.min(size - 1, start + 4 * 1024 * 1024 - 1)
+        }
+        const len = end - start + 1
+        const BS = 65536
+        const blockStart = Math.floor(start / BS)
+        let toSkip = start - blockStart * BS
+        const blockCount = Math.ceil((toSkip + len) / BS)
+        res.writeHead(range ? 206 : 200, {
+          'Accept-Ranges': 'bytes',
+          'Content-Length': len,
+          ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
+        })
+        const proc = spawn(adbBin(), ['exec-out', `dd if=${sq(remotePath)} bs=${BS} skip=${blockStart} count=${blockCount} 2>/dev/null`])
+        let remaining = len
+        proc.stdout.on('data', (chunk: Buffer) => {
+          let c = chunk
+          if (toSkip > 0) {
+            if (c.length <= toSkip) { toSkip -= c.length; return }
+            c = c.subarray(toSkip)
+            toSkip = 0
+          }
+          if (remaining <= 0) return
+          if (c.length > remaining) c = c.subarray(0, remaining)
+          remaining -= c.length
+          res.write(c)
+          if (remaining === 0) { res.end(); proc.kill() }
+        })
+        proc.on('close', () => { if (remaining > 0) res.end() })
+        proc.on('error', () => res.end())
+        res.on('close', () => proc.kill())
+      } catch { res.end() }
+    })
+    _rangeServer.listen(0, '127.0.0.1', () => {
+      _rangePort = (_rangeServer!.address() as { port: number }).port
+      resolve(_rangePort)
+    })
+  })
+}
+
+// ffmpeg concurrency limiter — each extraction spawns its own adb readers
+let _ffSlots = 0
+const _ffQueue: Array<() => void> = []
+function withFfSlot<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      _ffSlots++
+      fn().then(resolve, reject).finally(() => {
+        _ffSlots--
+        _ffQueue.shift()?.()
+      })
+    }
+    if (_ffSlots < 2) run()
+    else _ffQueue.push(run)
+  })
+}
+
+ipcMain.handle('adb:video-thumb', async (_e, remotePath: string, size: number) => {
+  const ff = ffmpegBin()
+  if (!ff || !size) return null
+  const dir = path.join(os.tmpdir(), 'droidwire-vthumbs')
+  fs.mkdirSync(dir, { recursive: true })
+  const key = crypto.createHash('md5').update(`${remotePath}:${size}`).digest('hex')
+  const out = path.join(dir, `${key}.jpg`)
+  if (fs.existsSync(out)) return `data:image/jpeg;base64,${fs.readFileSync(out).toString('base64')}`
+
+  _remoteSizeCache.set(remotePath, size)
+  const port = await ensureRangeServer()
+  const url = `http://127.0.0.1:${port}/v?p=${encodeURIComponent(remotePath)}`
+
+  return withFfSlot(() => new Promise<string | null>(resolve => {
+    const proc = spawn(ff, ['-y', '-v', 'error', '-i', url, '-frames:v', '1', '-vf', 'scale=320:-2', out])
+    const timer = setTimeout(() => { proc.kill('SIGKILL'); resolve(null) }, 20_000)
+    proc.on('error', () => { clearTimeout(timer); resolve(null) })
+    proc.on('close', code => {
+      clearTimeout(timer)
+      if (code === 0 && fs.existsSync(out)) {
+        resolve(`data:image/jpeg;base64,${fs.readFileSync(out).toString('base64')}`)
+      } else resolve(null)
+    })
+  }))
+})
+
+// ---------------------------------------------------------------------------
 // Window
 // ---------------------------------------------------------------------------
 
@@ -321,14 +437,16 @@ ipcMain.handle('adb:pull', async (event, remotePath: string, fileName: string, t
         })
         resolve(dest)
       } else {
-        let errMsg = 'adb pull failed'
-        proc.stderr.on('data', (d: Buffer) => { errMsg = d.toString().trim() })
+        // Remove the partial file a failed/cancelled pull left behind
+        try { fs.unlinkSync(dest) } catch { /* nothing to clean */ }
+        const errMsg = pullStderr.trim() || 'adb pull failed'
         event.sender.send('transfer-progress', { id: transferId, status: 'error', error: errMsg })
         reject(new Error(errMsg))
       }
     })
 
-    proc.stderr.on('data', () => { /* suppress */ })
+    let pullStderr = ''
+    proc.stderr.on('data', (d: Buffer) => { pullStderr += d.toString() })
   })
 })
 
@@ -337,32 +455,46 @@ ipcMain.handle('adb:push', async (event, localPath: string, remotePath: string, 
 
   return new Promise<void>((resolve, reject) => {
     const proc = spawn(adbBin(), ['push', localPath, remotePath])
-    const startTime = Date.now()
+    activeTransfers.set(transferId, proc)
+    let lastBytes = 0
+    let lastTime = Date.now()
+
+    // adb only prints [ XX%] progress when attached to a TTY, which a spawned
+    // process is not — so poll the remote file size instead (mirrors adb:pull).
+    let polling = false
+    const poll = setInterval(async () => {
+      if (polling) return
+      polling = true
+      try {
+        const out = await adb(['shell', `stat -c '%s' ${sq(remotePath)}`])
+        const size = parseInt(out.trim(), 10)
+        if (!Number.isNaN(size)) {
+          const now = Date.now()
+          const speedBps = now > lastTime ? (size - lastBytes) / ((now - lastTime) / 1000) : 0
+          lastBytes = size
+          lastTime = now
+          event.sender.send('transfer-progress', {
+            id: transferId, totalBytes, transferredBytes: size, speedBps: Math.max(0, speedBps), status: 'active',
+          })
+        }
+      } catch { /* file not yet created on device */ }
+      polling = false
+    }, 400)
 
     proc.on('error', err => {
+      clearInterval(poll)
+      activeTransfers.delete(transferId)
       event.sender.send('transfer-progress', { id: transferId, status: 'error', error: err.message })
       reject(err)
     })
 
-    // Parse [ XX%] lines from adb stderr for progress
     let stderr = ''
-    proc.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
-      const match = stderr.match(/\[\s*(\d+)%\]/)
-      if (match) {
-        const pct = parseInt(match[1], 10)
-        const transferredBytes = Math.round(totalBytes * pct / 100)
-        const elapsed = (Date.now() - startTime) / 1000
-        const speedBps = elapsed > 0 ? transferredBytes / elapsed : 0
-        event.sender.send('transfer-progress', {
-          id: transferId, totalBytes, transferredBytes, speedBps, status: 'active',
-        })
-      }
-    })
-
+    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString() })
     proc.stdout.on('data', () => { /* suppress */ })
 
     proc.on('close', code => {
+      clearInterval(poll)
+      activeTransfers.delete(transferId)
       if (code === 0) {
         event.sender.send('transfer-progress', {
           id: transferId, totalBytes, transferredBytes: totalBytes, speedBps: 0, status: 'done',
@@ -614,6 +746,25 @@ ipcMain.handle('set-download-dir', async (_e, dirPath: string) => {
   fs.writeFileSync(file, JSON.stringify({ downloadDir: dirPath }))
 })
 
+ipcMain.handle('adb:dir-size', async (_e, remotePath: string) => {
+  try {
+    const out = await adb(['shell', `du -sk ${sq(remotePath)}`])
+    const kb = parseInt(out.trim().split(/\s+/)[0], 10)
+    return Number.isNaN(kb) ? null : kb * 1024
+  } catch { return null } // huge trees can exceed the adb timeout — show nothing
+})
+
+ipcMain.handle('local-conflict-check', async (_e, fileName: string) => {
+  const dir = downloadsDir()
+  if (!fs.existsSync(path.join(dir, fileName))) return { exists: false, uniqueName: fileName }
+  const dot = fileName.lastIndexOf('.')
+  const namePart = dot > 0 ? fileName.slice(0, dot) : fileName
+  const extPart = dot > 0 ? fileName.slice(dot) : ''
+  let n = 2
+  while (fs.existsSync(path.join(dir, `${namePart} (${n})${extPart}`))) n++
+  return { exists: true, uniqueName: `${namePart} (${n})${extPart}` }
+})
+
 ipcMain.handle('adb:stat', async (_e, remotePath: string) => {
   try {
     const out = await adb(['shell', `stat ${sq(remotePath)}`])
@@ -647,13 +798,21 @@ ipcMain.handle('read-local-file', async (_e, localPath: string) => {
   }
 })
 
-ipcMain.handle('adb:start-drag', async (event, remotePath: string, fileName: string) => {
+ipcMain.handle('adb:start-drag', async (event, dragFiles: { remotePath: string; fileName: string }[]) => {
+  if (dragFiles.length === 0) return
   const tmpDir = path.join(os.tmpdir(), 'droidwire-drag')
   await fs.promises.mkdir(tmpDir, { recursive: true })
-  const localPath = path.join(tmpDir, fileName)
-  await adb(['pull', remotePath, localPath])
-  event.sender.startDrag({ file: localPath, icon: path.join(__dirname, '../../resources/icon.png') })
-  return localPath
+  const localPaths: string[] = []
+  for (const f of dragFiles) {
+    const localPath = path.join(tmpDir, f.fileName)
+    await adb(['pull', f.remotePath, localPath])
+    localPaths.push(localPath)
+  }
+  event.sender.startDrag({
+    file: localPaths[0],
+    files: localPaths,
+    icon: path.join(__dirname, '../../resources/icon.png'),
+  })
 })
 
 ipcMain.handle('drag:store', (_e, node: unknown) => {

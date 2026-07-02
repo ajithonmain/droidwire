@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('droidwire', {
   getDevices: (): Promise<{ serial: string; state: string }[]> =>
@@ -54,8 +54,8 @@ contextBridge.exposeInMainWorld('droidwire', {
   readLocalFile: (localPath: string): Promise<string | null> =>
     ipcRenderer.invoke('read-local-file', localPath),
 
-  startDrag: (remotePath: string, fileName: string): Promise<string> =>
-    ipcRenderer.invoke('adb:start-drag', remotePath, fileName),
+  startDrag: (dragFiles: { remotePath: string; fileName: string }[]): Promise<void> =>
+    ipcRenderer.invoke('adb:start-drag', dragFiles),
 
   newWindow: (): Promise<void> =>
     ipcRenderer.invoke('new-window'),
@@ -68,6 +68,19 @@ contextBridge.exposeInMainWorld('droidwire', {
 
   deleteLocalFile: (localPath: string): Promise<void> =>
     ipcRenderer.invoke('delete-local-file', localPath),
+
+  localConflictCheck: (fileName: string): Promise<{ exists: boolean; uniqueName: string }> =>
+    ipcRenderer.invoke('local-conflict-check', fileName),
+
+  videoThumb: (remotePath: string, size: number): Promise<string | null> =>
+    ipcRenderer.invoke('adb:video-thumb', remotePath, size),
+
+  dirSize: (remotePath: string): Promise<number | null> =>
+    ipcRenderer.invoke('adb:dir-size', remotePath),
+
+  // File.path was removed in Electron 32 — this is the only way to resolve
+  // a dropped File to its filesystem path, and it must run in the preload.
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
   onTransferProgress: (callback: (progress: unknown) => void): (() => void) => {
     const handler = (_e: Electron.IpcRendererEvent, p: unknown) => callback(p)

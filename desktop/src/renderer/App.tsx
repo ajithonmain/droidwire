@@ -20,7 +20,7 @@ import { NewFolderModal } from './components/NewFolderModal'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal'
 import { UploadModeModal } from './components/UploadModeModal'
 import { FileConflictModal } from './components/FileConflictModal'
-import type { ConflictChoice } from './components/FileConflictModal'
+import type { ConflictChoice, ConflictResolution } from './components/FileConflictModal'
 import { TabBar } from './components/TabBar'
 import type { Tab } from './components/TabBar'
 import { useTheme } from './lib/ThemeContext'
@@ -35,7 +35,7 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, storage, safeToUnplug, disconnect, rescan } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
-  const { transfers, download, upload, cancel, retry, dismiss, activeCount } = useTransfers()
+  const { transfers, download: rawDownload, upload, cancel, retry, dismiss, activeCount } = useTransfers()
   const { bookmarks, addBookmark, removeBookmark } = useBookmarks()
 
   const [currentPath, setCurrentPath] = useState('/')
@@ -80,7 +80,8 @@ export default function App() {
   // Pending conflict — held until user picks Replace / Keep Both / Cancel
   const [conflictState, setConflictState] = useState<{
     names: string[]
-    resolve: (c: ConflictChoice) => void
+    showApplyAll?: boolean
+    resolve: (r: ConflictResolution) => void
   } | null>(null)
 
   // Tabs
@@ -341,9 +342,51 @@ export default function App() {
     navigator.clipboard.writeText(file.path).catch(() => {})
   }
 
-  function askConflict(names: string[]): Promise<ConflictChoice> {
+  // Context-menu actions apply to the whole selection when the clicked file
+  // is part of it, otherwise just to the clicked file (Finder behavior).
+  function contextTargets(file: FileNode): FileNode[] {
+    return selectedFiles.length > 1 && selectedFiles.some(f => f.path === file.path)
+      ? selectedFiles
+      : [file]
+  }
+
+  function askConflict(names: string[], showApplyAll = false): Promise<ConflictResolution> {
     return new Promise(resolve => {
-      setConflictState({ names, resolve })
+      setConflictState({ names, showApplyAll, resolve })
+    })
+  }
+
+  // Serialize downloads through a chain so bulk downloads show one conflict
+  // dialog at a time instead of clobbering conflictState. "Do this for all"
+  // remembers the choice until the queue drains.
+  const downloadChainRef = useRef(Promise.resolve())
+  const downloadBatchRef = useRef<{ pending: number; remembered: ConflictChoice | null }>({
+    pending: 0, remembered: null,
+  })
+  function download(remotePath: string, fileName: string) {
+    const batch = downloadBatchRef.current
+    batch.pending++
+    downloadChainRef.current = downloadChainRef.current.then(async () => {
+      let destName = fileName
+      const check = await window.droidwire.localConflictCheck(fileName)
+      if (check.exists) {
+        let choice = batch.remembered
+        if (!choice) {
+          const res = await askConflict([fileName], batch.pending > 1)
+          setConflictState(null)
+          choice = res.choice
+          if (res.applyToAll) batch.remembered = choice
+        }
+        if (choice === 'cancel') return
+        if (choice === 'keep-both') destName = check.uniqueName
+      }
+      void rawDownload(remotePath, destName)
+    }).catch(() => {}).finally(() => {
+      batch.pending--
+      if (batch.pending <= 0) {
+        batch.pending = 0
+        batch.remembered = null
+      }
     })
   }
 
@@ -365,7 +408,7 @@ export default function App() {
     const conflicting = clipboard.nodes.filter(n => existingNames.has(n.name))
     let choice: ConflictChoice = 'keep-both'
     if (conflicting.length > 0) {
-      choice = await askConflict(conflicting.map(n => n.name))
+      ;({ choice } = await askConflict(conflicting.map(n => n.name)))
       setConflictState(null)
       if (choice === 'cancel') return
     }
@@ -484,55 +527,98 @@ export default function App() {
     // Capture native files synchronously before any await
     const nativeFiles = Array.from(e.dataTransfer.files).map(f => ({
       name: f.name,
-      localPath: (f as File & { path?: string }).path ?? '',
+      localPath: window.droidwire.getPathForFile(f),
     })).filter(f => !!f.localPath)
 
-    // Finder drop — native files present means it's definitely from Finder
-    if (nativeFiles.length > 0) {
-      setUploadModeFiles(nativeFiles)
-      return
-    }
+    // Internal drags are native OS drags now (they carry pulled temp files),
+    // so the IPC payload must be checked before assuming a Finder drop.
+    if (await consumeInternalDrop(currentPathRef.current)) return
 
-    // Internal drag — IPC storage survives source element unmounting (tab switch mid-drag)
-    // draggedNodeRef is not reliable here because dragend can fire early when source unmounts
-    const dest = currentPathRef.current.replace(/\/$/, '')
-    const existingNames = new Set(files.map(f => f.name))
+    if (nativeFiles.length > 0) setUploadModeFiles(nativeFiles)
+  }
 
+  // Handles a drop of an in-app drag onto any destination folder (file area,
+  // tab, sidebar). Returns true if an internal payload was consumed.
+  // IPC storage survives source element unmounting (tab switch mid-drag);
+  // draggedNodeRef is not reliable because dragend can fire early.
+  async function consumeInternalDrop(destPath: string): Promise<boolean> {
+    const dest = destPath.replace(/\/$/, '')
+    setIsDragOver(false)
     try {
-      const raw = await window.droidwire.retrieveDragNode() as { node: FileNode; ts: number } | null
-      if (!raw) return
+      const raw = await window.droidwire.retrieveDragNode() as { nodes: FileNode[]; ts: number } | null
+      // Reject stale IPC nodes older than 10s (leftover from cancelled/errored drags)
+      if (!raw || Date.now() - raw.ts > 10_000) return false
       await window.droidwire.storeDragNode(null) // clear after read
       draggedNodeRef.current = null
-      // Reject stale IPC nodes older than 10s (leftover from cancelled/errored drags)
-      if (Date.now() - raw.ts > 10_000) return
-      const internalNode = raw.node
 
-      // Same-folder drop — source is already here, nothing to do
-      const sourceParent = internalNode.path.substring(0, internalNode.path.lastIndexOf('/'))
-      if (sourceParent === dest) return
+      // Same-folder drop — sources already there, nothing to do
+      const nodes = raw.nodes.filter(n => n.path.substring(0, n.path.lastIndexOf('/')) !== dest)
+      if (nodes.length === 0) return true
 
-      let destName = internalNode.name
-      if (existingNames.has(internalNode.name)) {
-        const choice = await askConflict([internalNode.name])
+      const destLabel = dest === '/storage/emulated/0' ? 'Internal Storage' : (dest.split('/').pop() ?? dest)
+      const mode = await askInternalMode(nodes.map(n => n.name), destLabel)
+      setInternalMoveState(null)
+      if (mode === 'cancel') return true
+
+      const destList = dest === currentPathRef.current.replace(/\/$/, '') ? files : await listFiles(dest)
+      const existingNames = new Set(destList.map(f => f.name))
+
+      const conflicting = nodes.filter(n => existingNames.has(n.name))
+      let choice: ConflictChoice = 'keep-both'
+      if (conflicting.length > 0) {
+        ;({ choice } = await askConflict(conflicting.map(n => n.name)))
         setConflictState(null)
-        if (choice === 'cancel') return
-        if (choice === 'keep-both') destName = uniqueDestName(internalNode.name, existingNames)
+        if (choice === 'cancel') return true
       }
+
       pendingNavAfterDragRef.current = null // dragend listener will see no pending nav
-      await window.droidwire.copyFile(internalNode.path, dest + '/' + destName)
+      const usedNames = new Set(existingNames)
+      for (const node of nodes) {
+        const destName = choice === 'replace' ? node.name : uniqueDestName(node.name, usedNames)
+        usedNames.add(destName)
+        if (mode === 'copy') await window.droidwire.copyFile(node.path, dest + '/' + destName)
+        else await window.droidwire.renameFile(node.path, dest + '/' + destName)
+      }
       refresh()
-    } catch { /* ignore */ }
+      return true
+    } catch { return true }
+  }
+
+  const [internalMoveState, setInternalMoveState] = useState<{
+    names: string[]
+    destName: string
+    resolve: (m: 'copy' | 'move' | 'cancel') => void
+  } | null>(null)
+  function askInternalMode(names: string[], destName: string): Promise<'copy' | 'move' | 'cancel'> {
+    return new Promise(resolve => setInternalMoveState({ names, destName, resolve }))
   }
 
   async function executeFinderUpload(localFiles: { name: string; localPath: string }[], moveAfter: boolean) {
     setUploadModeFiles(null)
-    for (const f of localFiles) {
-      upload(f.localPath, currentPathRef.current)
-      if (moveAfter) {
-        // Delete local file after upload starts (best-effort)
+
+    const existingNames = new Set(files.map(f => f.name))
+    const conflicting = localFiles.filter(f => existingNames.has(f.name))
+    let choice: ConflictChoice = 'keep-both'
+    if (conflicting.length > 0) {
+      ;({ choice } = await askConflict(conflicting.map(f => f.name)))
+      setConflictState(null)
+      if (choice === 'cancel') return
+    }
+
+    const usedNames = new Set(existingNames)
+    await Promise.all(localFiles.map(async f => {
+      let destName = f.name
+      if (choice !== 'replace') {
+        destName = uniqueDestName(f.name, usedNames)
+        usedNames.add(destName)
+      }
+      const ok = await upload(f.localPath, currentPathRef.current, destName)
+      // Move = delete local only after the push actually succeeded
+      if (ok && moveAfter) {
         window.droidwire.deleteLocalFile(f.localPath).catch(() => {})
       }
-    }
+    }))
+    refresh()
   }
 
   function handleStorageBar(s: StorageInfo) {
@@ -705,6 +791,7 @@ export default function App() {
           onSwitch={switchTab}
           onClose={closeTab}
           onNew={() => openInNewTab(currentPath)}
+          onDropOnTab={path => { void consumeInternalDrop(path) }}
         />
       )}
 
@@ -720,6 +807,7 @@ export default function App() {
             bookmarks={bookmarks}
             onRemoveBookmark={removeBookmark}
             recentPaths={recentPaths}
+            onDropOnFolder={path => { void consumeInternalDrop(path) }}
           />
         )}
 
@@ -782,10 +870,14 @@ export default function App() {
                 }}
                 onRangeSelect={rangeFiles => setSelectedFiles(rangeFiles)}
                 onDownload={file => download(file.path, file.name)}
-                onContextMenu={(file, x, y) => setContextMenu({ file, x, y })}
+                onContextMenu={(file, x, y) => {
+                  // Finder behavior: right-click outside the selection retargets it
+                  if (!selectedFiles.some(f => f.path === file.path)) setSelectedFiles([file])
+                  setContextMenu({ file, x, y })
+                }}
                 onDeselectAll={() => setSelectedFiles([])}
                 onGoUp={goUp}
-                onSelectAll={() => setSelectedFiles(displayFiles.filter(f => f.type === 'file'))}
+                onSelectAll={() => setSelectedFiles(displayFiles)}
                 onDeleteSelected={() => setDeleteTargets(selectedFiles)}
                 onRefresh={refresh}
                 onRenameInline={(file, newName) => handleRename(file, newName)}
@@ -793,20 +885,24 @@ export default function App() {
                 onInternalDragStart={file => {
                   draggedNodeRef.current = file
                   isDraggingRef.current = true
-                  const onDragDone = () => {
-                    isDraggingRef.current = false
-                    const pending = pendingNavAfterDragRef.current
-                    pendingNavAfterDragRef.current = null
-                    if (pending) navigateRaw(pending)
-                  }
-                  document.addEventListener('dragend', onDragDone, { once: true })
                 }}
-                onInternalDragEnd={() => { draggedNodeRef.current = null }}
+                onInternalDragEnd={() => {
+                  // Fired when the native drag session ends (startDrag resolves) —
+                  // HTML5 dragend never fires for OS-level drags.
+                  draggedNodeRef.current = null
+                  isDraggingRef.current = false
+                  setIsDragOver(false)
+                  const pending = pendingNavAfterDragRef.current
+                  pendingNavAfterDragRef.current = null
+                  if (pending) navigateRaw(pending)
+                }}
+                keyboardDisabled={!!(renameTarget || deleteTargets.length > 0 || showNewFolder || uploadModeFiles || conflictState || contextMenu || internalMoveState)}
               />
               <FilePreview
                 files={selectedFiles}
                 onDownload={file => download(file.path, file.name)}
                 onDownloadAll={previewFiles => previewFiles.forEach(f => download(f.path, f.name))}
+                onZipDownload={handleZipDownload}
                 onClose={() => setSelectedFiles([])}
               />
             </div>
@@ -862,7 +958,7 @@ export default function App() {
         flexShrink: 0,
         background: theme.surface,
       }}>
-        <span style={{ fontSize: '11px', color: theme.textMuted }}>
+        <span style={{ fontSize: '12px', color: theme.textMuted }}>
           {isConnected
             ? selectedFiles.length > 0
               ? (() => {
@@ -887,16 +983,19 @@ export default function App() {
           y={contextMenu.y}
           file={contextMenu.file}
           onClose={() => setContextMenu(null)}
-          onDownload={file => download(file.path, file.name)}
-          onDelete={file => setDeleteTargets([file])}
+          onDownload={file => {
+            contextTargets(file).filter(f => f.type === 'file').forEach(f => download(f.path, f.name))
+          }}
+          downloadCount={contextTargets(contextMenu.file).filter(f => f.type === 'file').length}
+          onDelete={file => setDeleteTargets(contextTargets(file))}
           onRename={file => setRenameTarget(file)}
           onCopyPath={handleCopyPath}
           onNewFolder={() => setShowNewFolder(true)}
           onZipDownload={handleZipDownload}
           onInstallApk={handleInstallApk}
           onOpenInNewTab={contextMenu.file.type === 'dir' ? file => openInNewTab(file.path) : undefined}
-          onCopy={file => setClipboard({ nodes: [file], mode: 'copy' })}
-          onCut={file => setClipboard({ nodes: [file], mode: 'cut' })}
+          onCopy={file => setClipboard({ nodes: contextTargets(file), mode: 'copy' })}
+          onCut={file => setClipboard({ nodes: contextTargets(file), mode: 'cut' })}
           onPaste={handlePaste}
           hasClipboard={!!clipboard && clipboard.nodes.length > 0}
         />
@@ -935,9 +1034,21 @@ export default function App() {
         />
       )}
 
+      {internalMoveState && (
+        <UploadModeModal
+          variant="onDevice"
+          fileNames={internalMoveState.names}
+          destName={internalMoveState.destName}
+          onCopy={() => internalMoveState.resolve('copy')}
+          onMove={() => internalMoveState.resolve('move')}
+          onCancel={() => internalMoveState.resolve('cancel')}
+        />
+      )}
+
       {conflictState && (
         <FileConflictModal
           conflictNames={conflictState.names}
+          showApplyAll={conflictState.showApplyAll}
           onResolve={conflictState.resolve}
         />
       )}

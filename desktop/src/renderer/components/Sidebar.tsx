@@ -13,6 +13,7 @@ interface Props {
   bookmarks: Bookmark[]
   onRemoveBookmark: (path: string) => void
   recentPaths: string[]
+  onDropOnFolder?: (path: string) => void
 }
 
 const PATH_LABELS: Record<string, string> = {
@@ -115,9 +116,16 @@ function SidebarContextMenu({ menu, onNavigate, onOpenInNewTab, onClose }: {
   )
 }
 
-export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, bookmarks, onRemoveBookmark, recentPaths }: Props) {
+export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, bookmarks, onRemoveBookmark, recentPaths, onDropOnFolder }: Props) {
   const { theme } = useTheme()
   const [sidebarMenu, setSidebarMenu] = useState<SidebarMenu | null>(null)
+  // Folder currently hovered by an in-flight drag — gets the accent highlight
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null)
+
+  const dropHighlight = (path: string) =>
+    dragOverPath === path
+      ? { background: `${theme.accent}28`, outline: `1.5px solid ${theme.accent}`, outlineOffset: '-1.5px' }
+      : {}
 
   const pinned = PINNED_DIRS
     .map(name => rootDirs.find(d => d.name === name))
@@ -143,6 +151,14 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
         onContextMenu={e => { e.preventDefault(); setSidebarMenu({ x: e.clientX, y: e.clientY, path: node.path, name: node.name }) }}
         onMouseEnter={() => setHov(true)}
         onMouseLeave={() => setHov(false)}
+        onDragOver={e => { e.preventDefault(); setDragOverPath(node.path) }}
+        onDragLeave={() => setDragOverPath(null)}
+        onDrop={e => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOverPath(null)
+          onDropOnFolder?.(node.path)
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -161,6 +177,7 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           transition: 'background 70ms, color 70ms',
+          ...dropHighlight(node.path),
         }}
       >
         <FolderIcon active={active} />
@@ -194,6 +211,9 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
       <button
         onClick={() => onNavigate('/storage/emulated/0')}
         onContextMenu={e => { e.preventDefault(); setSidebarMenu({ x: e.clientX, y: e.clientY, path: '/storage/emulated/0', name: 'Internal Storage' }) }}
+        onDragOver={e => { e.preventDefault(); setDragOverPath('/storage/emulated/0') }}
+        onDragLeave={() => setDragOverPath(null)}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(null); onDropOnFolder?.('/storage/emulated/0') }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -210,6 +230,7 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
           textAlign: 'left',
           marginBottom: '2px',
           transition: 'background 70ms',
+          ...dropHighlight('/storage/emulated/0'),
         }}
         onMouseEnter={e => { if (!isRoot) (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover }}
         onMouseLeave={e => { if (!isRoot) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
@@ -254,12 +275,16 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
                 <button
                   onClick={() => onNavigate(bm.path)}
                   onContextMenu={e => { e.preventDefault(); setSidebarMenu({ x: e.clientX, y: e.clientY, path: bm.path, name: bm.name }) }}
+                  onDragOver={e => { e.preventDefault(); setDragOverPath(bm.path) }}
+                  onDragLeave={() => setDragOverPath(null)}
+                  onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(null); onDropOnFolder?.(bm.path) }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     flex: 1, minWidth: 0, padding: '5px 10px', fontSize: '13px', fontWeight: active ? 600 : 400,
                     color: active ? theme.textPrimary : theme.textSecondary,
                     background: active ? `${theme.accent}18` : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
                     overflow: 'hidden', borderRadius: '6px',
+                    ...dropHighlight(bm.path),
                   }}
                 >
                   <FolderIcon active={active} />
