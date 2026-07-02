@@ -5,6 +5,7 @@ import { useTransfers } from './hooks/useTransfers'
 import { useBookmarks } from './hooks/useBookmarks'
 import { listFiles } from './lib/api'
 import { formatSize } from './lib/format'
+import { uniqueDestName } from './lib/names'
 import { ConnectionBadge } from './components/ConnectionBadge'
 import { Sidebar } from './components/Sidebar'
 import { Breadcrumb } from './components/Breadcrumb'
@@ -23,6 +24,8 @@ import { FileConflictModal } from './components/FileConflictModal'
 import type { ConflictChoice, ConflictResolution } from './components/FileConflictModal'
 import { TabBar } from './components/TabBar'
 import type { Tab } from './components/TabBar'
+import { DeviceTools } from './components/DeviceTools'
+import { WirelessConnectModal } from './components/WirelessConnectModal'
 import { useTheme } from './lib/ThemeContext'
 import { TooltipLayer } from './components/TooltipLayer'
 
@@ -71,7 +74,7 @@ export default function App() {
     const t = setTimeout(() => setGuideGraceOver(true), 6000)
     return () => clearTimeout(t)
   }, [connectionPicked, status])
-  const { transfers, download: rawDownload, upload, cancel, retry, dismiss, activeCount } = useTransfers()
+  const { transfers, download: rawDownload, upload, cancel, pause, resume, canPause, reorder, retry, dismiss, activeCount } = useTransfers()
   const { bookmarks, addBookmark, removeBookmark } = useBookmarks()
 
   const [currentPath, setCurrentPath] = useState('/')
@@ -104,6 +107,8 @@ export default function App() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [recentPaths, setRecentPaths] = useState<string[]>([])
   const [downloadDir, setDownloadDirState] = useState('~/Downloads/Droidwire')
+  const [showDeviceTools, setShowDeviceTools] = useState(false)
+  const [showWireless, setShowWireless] = useState(false)
 
   // Drag state
   const draggedNodeRef = useRef<FileNode | null>(null)
@@ -219,6 +224,25 @@ export default function App() {
   useEffect(() => {
     window.droidwire.getDownloadDir().then(d => setDownloadDirState(d)).catch(() => {})
   }, [])
+
+  // File > Device Tools (Cmd+D)
+  useEffect(() => {
+    return window.droidwire.onMenuAction(action => {
+      if (action === 'device-tools' && status === 'connected') setShowDeviceTools(true)
+    })
+  }, [status])
+
+  // Active device switched outside this window (tray menu) — same /sdcard
+  // paths on every phone, so drop caches and restart at the storage root
+  const prevSerialRef = useRef<string | null>(null)
+  useEffect(() => {
+    const serial = device?.serial ?? null
+    if (serial && prevSerialRef.current && serial !== prevSerialRef.current) {
+      resetBrowserToRoot()
+    }
+    if (serial) prevSerialRef.current = serial
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [device?.serial])
 
   useEffect(() => {
     const title = activeCount > 0 ? `Droidwire — ${activeCount} transfer${activeCount !== 1 ? 's' : ''}` : 'Droidwire'
@@ -399,15 +423,6 @@ export default function App() {
     }
   }
 
-  async function handleDeviceScreenshot() {
-    try {
-      const dest = await window.droidwire.screenshot()
-      window.droidwire.showInFinder(dest).catch(() => {})
-    } catch (e) {
-      console.error('Screenshot failed', e)
-    }
-  }
-
   // Context-menu actions apply to the whole selection when the clicked file
   // is part of it, otherwise just to the clicked file (Finder behavior).
   function contextTargets(file: FileNode): FileNode[] {
@@ -454,16 +469,6 @@ export default function App() {
         batch.remembered = null
       }
     })
-  }
-
-  function uniqueDestName(baseName: string, existingNames: Set<string>): string {
-    if (!existingNames.has(baseName)) return baseName
-    const dot = baseName.lastIndexOf('.')
-    const namePart = dot > 0 ? baseName.slice(0, dot) : baseName
-    const extPart = dot > 0 ? baseName.slice(dot) : ''
-    let n = 2
-    while (existingNames.has(`${namePart} (${n})${extPart}`)) n++
-    return `${namePart} (${n})${extPart}`
   }
 
   async function handlePaste() {
@@ -802,8 +807,8 @@ export default function App() {
                 </svg>
               </button>
               <button
-                onClick={handleDeviceScreenshot}
-                data-tip="Capture device screenshot"
+                onClick={() => setShowDeviceTools(true)}
+                data-tip="Device tools"
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   width: '28px', height: '28px', padding: 0, color: theme.textMuted,
@@ -814,9 +819,7 @@ export default function App() {
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
               >
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                  <rect x="1.5" y="4" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M5 4l1-1.5h3L10 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="7.5" cy="8.5" r="2.2" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M9.7 2.3a3.6 3.6 0 00-4.6 4.5L2 9.9a1.4 1.4 0 002 2l3.1-3.1a3.6 3.6 0 004.5-4.6L9.5 6.3l-1.8-1.8 2-2.2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                 </svg>
               </button>
               <button
@@ -883,6 +886,7 @@ export default function App() {
               await ejectDevice(serial)
               resetBrowserToRoot()
             }}
+            onAddWireless={() => setShowWireless(true)}
           />
         </div>
       </header>
@@ -949,7 +953,10 @@ export default function App() {
                 <span style={{ fontSize: '12px', color: theme.textMuted }}>Looking for your device…</span>
               </div>
             ) : !connectionPicked ? (
-              <ConnectionTypePicker onSelect={() => { setConnectionPicked(true); rescan() }} />
+              <ConnectionTypePicker onSelect={type => {
+                if (type === 'wireless') setShowWireless(true)
+                else { setConnectionPicked(true); rescan() }
+              }} />
             ) : !guideGraceOver ? (
               // Grace period: a device with USB debugging already on connects in
               // seconds — don't flash the full setup tutorial at it
@@ -1019,7 +1026,7 @@ export default function App() {
                   pendingNavAfterDragRef.current = null
                   if (pending) navigateRaw(pending)
                 }}
-                keyboardDisabled={!!(renameTarget || deleteTargets.length > 0 || showNewFolder || uploadModeFiles || conflictState || contextMenu || internalMoveState)}
+                keyboardDisabled={!!(renameTarget || deleteTargets.length > 0 || showNewFolder || uploadModeFiles || conflictState || contextMenu || internalMoveState || showDeviceTools)}
               />
               <FilePreview
                 files={selectedFiles}
@@ -1066,6 +1073,10 @@ export default function App() {
         transfers={transfers}
         onDismiss={dismiss}
         onCancel={cancel}
+        onPause={pause}
+        onResume={resume}
+        canPause={canPause}
+        onReorder={reorder}
         onRetry={retry}
         onOpenDownloads={() => window.droidwire.openDownloads()}
         onReveal={(filePath) => window.droidwire.showInFinder(filePath)}
@@ -1168,6 +1179,24 @@ export default function App() {
           onCopy={() => internalMoveState.resolve('copy')}
           onMove={() => internalMoveState.resolve('move')}
           onCancel={() => internalMoveState.resolve('cancel')}
+        />
+      )}
+
+      {showDeviceTools && (
+        <DeviceTools
+          onClose={() => setShowDeviceTools(false)}
+          onExportApk={(apkPath, fileName) => download(apkPath, fileName)}
+        />
+      )}
+
+      {showWireless && (
+        <WirelessConnectModal
+          onClose={() => setShowWireless(false)}
+          onConnected={() => {
+            setShowWireless(false)
+            setConnectionPicked(true)
+            rescan()
+          }}
         />
       )}
 

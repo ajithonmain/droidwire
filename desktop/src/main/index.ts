@@ -1,11 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, Notification, nativeImage, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import http from 'http'
 import crypto from 'crypto'
 import { execFile, spawn } from 'child_process'
-import type { FileNode, TransferProgress, StorageInfo } from '@droidwire/shared'
+import type { FileNode, TransferProgress, StorageInfo, BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
 
 // Android USB vendor IDs — covers all major manufacturers
 const ANDROID_VENDOR_IDS = new Set([
@@ -81,6 +81,21 @@ function adbBin(): string {
 // second connected phone doesn't break every call ("more than one device").
 let _activeSerial: string | null = null
 const _modelCache = new Map<string, string>()
+// Hardware serial (ro.serialno) per adb serial — the same phone shows up
+// once per transport (USB, ip:port, mDNS auto-connect); this identifies them
+const _hwSerialCache = new Map<string, string>()
+
+// Wireless adb serials: "ip:port" or mDNS instance names
+function isWirelessSerial(serial: string): boolean {
+  return serial.includes(':') || serial.startsWith('adb-') || serial.includes('_adb-tls-connect')
+}
+
+// Preference when the same phone is reachable over several transports:
+// USB (fastest) > manual ip:port > mDNS auto-connect
+function transportRank(serial: string): number {
+  if (!isWirelessSerial(serial)) return 0
+  return serial.includes(':') && !serial.includes('_adb-tls-connect') ? 1 : 2
+}
 
 // Per-device eject: these serials are hidden from the app until the user
 // rescans or physically replugs a device
@@ -95,6 +110,18 @@ function adbArgs(args: string[]): string[] {
 function adb(args: string[]): Promise<string> {
   return withAdbSlot(() => new Promise((resolve, reject) => {
     const proc = execFile(adbBin(), adbArgs(args), { timeout: 15000 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(stderr.trim() || err.message))
+      else resolve(stdout)
+    })
+    proc.on('error', reject)
+  }))
+}
+
+// Long-running adb calls (du over a full tree, pm dumps) — bigger timeout and
+// output buffer than the 15s default
+function adbLong(args: string[], timeout = 120_000): Promise<string> {
+  return withAdbSlot(() => new Promise((resolve, reject) => {
+    const proc = execFile(adbBin(), adbArgs(args), { timeout, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr.trim() || err.message))
       else resolve(stdout)
     })
@@ -329,6 +356,9 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
   })
   setupUsbAutoOpen()
+  setupTray()
+  setupAppMenu()
+  setupAutoUpdate()
 })
 
 function setupUsbAutoOpen(): void {
@@ -362,13 +392,18 @@ ipcMain.handle('adb:eject-device', async (_e, serial: string) => {
   _ejectedSerials.add(serial)
   if (_activeSerial === serial) _activeSerial = null
   _remoteSizeCache.clear()
+  // Wireless devices have a real session to tear down — disconnect properly
+  // so the phone stops showing an active connection
+  if (isWirelessSerial(serial)) {
+    adbGlobal(['disconnect', serial], 10_000).catch(() => { /* already gone */ })
+  }
 })
 
 ipcMain.handle('adb:uneject-all', async () => {
   _ejectedSerials.clear()
 })
 
-ipcMain.handle('adb:devices', async () => {
+async function listDevices(): Promise<{ devices: { serial: string; state: string; model: string }[]; active: string | null }> {
   const out = await adb(['devices'])
   const devices = out
     .split('\n')
@@ -397,10 +432,34 @@ ipcMain.handle('adb:devices', async () => {
       } catch { /* leave unnamed */ }
     }
     d.model = _modelCache.get(d.serial) ?? d.serial
+    if (!_hwSerialCache.has(d.serial)) {
+      try {
+        const hw = (await adb(['-s', d.serial, 'shell', 'getprop', 'ro.serialno'])).trim()
+        if (hw) _hwSerialCache.set(d.serial, hw)
+      } catch { /* identify by adb serial */ }
+    }
   }
 
-  return { devices, active: _activeSerial }
-})
+  // Dedupe: one entry per physical phone. Keep the entry the user is actively
+  // using; otherwise prefer the fastest transport.
+  const byHw = new Map<string, (typeof online)[number]>()
+  for (const d of online) {
+    const hw = _hwSerialCache.get(d.serial) ?? d.serial
+    const existing = byHw.get(hw)
+    if (!existing) { byHw.set(hw, d); continue }
+    const keepNew = d.serial === _activeSerial
+      || (existing.serial !== _activeSerial && transportRank(d.serial) < transportRank(existing.serial))
+    if (keepNew) byHw.set(hw, d)
+  }
+  const deduped = online.filter(d => byHw.get(_hwSerialCache.get(d.serial) ?? d.serial) === d)
+
+  return {
+    devices: [...deduped, ...devices.filter(d => d.state !== 'device')],
+    active: _activeSerial,
+  }
+}
+
+ipcMain.handle('adb:devices', async () => listDevices())
 
 ipcMain.handle('adb:set-device', async (_e, serial: string) => {
   _activeSerial = serial
@@ -677,23 +736,6 @@ ipcMain.handle('adb:cancel-transfer', async (_e, transferId: string) => {
     try { proc.kill() } catch { /* already dead */ }
     activeTransfers.delete(transferId)
   }
-})
-
-ipcMain.handle('adb:screenshot', async () => {
-  const dest = path.join(downloadsDir(), `screenshot-${Date.now()}.png`)
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn(adbBin(), adbArgs(['exec-out', 'screencap', '-p']))
-    const out = fs.createWriteStream(dest)
-    proc.stdout.pipe(out)
-    proc.stderr.on('data', () => { /* suppress */ })
-    proc.on('error', err => reject(err))
-    out.on('finish', () => resolve())
-    out.on('error', err => reject(err))
-    proc.on('close', code => {
-      if (code !== 0) reject(new Error('screencap failed'))
-    })
-  })
-  return dest
 })
 
 // ---------------------------------------------------------------------------
@@ -980,3 +1022,474 @@ ipcMain.handle('drag:retrieve', () => {
 ipcMain.handle('delete-local-file', async (_e, localPath: string) => {
   await fs.promises.unlink(localPath)
 })
+
+// ---------------------------------------------------------------------------
+// IPC: device tools — battery/device/storage detail, app list + APK export
+// ---------------------------------------------------------------------------
+
+const BATTERY_STATUS: Record<string, string> = {
+  '1': 'Unknown', '2': 'Charging', '3': 'Discharging', '4': 'Not charging', '5': 'Full',
+}
+const BATTERY_HEALTH: Record<string, string> = {
+  '1': 'Unknown', '2': 'Good', '3': 'Overheat', '4': 'Dead',
+  '5': 'Over voltage', '6': 'Failure', '7': 'Cold',
+}
+
+ipcMain.handle('adb:battery-detail', async (): Promise<BatteryDetail> => {
+  const out = await adb(['shell', 'dumpsys', 'battery'])
+  const grab = (re: RegExp) => out.match(re)?.[1]?.trim() ?? null
+  const level = parseInt(grab(/level:\s*(\d+)/) ?? '', 10)
+  const temp = grab(/temperature:\s*(-?\d+)/)
+  let voltageMv: number | null = null
+  const volt = grab(/voltage:\s*(\d+)/)
+  if (volt) {
+    voltageMv = parseInt(volt, 10)
+    // Some devices (e.g. Pixels) report microvolts — normalize to mV
+    if (voltageMv > 100_000) voltageMv = Math.round(voltageMv / 1000)
+  }
+  const ac = /AC powered:\s*true/.test(out)
+  const usb = /USB powered:\s*true/.test(out)
+  const wireless = /Wireless powered:\s*true/.test(out)
+  return {
+    level: Number.isNaN(level) ? -1 : level,
+    status: BATTERY_STATUS[grab(/status:\s*(\d+)/) ?? ''] ?? 'Unknown',
+    health: BATTERY_HEALTH[grab(/health:\s*(\d+)/) ?? ''] ?? 'Unknown',
+    temperatureC: temp ? parseInt(temp, 10) / 10 : null,
+    voltageMv,
+    technology: grab(/technology:\s*(.+)/),
+    powerSource: ac ? 'AC' : wireless ? 'Wireless' : usb ? 'USB' : 'Battery',
+  }
+})
+
+ipcMain.handle('adb:device-detail', async (): Promise<DeviceDetail> => {
+  const out = await adb(['shell', 'getprop'])
+  const prop = (key: string) =>
+    out.match(new RegExp(`\\[${key.replace(/\./g, '\\.')}\\]:\\s*\\[([^\\]]*)\\]`))?.[1] ?? ''
+  return {
+    model: prop('ro.product.model'),
+    manufacturer: prop('ro.product.manufacturer'),
+    androidVersion: prop('ro.build.version.release'),
+    sdk: prop('ro.build.version.sdk'),
+    buildId: prop('ro.build.id'),
+    serial: _activeSerial ?? '',
+  }
+})
+
+ipcMain.handle('adb:storage-detail', async (): Promise<MountInfo[]> => {
+  const out = await adb(['shell', 'df', '-k', '/sdcard', '/data', '/system'])
+  const mounts: MountInfo[] = []
+  const seen = new Set<string>()
+  for (const line of out.split('\n')) {
+    const parts = line.trim().split(/\s+/)
+    if (parts.length < 6 || parts[0] === 'Filesystem') continue
+    const total = parseInt(parts[1], 10) * 1024
+    const used = parseInt(parts[2], 10) * 1024
+    const free = parseInt(parts[3], 10) * 1024
+    const mount = parts[parts.length - 1]
+    if (Number.isNaN(total) || total <= 0 || seen.has(mount)) continue
+    seen.add(mount)
+    mounts.push({ mount, total, used, free })
+  }
+  return mounts
+})
+
+ipcMain.handle('adb:list-apps', async (_e, includeSystem: boolean): Promise<InstalledApp[]> => {
+  const args = ['shell', 'pm', 'list', 'packages', '-f']
+  if (!includeSystem) args.push('-3')
+  const out = await adbLong(args, 30_000)
+  const apps: InstalledApp[] = []
+  for (const line of out.split('\n')) {
+    const m = line.trim().match(/^package:(.+)=([^=]+)$/)
+    if (!m) continue
+    apps.push({ apkPath: m[1], pkg: m[2] })
+  }
+  return apps.sort((a, b) => a.pkg.localeCompare(b.pkg))
+})
+
+// ---------------------------------------------------------------------------
+// IPC: storage analyzer — du one level at a time (renderer drills down)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('adb:du-children', async (_e, dirPath: string): Promise<{ entries: DuEntry[]; totalBytes: number }> => {
+  const clean = dirPath.replace(/\/$/, '')
+  const out = await adbLong(['shell', `du -d 1 -k ${sq(clean)} 2>/dev/null`])
+  const entries: DuEntry[] = []
+  let totalBytes = 0
+  for (const line of out.split('\n')) {
+    const m = line.match(/^(\d+)\s+(.+)$/)
+    if (!m) continue
+    const bytes = parseInt(m[1], 10) * 1024
+    const p = m[2].trim().replace(/\/$/, '')
+    if (p === clean) { totalBytes = bytes; continue }
+    const name = p.split('/').filter(Boolean).pop() ?? p
+    entries.push({ name, path: p, bytes, isDir: true })
+  }
+  // du -d 1 only lists directories — the remainder is loose files in this folder
+  const childSum = entries.reduce((s, e) => s + e.bytes, 0)
+  if (totalBytes > childSum) {
+    entries.push({ name: 'Files in this folder', path: clean, bytes: totalBytes - childSum, isDir: false })
+  }
+  entries.sort((a, b) => b.bytes - a.bytes)
+  return { entries, totalBytes }
+})
+
+// ---------------------------------------------------------------------------
+// IPC: wireless ADB (Android 11+) — pair & connect are host-global commands,
+// so they bypass adbArgs (no -s scoping)
+// ---------------------------------------------------------------------------
+
+function adbGlobal(args: string[], timeout: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = execFile(adbBin(), args, { timeout }, (err, stdout, stderr) => {
+      if (err) reject(new Error((stderr.trim() || stdout.trim() || err.message)))
+      else resolve(stdout + stderr)
+    })
+    proc.on('error', reject)
+  })
+}
+
+ipcMain.handle('adb:pair', async (_e, hostPort: string, code: string): Promise<{ ok: boolean; message: string }> => {
+  try {
+    const out = await adbGlobal(['pair', hostPort.trim(), code.trim()], 30_000)
+    const ok = /successfully paired/i.test(out)
+    return { ok, message: out.trim() || (ok ? 'Paired' : 'Pairing failed') }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+})
+
+ipcMain.handle('adb:connect', async (_e, hostPort: string): Promise<{ ok: boolean; message: string }> => {
+  try {
+    const out = await adbGlobal(['connect', hostPort.trim()], 20_000)
+    // "connected to x" or "already connected to x" = success; "failed to connect" = not
+    const ok = /(^|\s)connected to/i.test(out) && !/failed|cannot|unable/i.test(out)
+    return { ok, message: out.trim() || (ok ? 'Connected' : 'Connection failed') }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+})
+
+// ---------------------------------------------------------------------------
+// QR pairing (Android Studio flow): show a WIFI:T:ADB QR; the phone scans it
+// and advertises _adb-tls-pairing over mDNS; we spot the service, pair with
+// the password from the QR, then find _adb-tls-connect and connect.
+// ---------------------------------------------------------------------------
+
+type WirelessEvent = { type: 'waiting' | 'pairing' | 'connecting' | 'connected' | 'error'; message?: string }
+
+let _qrSession: { cancelled: boolean } | null = null
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+function mdnsFind(out: string, service: string, needle: string): string | null {
+  for (const line of out.split('\n')) {
+    if (!line.includes(service) || !line.includes(needle)) continue
+    const m = line.trim().match(/(\d+\.\d+\.\d+\.\d+:\d+)\s*$/)
+    if (m) return m[1]
+  }
+  return null
+}
+
+async function runQrPairLoop(
+  session: { cancelled: boolean },
+  name: string,
+  password: string,
+  sender: Electron.WebContents,
+): Promise<void> {
+  const send = (payload: WirelessEvent) => {
+    if (!session.cancelled && !sender.isDestroyed()) sender.send('wireless-event', payload)
+  }
+  send({ type: 'waiting' })
+
+  const deadline = Date.now() + 180_000
+  while (!session.cancelled && Date.now() < deadline) {
+    let out = ''
+    try { out = await adbGlobal(['mdns', 'services'], 5000) } catch { /* retry */ }
+    const pairAddr = mdnsFind(out, '_adb-tls-pairing', name)
+    if (!pairAddr) { await sleep(1500); continue }
+
+    send({ type: 'pairing' })
+    try {
+      const pairOut = await adbGlobal(['pair', pairAddr, password], 30_000)
+      if (!/successfully paired/i.test(pairOut)) throw new Error(pairOut.trim() || 'Pairing failed')
+    } catch (e) {
+      send({ type: 'error', message: e instanceof Error ? e.message : String(e) })
+      return
+    }
+
+    // Paired — the phone now advertises its connect port on the same IP
+    send({ type: 'connecting' })
+    const ip = pairAddr.split(':')[0]
+    const connectDeadline = Date.now() + 30_000
+    while (!session.cancelled && Date.now() < connectDeadline) {
+      let out2 = ''
+      try { out2 = await adbGlobal(['mdns', 'services'], 5000) } catch { /* retry */ }
+      const connectAddr = mdnsFind(out2, '_adb-tls-connect', ip)
+      if (connectAddr) {
+        try {
+          const conOut = await adbGlobal(['connect', connectAddr], 20_000)
+          if (/(^|\s)connected to/i.test(conOut) && !/failed|cannot|unable/i.test(conOut)) {
+            send({ type: 'connected' })
+          } else {
+            throw new Error(conOut.trim() || 'Connection failed')
+          }
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : String(e) })
+        }
+        return
+      }
+      await sleep(1500)
+    }
+    send({ type: 'error', message: 'Paired, but the connect port never appeared — connect manually with the IP and port from the Wireless debugging screen.' })
+    return
+  }
+  send({ type: 'error', message: 'Timed out waiting for the phone to scan the code.' })
+}
+
+ipcMain.handle('adb:qr-pair-start', (event): string => {
+  if (_qrSession) _qrSession.cancelled = true
+  const session = { cancelled: false }
+  _qrSession = session
+  const name = `droidwire-${crypto.randomBytes(4).toString('hex')}`
+  const password = crypto.randomBytes(6).toString('hex')
+  void runQrPairLoop(session, name, password, event.sender)
+  return `WIFI:T:ADB;S:${name};P:${password};;`
+})
+
+ipcMain.handle('adb:qr-pair-stop', () => {
+  if (_qrSession) _qrSession.cancelled = true
+  _qrSession = null
+})
+
+// ---------------------------------------------------------------------------
+// IPC: system notifications (batch-complete etc.)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('notify', (_e, title: string, body: string) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body, silent: false }).show()
+  }
+})
+
+ipcMain.handle('show-main-window', () => {
+  if (menubarWindow && !menubarWindow.isDestroyed()) menubarWindow.hide()
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow()
+  } else {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+  }
+  mainWindow.focus()
+})
+
+// ---------------------------------------------------------------------------
+// Menu bar mode — Tray icon + mini drop-zone window
+// ---------------------------------------------------------------------------
+
+let tray: Tray | null = null
+let menubarWindow: BrowserWindow | null = null
+
+// Template tray icon drawn as a raw bitmap (no bundled asset needed).
+// '#' pixels are opaque black; macOS recolors template images automatically.
+const TRAY_GLYPH = [
+  '................',
+  '....########....',
+  '...#........#...',
+  '...#........#...',
+  '...#..#..#..#...',
+  '...#.###.#..#...',
+  '...#..#..#..#...',
+  '...#..#..#..#...',
+  '...#..#.###.#...',
+  '...#..#..#..#...',
+  '...#........#...',
+  '...#........#...',
+  '...#...##...#...',
+  '...#........#...',
+  '....########....',
+  '................',
+]
+
+function trayImage(): Electron.NativeImage {
+  const size = 16
+  const make = (scale: number): Buffer => {
+    const dim = size * scale
+    const buf = Buffer.alloc(dim * dim * 4)
+    for (let y = 0; y < dim; y++) {
+      for (let x = 0; x < dim; x++) {
+        if (TRAY_GLYPH[Math.floor(y / scale)][Math.floor(x / scale)] === '#') {
+          buf[(y * dim + x) * 4 + 3] = 255 // BGRA — black pixel, full alpha
+        }
+      }
+    }
+    return buf
+  }
+  const img = nativeImage.createFromBuffer(make(1), { width: size, height: size })
+  img.addRepresentation({ scaleFactor: 2, buffer: make(2), width: size * 2, height: size * 2 })
+  img.setTemplateImage(true)
+  return img
+}
+
+function createMenubarWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 320,
+    height: 380,
+    show: false,
+    frame: false,
+    resizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hiddenInMissionControl: true,
+    // NSPanel behavior: can take key input without activating the app —
+    // otherwise clicking the tray raises the main window too
+    type: 'panel',
+    backgroundColor: '#111114',
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  // Follow the user to whatever Space/fullscreen app is active, and float
+  // above it — prevents "toggle does nothing" when the window opened on
+  // another Space
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  win.setAlwaysOnTop(true, 'pop-up-menu')
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#menubar')
+  } else {
+    win.loadFile(path.join(__dirname, '../renderer/index.html'), { hash: 'menubar' })
+  }
+  // No hide-on-blur: dragging files from Finder necessarily blurs this window.
+  // It closes via Esc, its X button, or clicking the tray icon again.
+  return win
+}
+
+ipcMain.handle('hide-window', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.hide()
+})
+
+function toggleMenubarWindow(): void {
+  if (!menubarWindow || menubarWindow.isDestroyed()) {
+    menubarWindow = createMenubarWindow()
+  }
+  if (menubarWindow.isVisible()) {
+    menubarWindow.hide()
+    return
+  }
+  const trayBounds = tray?.getBounds()
+  const winBounds = menubarWindow.getBounds()
+  if (trayBounds && trayBounds.width > 0) {
+    const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y })
+    let x = Math.round(trayBounds.x + trayBounds.width / 2 - winBounds.width / 2)
+    x = Math.min(Math.max(x, display.workArea.x + 8), display.workArea.x + display.workArea.width - winBounds.width - 8)
+    menubarWindow.setPosition(x, trayBounds.y + trayBounds.height + 6)
+  }
+  menubarWindow.show()
+  menubarWindow.focus()
+}
+
+function setupTray(): void {
+  tray = new Tray(trayImage())
+  tray.setToolTip('Droidwire')
+  tray.on('click', toggleMenubarWindow)
+  tray.on('right-click', toggleMenubarWindow)
+}
+
+ipcMain.handle('show-about', () => {
+  app.showAboutPanel()
+})
+
+ipcMain.handle('app-quit', () => {
+  app.quit()
+})
+
+// ---------------------------------------------------------------------------
+// Auto-update (electron-updater) — silent background check in packaged
+// builds; requires a signed build + GitHub release feed to actually update
+// ---------------------------------------------------------------------------
+
+function setupAutoUpdate(): void {
+  if (!app.isPackaged) return
+  import('electron-updater').then(({ autoUpdater }) => {
+    autoUpdater.on('error', () => { /* unsigned build or offline — silent */ })
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {})
+  }).catch(() => { /* updater unavailable */ })
+}
+
+async function checkForUpdatesInteractive(): Promise<void> {
+  if (!app.isPackaged) {
+    dialog.showMessageBox({ type: 'info', message: 'Updates only work in packaged builds.' })
+    return
+  }
+  try {
+    const { autoUpdater } = await import('electron-updater')
+    const result = await autoUpdater.checkForUpdates()
+    const next = result?.updateInfo?.version
+    if (next && next !== app.getVersion()) {
+      dialog.showMessageBox({
+        type: 'info',
+        message: `Droidwire ${next} is available`,
+        detail: 'Downloading in the background — it installs when you quit the app.',
+      })
+    } else {
+      dialog.showMessageBox({ type: 'info', message: 'Droidwire is up to date.' })
+    }
+  } catch (e) {
+    dialog.showMessageBox({
+      type: 'warning',
+      message: 'Update check failed',
+      detail: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Application menu (macOS menu bar when the app is focused)
+// ---------------------------------------------------------------------------
+
+function setupAppMenu(): void {
+  app.setAboutPanelOptions({
+    applicationName: 'Droidwire',
+    applicationVersion: app.getVersion(),
+    copyright: 'Android file transfer over USB via ADB',
+  })
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'Droidwire',
+      submenu: [
+        { role: 'about', label: 'About Droidwire' },
+        { label: 'Check for Updates…', click: () => { void checkForUpdatesInteractive() } },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Quit Droidwire' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        // No Cmd+W here — the renderer uses it for closing tabs
+        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => { mainWindow = createWindow() } },
+        { type: 'separator' },
+        {
+          label: 'Device Tools',
+          accelerator: 'CmdOrCtrl+D',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+            if (win && !win.isDestroyed()) win.webContents.send('menu-action', 'device-tools')
+          },
+        },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}

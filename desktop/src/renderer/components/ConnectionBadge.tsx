@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import type { ConnectionStatus } from '@droidwire/shared'
 import type { DeviceInfo, AdbDevice } from '../hooks/useDevice'
+import { TransportIcon } from './TransportIcon'
 import { useTheme } from '../lib/ThemeContext'
 
 interface Props {
@@ -12,12 +13,14 @@ interface Props {
   onDisconnect: () => void
   onSelectDevice?: (serial: string) => void
   onEjectDevice?: (serial: string) => void
+  onAddWireless?: () => void
 }
 
-export function ConnectionBadge({ status, device, devices = [], safeToUnplug, onRescan, onDisconnect, onSelectDevice, onEjectDevice }: Props) {
+export function ConnectionBadge({ status, device, devices = [], safeToUnplug, onRescan, onDisconnect, onSelectDevice, onEjectDevice, onAddWireless }: Props) {
   const { theme } = useTheme()
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [ejectMenuOpen, setEjectMenuOpen] = useState(false)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
   const multi = devices.length > 1 && !!onSelectDevice
 
@@ -71,6 +74,7 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
               display: 'flex', alignItems: 'center', gap: '4px',
             }}
           >
+            <TransportIcon serial={device.serial} color={theme.textMuted} />
             {device.name}
             {device.battery > 0 && (
               <span style={{ color: theme.textMuted }}>
@@ -127,6 +131,7 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
                         </svg>
                       )}
                     </span>
+                    <TransportIcon serial={d.serial} color={active ? theme.accent : theme.textMuted} />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.model || d.serial}</span>
                     {active && (
                       <span style={{ fontSize: '10px', fontWeight: 600, color: theme.accent, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
@@ -143,22 +148,77 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
       )}
 
       {status === 'connected' && (
-        <button
-          onClick={onRescan}
-          data-tip="Scan for devices"
-          style={{
-            background: 'none', border: `1px solid ${theme.border}`, borderRadius: '4px',
-            width: '20px', height: '20px', padding: 0, cursor: 'pointer',
-            color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'color 80ms, background 80ms',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = theme.textSecondary }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setAddMenuOpen(o => !o)}
+            data-tip="Add device"
+            style={{
+              background: 'none', border: `1px solid ${theme.border}`, borderRadius: '4px',
+              width: '20px', height: '20px', padding: 0, cursor: 'pointer',
+              color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'color 80ms, background 80ms',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = theme.textSecondary }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          {addMenuOpen && (
+            <>
+            <div
+              onMouseDown={() => setAddMenuOpen(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 299,
+                WebkitAppRegion: 'no-drag' as CSSProperties['WebkitAppRegion'],
+              }}
+            />
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '10px', padding: '4px',
+              minWidth: '230px', zIndex: 300,
+              boxShadow: `0 16px 48px ${theme.shadow}`,
+            }}>
+              {[
+                {
+                  label: 'Add USB device',
+                  sub: 'Plug in a phone and rescan',
+                  icon: <TransportIcon serial="usb" color={theme.textSecondary} size={13} />,
+                  action: () => { setAddMenuOpen(false); onRescan() },
+                },
+                {
+                  label: 'Add wireless device',
+                  sub: 'Pair with a QR code (Android 11+)',
+                  icon: <TransportIcon serial="ip:port" color={theme.textSecondary} size={13} />,
+                  action: () => { setAddMenuOpen(false); onAddWireless?.() },
+                },
+              ].map(item => (
+                <div
+                  key={item.label}
+                  onClick={item.action}
+                  style={{
+                    padding: '8px 10px', fontSize: '13px', cursor: 'pointer',
+                    borderRadius: '6px', color: theme.textPrimary, userSelect: 'none',
+                    display: 'flex', alignItems: 'flex-start', gap: '8px',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = theme.surfaceHover }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                >
+                  <span style={{ marginTop: '2px', display: 'flex' }}>{item.icon}</span>
+                  <span>
+                    {item.label}
+                    <span style={{ display: 'block', fontSize: '11px', color: theme.textMuted, marginTop: '1px' }}>{item.sub}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            </>
+          )}
+        </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

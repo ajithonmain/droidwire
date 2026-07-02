@@ -1,7 +1,7 @@
 import { useTheme } from '../lib/ThemeContext'
 
 interface Props {
-  onSelect: (type: 'adb') => void
+  onSelect: (type: 'adb' | 'wireless') => void
 }
 
 export function ConnectionTypePicker({ onSelect }: Props) {
@@ -20,10 +20,10 @@ export function ConnectionTypePicker({ onSelect }: Props) {
 
   const WIFI_ICON = (
     <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-      <path d="M4 12c6.627-6.627 17.373-6.627 24 0" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M8 16c4.418-4.418 11.582-4.418 16 0" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M12 20c2.209-2.209 5.791-2.209 8 0" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="16" cy="24" r="1.5" fill={theme.textMuted} />
+      <path d="M4 12c6.627-6.627 17.373-6.627 24 0" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 16c4.418-4.418 11.582-4.418 16 0" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M12 20c2.209-2.209 5.791-2.209 8 0" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="16" cy="24" r="1.5" fill={theme.accent} />
     </svg>
   )
 
@@ -119,8 +119,9 @@ export function ConnectionTypePicker({ onSelect }: Props) {
           </svg>
         </button>
 
-        {/* WiFi — coming soon */}
-        <div
+        {/* WiFi — wireless ADB pairing (Android 11+) */}
+        <button
+          onClick={() => onSelect('wireless')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -129,14 +130,17 @@ export function ConnectionTypePicker({ onSelect }: Props) {
             background: theme.surface,
             border: `1px solid ${theme.border}`,
             borderRadius: '10px',
-            opacity: 0.5,
-            cursor: 'not-allowed',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'border-color 0.15s',
           }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = theme.accent)}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = theme.border)}
         >
           <div style={{ flexShrink: 0 }}>{WIFI_ICON}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: theme.textMuted }}>Connect via Wi-Fi</span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: theme.textPrimary }}>Connect via Wi-Fi</span>
               <span style={{
                 fontSize: '11px',
                 fontWeight: 700,
@@ -147,12 +151,15 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 padding: '1px 5px',
                 letterSpacing: '0.4px',
               }}>
-                COMING SOON
+                ANDROID 11+
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textMuted }}>Wireless — same network required</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Wireless debugging — same network required</span>
           </div>
-        </div>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
 
         {/* MTP — coming soon */}
         <div

@@ -42,6 +42,8 @@ export function FileConflictModal({ conflictNames, showApplyAll, onResolve }: Pr
           borderRadius: '12px',
           padding: '22px 24px',
           width: '340px',
+          maxWidth: 'calc(100vw - 24px)',
+          boxSizing: 'border-box',
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
         }}
       >

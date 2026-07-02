@@ -46,7 +46,6 @@ contextBridge.exposeInMainWorld('droidwire', {
   copyFile: (src: string, dest: string): Promise<void> => ipcRenderer.invoke('adb:copy', src, dest),
   findFiles: (dirPath: string, query: string): Promise<unknown[]> => ipcRenderer.invoke('adb:find', dirPath, query),
   cancelTransfer: (transferId: string): Promise<void> => ipcRenderer.invoke('adb:cancel-transfer', transferId),
-  screenshot: (): Promise<string> => ipcRenderer.invoke('adb:screenshot'),
   zipAndPull: (remoteDirPath: string, folderName: string, transferId: string): Promise<string> => ipcRenderer.invoke('adb:zip-pull', remoteDirPath, folderName, transferId),
   installApk: (localPath: string): Promise<void> => ipcRenderer.invoke('adb:install-apk', localPath),
   persistGet: (key: string): Promise<unknown> => ipcRenderer.invoke('persist:get', key),
@@ -104,5 +103,36 @@ contextBridge.exposeInMainWorld('droidwire', {
     const handler = (_e: Electron.IpcRendererEvent, p: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) => callback(p)
     ipcRenderer.on('edit-event', handler)
     return () => ipcRenderer.removeListener('edit-event', handler)
+  },
+
+  batteryDetail: (): Promise<unknown> => ipcRenderer.invoke('adb:battery-detail'),
+  deviceDetail: (): Promise<unknown> => ipcRenderer.invoke('adb:device-detail'),
+  storageDetail: (): Promise<unknown[]> => ipcRenderer.invoke('adb:storage-detail'),
+  listApps: (includeSystem: boolean): Promise<unknown[]> => ipcRenderer.invoke('adb:list-apps', includeSystem),
+  duChildren: (dirPath: string): Promise<unknown> => ipcRenderer.invoke('adb:du-children', dirPath),
+
+  adbPair: (hostPort: string, code: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke('adb:pair', hostPort, code),
+  adbConnect: (hostPort: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke('adb:connect', hostPort),
+
+  qrPairStart: (): Promise<string> => ipcRenderer.invoke('adb:qr-pair-start'),
+  qrPairStop: (): Promise<void> => ipcRenderer.invoke('adb:qr-pair-stop'),
+  onWirelessEvent: (callback: (e: { type: string; message?: string }) => void): (() => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, p: { type: string; message?: string }) => callback(p)
+    ipcRenderer.on('wireless-event', handler)
+    return () => ipcRenderer.removeListener('wireless-event', handler)
+  },
+
+  notify: (title: string, body: string): Promise<void> => ipcRenderer.invoke('notify', title, body),
+  showMainWindow: (): Promise<void> => ipcRenderer.invoke('show-main-window'),
+  hideWindow: (): Promise<void> => ipcRenderer.invoke('hide-window'),
+  showAbout: (): Promise<void> => ipcRenderer.invoke('show-about'),
+  quitApp: (): Promise<void> => ipcRenderer.invoke('app-quit'),
+
+  onMenuAction: (callback: (action: string) => void): (() => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, action: string) => callback(action)
+    ipcRenderer.on('menu-action', handler)
+    return () => ipcRenderer.removeListener('menu-action', handler)
   },
 })

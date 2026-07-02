@@ -7,6 +7,10 @@ interface Props {
   transfers: TransferProgress[]
   onDismiss: (id: string) => void
   onCancel: (id: string) => void
+  onPause: (id: string) => void
+  onResume: (id: string) => void
+  canPause: (t: TransferProgress) => boolean
+  onReorder: (id: string, dir: 'up' | 'down') => void
   onRetry: (transfer: TransferProgress) => void
   onOpenDownloads: () => void
   onReveal: (filePath: string) => void
@@ -20,11 +24,11 @@ function XIcon() {
   )
 }
 
-function TransferRow({ t, onDismiss, onCancel, onRetry, onOpenDownloads, onReveal }: { t: TransferProgress; onDismiss: () => void; onCancel: () => void; onRetry: () => void; onOpenDownloads: () => void; onReveal: (path: string) => void }) {
+function TransferRow({ t, onDismiss, onCancel, onPause, onResume, pausable, onReorder, queuePos, queueLen, onRetry, onOpenDownloads, onReveal }: { t: TransferProgress; onDismiss: () => void; onCancel: () => void; onPause: () => void; onResume: () => void; pausable: boolean; onReorder: (dir: 'up' | 'down') => void; queuePos: number; queueLen: number; onRetry: () => void; onOpenDownloads: () => void; onReveal: (path: string) => void }) {
   const { theme } = useTheme()
   const pct = formatPercent(t.transferredBytes, t.totalBytes)
   const remaining = t.totalBytes - t.transferredBytes
-  const statusColor = t.status === 'done' ? theme.accent : t.status === 'error' ? theme.error : t.status === 'cancelled' ? theme.warning : theme.textMuted
+  const statusColor = t.status === 'done' ? theme.accent : t.status === 'error' ? theme.error : t.status === 'cancelled' || t.status === 'paused' ? theme.warning : theme.textMuted
   const isActive = t.status === 'active' || t.status === 'pending'
   const label = t.direction === 'download' ? 'DL' : 'UL'
 
@@ -44,7 +48,7 @@ function TransferRow({ t, onDismiss, onCancel, onRetry, onOpenDownloads, onRevea
             {t.fileName}
           </span>
           <span style={{ fontSize: '13px', color: statusColor, flexShrink: 0, marginLeft: '8px' }}>
-            {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'cancelled' ? 'Cancelled' : t.status === 'pending' ? 'Pending' : `${pct}%`}
+            {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'cancelled' ? 'Cancelled' : t.status === 'paused' ? 'Paused' : t.status === 'pending' ? 'Queued' : `${pct}%`}
           </span>
         </div>
 
@@ -60,12 +64,71 @@ function TransferRow({ t, onDismiss, onCancel, onRetry, onOpenDownloads, onRevea
         )}
 
         {isActive && (
-          <span
-            onClick={onCancel}
-            style={{ fontSize: '12px', color: theme.warning, cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            Cancel
-          </span>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            {t.status === 'pending' && queueLen > 1 && (
+              <span style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  onClick={() => onReorder('up')}
+                  disabled={queuePos === 0}
+                  data-tip="Run sooner"
+                  style={{
+                    background: 'none', border: 'none', padding: '1px', display: 'flex',
+                    color: queuePos === 0 ? theme.border : theme.textMuted,
+                    cursor: queuePos === 0 ? 'default' : 'pointer',
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 9.5v-7M3 5l3-2.5L9 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => onReorder('down')}
+                  disabled={queuePos === queueLen - 1}
+                  data-tip="Run later"
+                  style={{
+                    background: 'none', border: 'none', padding: '1px', display: 'flex',
+                    color: queuePos === queueLen - 1 ? theme.border : theme.textMuted,
+                    cursor: queuePos === queueLen - 1 ? 'default' : 'pointer',
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 2.5v7M3 7l3 2.5L9 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </span>
+            )}
+            {pausable && (
+              <span
+                onClick={onPause}
+                style={{ fontSize: '12px', color: theme.textMuted, cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Pause
+              </span>
+            )}
+            <span
+              onClick={onCancel}
+              style={{ fontSize: '12px', color: theme.warning, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Cancel
+            </span>
+          </div>
+        )}
+
+        {t.status === 'paused' && (
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <span
+              onClick={onResume}
+              style={{ fontSize: '12px', color: theme.accent, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Resume
+            </span>
+            <span
+              onClick={onCancel}
+              style={{ fontSize: '12px', color: theme.warning, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Cancel
+            </span>
+          </div>
         )}
 
         {t.status === 'error' && (
@@ -110,7 +173,7 @@ function TransferRow({ t, onDismiss, onCancel, onRetry, onOpenDownloads, onRevea
   )
 }
 
-export function TransferPanel({ transfers, onDismiss, onCancel, onRetry, onOpenDownloads, onReveal }: Props) {
+export function TransferPanel({ transfers, onDismiss, onCancel, onPause, onResume, canPause, onReorder, onRetry, onOpenDownloads, onReveal }: Props) {
   const { theme } = useTheme()
   const scheduledRef = useRef<Set<string>>(new Set())
 
@@ -144,17 +207,27 @@ export function TransferPanel({ transfers, onDismiss, onCancel, onRetry, onOpenD
         </span>
       </div>
       <div style={{ padding: '0 16px 6px' }}>
-        {transfers.map(t => (
-          <TransferRow
-            key={t.id}
-            t={t}
-            onDismiss={() => onDismiss(t.id)}
-            onCancel={() => onCancel(t.id)}
-            onRetry={() => onRetry(t)}
-            onOpenDownloads={onOpenDownloads}
-            onReveal={onReveal}
-          />
-        ))}
+        {(() => {
+          // Queue order = oldest first (array is newest-first)
+          const queueIds = transfers.filter(t => t.status === 'pending').map(t => t.id).reverse()
+          return transfers.map(t => (
+            <TransferRow
+              key={t.id}
+              t={t}
+              onDismiss={() => onDismiss(t.id)}
+              onCancel={() => onCancel(t.id)}
+              onPause={() => onPause(t.id)}
+              onResume={() => onResume(t.id)}
+              pausable={canPause(t)}
+              onReorder={dir => onReorder(t.id, dir)}
+              queuePos={queueIds.indexOf(t.id)}
+              queueLen={queueIds.length}
+              onRetry={() => onRetry(t)}
+              onOpenDownloads={onOpenDownloads}
+              onReveal={onReveal}
+            />
+          ))
+        })()}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import type { FileNode, StorageInfo } from '@droidwire/shared'
+import type { FileNode, StorageInfo, BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
 
 interface DroidwireAPI {
   getDevices(): Promise<{ devices: { serial: string; state: string; model: string }[]; active: string | null }>
@@ -20,7 +20,6 @@ interface DroidwireAPI {
   copyFile(src: string, dest: string): Promise<void>
   findFiles(dirPath: string, query: string): Promise<FileNode[]>
   cancelTransfer(transferId: string): Promise<void>
-  screenshot(): Promise<string>
   zipAndPull(remoteDirPath: string, folderName: string, transferId: string): Promise<string>
   installApk(localPath: string): Promise<void>
   persistGet(key: string): Promise<unknown>
@@ -43,6 +42,22 @@ interface DroidwireAPI {
   onTransferProgress(callback: (progress: unknown) => void): () => void
   editOpen(remotePath: string, fileName: string): Promise<void>
   onEditEvent(callback: (e: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) => void): () => void
+  batteryDetail(): Promise<BatteryDetail>
+  deviceDetail(): Promise<DeviceDetail>
+  storageDetail(): Promise<MountInfo[]>
+  listApps(includeSystem: boolean): Promise<InstalledApp[]>
+  duChildren(dirPath: string): Promise<{ entries: DuEntry[]; totalBytes: number }>
+  adbPair(hostPort: string, code: string): Promise<{ ok: boolean; message: string }>
+  adbConnect(hostPort: string): Promise<{ ok: boolean; message: string }>
+  qrPairStart(): Promise<string>
+  qrPairStop(): Promise<void>
+  onWirelessEvent(callback: (e: { type: string; message?: string }) => void): () => void
+  notify(title: string, body: string): Promise<void>
+  showMainWindow(): Promise<void>
+  hideWindow(): Promise<void>
+  showAbout(): Promise<void>
+  quitApp(): Promise<void>
+  onMenuAction(callback: (action: string) => void): () => void
 }
 
 declare global {
