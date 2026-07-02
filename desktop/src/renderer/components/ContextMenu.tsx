@@ -76,6 +76,17 @@ export function ContextMenu({
     setPos({ left, top })
   }, [x, y])
 
+  // Close when the app loses focus (click on another window / desktop) or Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('blur', onClose)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('blur', onClose)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
   const isApk = file.type === 'file' && file.name.toLowerCase().endsWith('.apk')
   const isDir = file.type === 'dir'
 

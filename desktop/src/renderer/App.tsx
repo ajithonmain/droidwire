@@ -36,6 +36,16 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, storage, safeToUnplug, disconnect, rescan } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
+  // Setup tutorial only appears if the device hasn't connected within the grace period
+  const [guideGraceOver, setGuideGraceOver] = useState(false)
+  useEffect(() => {
+    if (!connectionPicked || status === 'connected') {
+      setGuideGraceOver(false)
+      return
+    }
+    const t = setTimeout(() => setGuideGraceOver(true), 6000)
+    return () => clearTimeout(t)
+  }, [connectionPicked, status])
   const { transfers, download: rawDownload, upload, cancel, retry, dismiss, activeCount } = useTransfers()
   const { bookmarks, addBookmark, removeBookmark } = useBookmarks()
 
@@ -847,6 +857,13 @@ export default function App() {
           {!isConnected ? (
             !connectionPicked ? (
               <ConnectionTypePicker onSelect={() => { setConnectionPicked(true); rescan() }} />
+            ) : !guideGraceOver ? (
+              // Grace period: a device with USB debugging already on connects in
+              // seconds — don't flash the full setup tutorial at it
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 500, color: theme.textSecondary }}>Connecting to device…</span>
+                <span style={{ fontSize: '12px', color: theme.textMuted }}>Plug in your phone if it isn't already</span>
+              </div>
             ) : (
               <SetupGuide
                 scanning={status === 'connecting' || status === 'reconnecting'}

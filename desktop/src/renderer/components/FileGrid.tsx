@@ -262,6 +262,38 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
   return <FileIconLg mimeType={file.mimeType} fileName={file.name} theme={theme} />
 }
 
+// Folder sizes are computed on demand (du -sk per folder) and cached for the
+// session — only visible rows fetch, throttled through the thumb queue.
+const _dirSizeCache = new Map<string, number | null>()
+
+function DirSizeCell({ file }: { file: FileNode }) {
+  const key = `${file.path}:${file.modified}`
+  const [size, setSize] = useState<number | null | undefined>(_dirSizeCache.get(key))
+
+  useEffect(() => {
+    if (_dirSizeCache.has(key)) { setSize(_dirSizeCache.get(key)); return }
+    let cancelled = false
+    let acquired = false
+    thumbAcquire().then(() => {
+      acquired = true
+      if (cancelled) { thumbRelease(); return }
+      return window.droidwire.dirSize(file.path)
+        .then(s => { _dirSizeCache.set(key, s); if (!cancelled) setSize(s) })
+        .catch(() => { if (!cancelled) setSize(null) })
+        .finally(() => thumbRelease())
+    })
+    return () => {
+      cancelled = true
+      if (!acquired) {
+        const idx = _thumbQueue.length - 1
+        if (idx >= 0) _thumbQueue.splice(idx, 1, () => { _thumbActive++; thumbRelease() })
+      }
+    }
+  }, [key, file.path])
+
+  return <>{size === undefined ? '…' : size === null ? '—' : formatSize(size)}</>
+}
+
 function VideoThumbLg({ file, theme }: { file: FileNode; theme: Theme }) {
   const [src, setSrc] = useState<string | null>(null)
 
@@ -920,7 +952,7 @@ export function FileGrid({
                   </div>
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'right', fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
-                  {file.type === 'file' ? formatSize(file.size) : '—'}
+                  {file.type === 'file' ? formatSize(file.size) : <DirSizeCell file={file} />}
                 </td>
                 <td style={{ padding: '5px 8px', fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {formatDate(file.modified)}

@@ -70,8 +70,18 @@ function Dropdown<T extends string>({
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
+    const close = () => setOpen(false)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    // Titlebar is a WebkitAppRegion drag area (no mousedown) and clicks in
+    // other apps never reach us — blur covers both.
+    window.addEventListener('blur', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      window.removeEventListener('blur', close)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
   return (
