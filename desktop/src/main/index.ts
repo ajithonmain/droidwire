@@ -77,9 +77,20 @@ function adbBin(): string {
   return 'adb'
 }
 
+// Active device — all adb commands are scoped to this serial so that a
+// second connected phone doesn't break every call ("more than one device").
+let _activeSerial: string | null = null
+const _modelCache = new Map<string, string>()
+
+function adbArgs(args: string[]): string[] {
+  // 'devices' is global; callers passing an explicit -s manage their own scope
+  if (!_activeSerial || args[0] === 'devices' || args[0] === '-s') return args
+  return ['-s', _activeSerial, ...args]
+}
+
 function adb(args: string[]): Promise<string> {
   return withAdbSlot(() => new Promise((resolve, reject) => {
-    const proc = execFile(adbBin(), args, { timeout: 15000 }, (err, stdout, stderr) => {
+    const proc = execFile(adbBin(), adbArgs(args), { timeout: 15000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr.trim() || err.message))
       else resolve(stdout)
     })
@@ -210,7 +221,7 @@ function ensureRangeServer(): Promise<number> {
           'Content-Length': len,
           ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
         })
-        const proc = spawn(adbBin(), ['exec-out', `dd if=${sq(remotePath)} bs=${BS} skip=${blockStart} count=${blockCount} 2>/dev/null`])
+        const proc = spawn(adbBin(), adbArgs(['exec-out', `dd if=${sq(remotePath)} bs=${BS} skip=${blockStart} count=${blockCount} 2>/dev/null`]))
         let remaining = len
         proc.stdout.on('data', (chunk: Buffer) => {
           let c = chunk
@@ -342,15 +353,40 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('adb:devices', async () => {
   const out = await adb(['devices'])
-  return out
+  const devices = out
     .split('\n')
     .slice(1)
     .map(l => l.trim())
     .filter(l => l && !l.startsWith('*') && l.includes('\t'))
     .map(l => {
       const [serial, state] = l.split('\t')
-      return { serial: serial.trim(), state: state.trim() }
+      return { serial: serial.trim(), state: state.trim(), model: '' }
     })
+
+  // Keep the active serial valid: default to the first online device,
+  // reset if the active one vanished
+  const online = devices.filter(d => d.state === 'device')
+  if (!_activeSerial || !online.some(d => d.serial === _activeSerial)) {
+    _activeSerial = online[0]?.serial ?? null
+  }
+
+  // Model names for the switcher UI, cached per serial
+  for (const d of online) {
+    if (!_modelCache.has(d.serial)) {
+      try {
+        const model = await adb(['-s', d.serial, 'shell', 'getprop', 'ro.product.model'])
+        _modelCache.set(d.serial, model.trim())
+      } catch { /* leave unnamed */ }
+    }
+    d.model = _modelCache.get(d.serial) ?? d.serial
+  }
+
+  return { devices, active: _activeSerial }
+})
+
+ipcMain.handle('adb:set-device', async (_e, serial: string) => {
+  _activeSerial = serial
+  _remoteSizeCache.clear()
 })
 
 ipcMain.handle('adb:device-info', async () => {
@@ -401,7 +437,7 @@ ipcMain.handle('adb:pull', async (event, remotePath: string, fileName: string, t
   } catch { /* non-critical */ }
 
   return new Promise<string>((resolve, reject) => {
-    const proc = spawn(adbBin(), ['pull', remotePath, dest])
+    const proc = spawn(adbBin(), adbArgs(['pull', remotePath, dest]))
     activeTransfers.set(transferId, proc)
     const startTime = Date.now()
     let lastBytes = 0
@@ -454,7 +490,7 @@ ipcMain.handle('adb:push', async (event, localPath: string, remotePath: string, 
   const totalBytes = (() => { try { return fs.statSync(localPath).size } catch { return 0 } })()
 
   return new Promise<void>((resolve, reject) => {
-    const proc = spawn(adbBin(), ['push', localPath, remotePath])
+    const proc = spawn(adbBin(), adbArgs(['push', localPath, remotePath]))
     activeTransfers.set(transferId, proc)
     let lastBytes = 0
     let lastTime = Date.now()
@@ -521,7 +557,7 @@ ipcMain.handle('adb:preview', async (_e, remotePath: string, fileName: string) =
   const dest = path.join(previewDir(), fileName)
   try {
     await new Promise<void>((resolve, reject) => {
-      const proc = spawn(adbBin(), ['pull', remotePath, dest])
+      const proc = spawn(adbBin(), adbArgs(['pull', remotePath, dest]))
       proc.on('error', reject)
       proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
       proc.stderr.on('data', () => {})
@@ -628,7 +664,7 @@ ipcMain.handle('adb:cancel-transfer', async (_e, transferId: string) => {
 ipcMain.handle('adb:screenshot', async () => {
   const dest = path.join(downloadsDir(), `screenshot-${Date.now()}.png`)
   await new Promise<void>((resolve, reject) => {
-    const proc = spawn(adbBin(), ['exec-out', 'screencap', '-p'])
+    const proc = spawn(adbBin(), adbArgs(['exec-out', 'screencap', '-p']))
     const out = fs.createWriteStream(dest)
     proc.stdout.pipe(out)
     proc.stderr.on('data', () => { /* suppress */ })
@@ -658,7 +694,7 @@ ipcMain.handle('adb:zip-pull', async (event, remoteDirPath: string, folderName: 
   } catch { /* non-critical */ }
 
   const result = await new Promise<string>((resolve, reject) => {
-    const proc = spawn(adbBin(), ['pull', remoteZip, dest])
+    const proc = spawn(adbBin(), adbArgs(['pull', remoteZip, dest]))
     activeTransfers.set(transferId, proc)
     const startTime = Date.now()
     let lastBytes = 0
@@ -707,7 +743,7 @@ ipcMain.handle('adb:zip-pull', async (event, remoteDirPath: string, folderName: 
 
 ipcMain.handle('adb:install-apk', async (_e, localPath: string) => {
   await new Promise<void>((resolve, reject) => {
-    execFile(adbBin(), ['install', '-r', localPath], { timeout: 120000 }, (err, _stdout, stderr) => {
+    execFile(adbBin(), adbArgs(['install', '-r', localPath]), { timeout: 120000 }, (err, _stdout, stderr) => {
       if (err) reject(new Error(stderr.trim() || err.message))
       else resolve()
     })

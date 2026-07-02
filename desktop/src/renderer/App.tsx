@@ -8,7 +8,7 @@ import { formatSize } from './lib/format'
 import { ConnectionBadge } from './components/ConnectionBadge'
 import { Sidebar } from './components/Sidebar'
 import { Breadcrumb } from './components/Breadcrumb'
-import { FileGrid } from './components/FileGrid'
+import { FileGrid, clearFileGridCaches } from './components/FileGrid'
 import { TransferPanel } from './components/TransferPanel'
 import { SetupGuide } from './components/SetupGuide'
 import { ConnectionTypePicker } from './components/ConnectionTypePicker'
@@ -34,7 +34,7 @@ type SearchMode = 'local' | 'deep'
 
 export default function App() {
   const { theme, mode, toggle } = useTheme()
-  const { status, device, storage, safeToUnplug, disconnect, rescan } = useDevice()
+  const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
   // Branded splash on launch — covers the first device probe so the
   // connection picker doesn't pop in abruptly
@@ -358,6 +358,15 @@ export default function App() {
 
   function handleCopyPath(file: FileNode) {
     navigator.clipboard.writeText(file.path).catch(() => {})
+  }
+
+  async function handleDeviceScreenshot() {
+    try {
+      const dest = await window.droidwire.screenshot()
+      window.droidwire.showInFinder(dest).catch(() => {})
+    } catch (e) {
+      console.error('Screenshot failed', e)
+    }
   }
 
   // Context-menu actions apply to the whole selection when the clicked file
@@ -754,6 +763,24 @@ export default function App() {
                 </svg>
               </button>
               <button
+                onClick={handleDeviceScreenshot}
+                data-tip="Capture device screenshot"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  width: '28px', height: '28px', padding: 0, color: theme.textMuted,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px',
+                  transition: 'color 80ms, background 80ms',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = theme.textSecondary }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
+              >
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <rect x="1.5" y="4" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M5 4l1-1.5h3L10 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="7.5" cy="8.5" r="2.2" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+              </button>
+              <button
                 onClick={bookmarkCurrent}
                 data-tip={isBookmarked ? 'Remove bookmark' : 'Bookmark this folder'}
                 style={{
@@ -800,12 +827,25 @@ export default function App() {
           <ConnectionBadge
             status={status}
             device={device}
+            devices={devices}
             safeToUnplug={safeToUnplug}
             onRescan={rescan}
             onDisconnect={() => {
               disconnect()
               // Back to the connection-type start screen after eject
               setConnectionPicked(false)
+            }}
+            onSelectDevice={async serial => {
+              await selectDevice(serial)
+              // Same paths, different phone — drop path-keyed caches and restart at root
+              clearFileGridCaches()
+              const id = crypto.randomUUID()
+              setTabs([{ id, path: '/storage/emulated/0' }])
+              setActiveTabId(id)
+              activeTabIdRef.current = id
+              navHistoryRef.current = []
+              navIndexRef.current = -1
+              navigate('/storage/emulated/0')
             }}
           />
         </div>

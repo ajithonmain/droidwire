@@ -1,7 +1,8 @@
 import type { FileNode, StorageInfo } from '@droidwire/shared'
 
 interface DroidwireAPI {
-  getDevices(): Promise<{ serial: string; state: string }[]>
+  getDevices(): Promise<{ devices: { serial: string; state: string; model: string }[]; active: string | null }>
+  setDevice(serial: string): Promise<void>
   getDeviceInfo(): Promise<{ name: string; battery: number }>
   listFiles(dirPath: string): Promise<FileNode[]>
   getStorage(): Promise<StorageInfo>

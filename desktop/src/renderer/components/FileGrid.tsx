@@ -267,6 +267,12 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
 // session — only visible rows fetch, throttled through the thumb queue.
 const _dirSizeCache = new Map<string, number | null>()
 
+// Paths are identical across phones (/sdcard/DCIM etc), so switching the
+// active device must drop path-keyed caches.
+export function clearFileGridCaches() {
+  _dirSizeCache.clear()
+}
+
 function DirSizeCell({ file }: { file: FileNode }) {
   const key = `${file.path}:${file.modified}`
   const [size, setSize] = useState<number | null | undefined>(_dirSizeCache.get(key))

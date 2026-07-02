@@ -11,9 +11,16 @@ export interface DeviceInfo {
 const POLL_CONNECTED_MS = 5000
 const POLL_DISCONNECTED_MS = 3000
 
+export interface AdbDevice {
+  serial: string
+  state: string
+  model: string
+}
+
 export function useDevice() {
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [device, setDevice] = useState<DeviceInfo | null>(null)
+  const [devices, setDevices] = useState<AdbDevice[]>([])
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [safeToUnplug, setSafeToUnplug] = useState(false)
 
@@ -41,11 +48,12 @@ export function useDevice() {
       return
     }
     try {
-      const devices = await window.droidwire.getDevices()
+      const res = await window.droidwire.getDevices()
       if (!mounted.current) return
 
-      const online = devices.filter(d => d.state === 'device')
-      if (online.length === 0) {
+      const online = res.devices.filter(d => d.state === 'device')
+      setDevices(online)
+      if (online.length === 0 || !res.active) {
         setStatus('disconnected')
         setDeviceSync(null)
         setStorage(null)
@@ -53,14 +61,15 @@ export function useDevice() {
         return
       }
 
-      const wasConnected = deviceRef.current !== null
+      // Refetch storage on first connect and whenever the active device changes
+      const serialChanged = deviceRef.current?.serial !== res.active
       const info = await window.droidwire.getDeviceInfo()
       if (!mounted.current) return
 
-      setDeviceSync({ name: info.name, battery: info.battery, serial: online[0].serial })
+      setDeviceSync({ name: info.name, battery: info.battery, serial: res.active })
       setStatus('connected')
 
-      if (!wasConnected) {
+      if (serialChanged) {
         getStorage().then(s => { if (mounted.current) setStorage(s) }).catch(() => {})
       }
       scheduleNext(true)
@@ -101,5 +110,10 @@ export function useDevice() {
     check()
   }, [check])
 
-  return { status, device, storage, safeToUnplug, disconnect, rescan }
+  const selectDevice = useCallback(async (serial: string) => {
+    await window.droidwire.setDevice(serial)
+    rescan()
+  }, [rescan])
+
+  return { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice }
 }
