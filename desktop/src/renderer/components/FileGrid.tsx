@@ -39,6 +39,7 @@ interface Props {
   onDownload: (file: FileNode) => void
   onContextMenu: (file: FileNode, x: number, y: number) => void
   onEmptyContextMenu?: (x: number, y: number) => void
+  onOpenFile?: (file: FileNode) => void
   onDeselectAll: () => void
   onGoUp: () => void
   onSelectAll: () => void
@@ -415,7 +416,7 @@ const OVERSCAN = 8   // buffer rows — 8*124=992px grid, 8*36=288px list
 export function FileGrid({
   files, loading, currentPath: _currentPath, selectedPaths, cutPaths, viewMode,
   sortField, sortDir, onSort,
-  onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu, onEmptyContextMenu,
+  onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu, onEmptyContextMenu, onOpenFile,
   onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRenameInline, onPreview, onNativeDrag: _onNativeDrag,
   onInternalDragStart, onInternalDragEnd, keyboardDisabled,
 }: Props) {
@@ -793,6 +794,7 @@ export function FileGrid({
                   e.stopPropagation()
                   clearRenameTimer()
                   if (file.type === 'dir') onNavigate(file.path)
+                  else if (onOpenFile) onOpenFile(file)
                   else if (onPreview) onPreview(file)
                 }}
                 onContextMenu={(e) => { e.preventDefault(); clearRenameTimer(); onContextMenu(file, e.clientX, e.clientY) }}
@@ -928,6 +930,7 @@ export function FileGrid({
                   e.preventDefault()
                   clearRenameTimer()
                   if (file.type === 'dir') onNavigate(file.path)
+                  else if (onOpenFile) onOpenFile(file)
                   else if (onPreview) onPreview(file)
                 }}
                 onContextMenu={(e) => { e.preventDefault(); clearRenameTimer(); onContextMenu(file, e.clientX, e.clientY) }}

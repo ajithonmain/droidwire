@@ -23,6 +23,7 @@ interface Props {
   downloadCount?: number
   onSelectAll?: () => void
   onRefresh?: () => void
+  onOpenFile?: (file: FileNode) => void
 }
 
 interface Item {
@@ -58,7 +59,7 @@ function MenuItem({ item, onClose, theme }: { item: Item; onClose: () => void; t
 export function ContextMenu({
   x, y, file, onClose, onDownload, onDelete, onRename, onCopyPath, onNewFolder,
   onZipDownload, onInstallApk, onOpenInNewTab, onCopy, onCut, onPaste, hasClipboard,
-  downloadCount, onSelectAll, onRefresh,
+  downloadCount, onSelectAll, onRefresh, onOpenFile,
 }: Props) {
   const { theme } = useTheme()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -105,6 +106,7 @@ export function ContextMenu({
       if (onZipDownload) items.push({ label: 'Download as ZIP', onClick: () => onZipDownload(file) })
       if (onOpenInNewTab) items.push({ label: 'Open in New Tab', onClick: () => onOpenInNewTab(file) })
     } else {
+      if (onOpenFile) items.push({ label: 'Open & Edit', onClick: () => onOpenFile(file) })
       items.push({
         label: downloadCount && downloadCount > 1 ? `Download ${downloadCount} Files` : 'Download',
         onClick: () => onDownload(file),

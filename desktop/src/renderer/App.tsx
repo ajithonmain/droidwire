@@ -36,6 +36,24 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
+  // Transient status toast (open-and-edit sync feedback)
+  const [toast, setToast] = useState<{ msg: string; kind: 'info' | 'success' | 'error' } | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!toast) return
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500)
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current) }
+  }, [toast])
+
+  useEffect(() => {
+    return window.droidwire.onEditEvent(e => {
+      if (e.type === 'opened') setToast({ msg: `Opened ${e.fileName} — saves sync back to the phone`, kind: 'info' })
+      else if (e.type === 'synced') setToast({ msg: `Synced ${e.fileName} to the phone`, kind: 'success' })
+      else setToast({ msg: `Sync failed for ${e.fileName}: ${e.error ?? 'unknown error'}`, kind: 'error' })
+    })
+  }, [])
+
   // Branded splash on launch — covers the first device probe so the
   // connection picker doesn't pop in abruptly
   const [booting, setBooting] = useState(true)
@@ -371,6 +389,14 @@ export default function App() {
     navHistoryRef.current = []
     navIndexRef.current = -1
     navigate('/storage/emulated/0')
+  }
+
+  async function handleOpenFile(file: FileNode) {
+    try {
+      await window.droidwire.editOpen(file.path, file.name)
+    } catch {
+      setToast({ msg: `Could not open ${file.name}`, kind: 'error' })
+    }
   }
 
   async function handleDeviceScreenshot() {
@@ -971,6 +997,7 @@ export default function App() {
                   setContextMenu({ file, x, y })
                 }}
                 onEmptyContextMenu={(x, y) => setContextMenu({ file: null, x, y })}
+                onOpenFile={handleOpenFile}
                 onDeselectAll={() => setSelectedFiles([])}
                 onGoUp={goUp}
                 onSelectAll={() => setSelectedFiles(displayFiles)}
@@ -1092,6 +1119,7 @@ export default function App() {
           onOpenInNewTab={contextMenu.file?.type === 'dir' ? file => openInNewTab(file.path) : undefined}
           onSelectAll={() => setSelectedFiles(displayFiles)}
           onRefresh={refresh}
+          onOpenFile={handleOpenFile}
           onCopy={file => setClipboard({ nodes: contextTargets(file), mode: 'copy' })}
           onCut={file => setClipboard({ nodes: contextTargets(file), mode: 'cut' })}
           onPaste={handlePaste}
@@ -1149,6 +1177,22 @@ export default function App() {
           showApplyAll={conflictState.showApplyAll}
           onResolve={conflictState.resolve}
         />
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '52px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 2000, pointerEvents: 'none',
+          background: theme.surfaceActive,
+          border: `1px solid ${toast.kind === 'error' ? theme.error : toast.kind === 'success' ? theme.accent : theme.border}`,
+          borderRadius: '8px', padding: '8px 16px',
+          fontSize: '13px', fontWeight: 500,
+          color: toast.kind === 'error' ? theme.error : theme.textPrimary,
+          boxShadow: `0 8px 32px ${theme.shadow}`,
+          maxWidth: '70%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {toast.msg}
+        </div>
       )}
 
       <TooltipLayer />

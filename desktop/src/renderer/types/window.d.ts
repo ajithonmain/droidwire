@@ -41,6 +41,8 @@ interface DroidwireAPI {
   videoThumb(remotePath: string, size: number): Promise<string | null>
   dirSize(remotePath: string): Promise<number | null>
   onTransferProgress(callback: (progress: unknown) => void): () => void
+  editOpen(remotePath: string, fileName: string): Promise<void>
+  onEditEvent(callback: (e: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) => void): () => void
 }
 
 declare global {

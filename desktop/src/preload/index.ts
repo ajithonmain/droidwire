@@ -96,4 +96,13 @@ contextBridge.exposeInMainWorld('droidwire', {
     ipcRenderer.on('transfer-progress', handler)
     return () => ipcRenderer.removeListener('transfer-progress', handler)
   },
+
+  editOpen: (remotePath: string, fileName: string): Promise<void> =>
+    ipcRenderer.invoke('edit-open', remotePath, fileName),
+
+  onEditEvent: (callback: (e: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) => void): (() => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, p: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) => callback(p)
+    ipcRenderer.on('edit-event', handler)
+    return () => ipcRenderer.removeListener('edit-event', handler)
+  },
 })

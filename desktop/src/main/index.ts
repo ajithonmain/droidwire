@@ -696,6 +696,104 @@ ipcMain.handle('adb:screenshot', async () => {
   return dest
 })
 
+// ---------------------------------------------------------------------------
+// Open & edit round-trip: pull the file to a temp dir, open it in its Mac
+// app, watch for saves, push changes back to the phone automatically.
+// ---------------------------------------------------------------------------
+
+interface EditSession {
+  localPath: string
+  remotePath: string
+  serial: string | null      // pin to the device the file came from
+  lastMtimeMs: number
+  pushing: boolean
+  pendingTimer: ReturnType<typeof setTimeout> | null
+  watcher: fs.FSWatcher
+}
+
+const _editSessions = new Map<string, EditSession>()
+
+function sendEditEvent(payload: { type: 'opened' | 'synced' | 'failed'; fileName: string; error?: string }) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('edit-event', payload)
+  }
+}
+
+function pushEditSession(session: EditSession, fileName: string) {
+  let st: fs.Stats
+  try { st = fs.statSync(session.localPath) } catch { return }
+  if (st.mtimeMs <= session.lastMtimeMs || session.pushing) return
+  session.pushing = true
+  const args = session.serial
+    ? ['-s', session.serial, 'push', session.localPath, session.remotePath]
+    : ['push', session.localPath, session.remotePath]
+  const proc = spawn(adbBin(), args)
+  proc.on('error', () => {
+    session.pushing = false
+    sendEditEvent({ type: 'failed', fileName, error: 'adb not available' })
+  })
+  proc.on('close', code => {
+    session.pushing = false
+    if (code === 0) {
+      session.lastMtimeMs = st.mtimeMs
+      sendEditEvent({ type: 'synced', fileName })
+    } else {
+      sendEditEvent({ type: 'failed', fileName, error: 'push failed — is the device connected?' })
+    }
+  })
+}
+
+ipcMain.handle('edit-open', async (_e, remotePath: string, fileName: string) => {
+  const existing = _editSessions.get(remotePath)
+  if (existing) {
+    await shell.openPath(existing.localPath)
+    return
+  }
+
+  const dir = path.join(os.tmpdir(), 'droidwire-edit', crypto.createHash('md5').update(remotePath).digest('hex').slice(0, 10))
+  fs.mkdirSync(dir, { recursive: true })
+  const localPath = path.join(dir, fileName)
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(adbBin(), adbArgs(['pull', remotePath, localPath]))
+    proc.on('error', reject)
+    proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
+    proc.stderr.on('data', () => {})
+  })
+
+  const session: EditSession = {
+    localPath,
+    remotePath,
+    serial: _activeSerial,
+    lastMtimeMs: fs.statSync(localPath).mtimeMs,
+    pushing: false,
+    pendingTimer: null,
+    // Watch the directory, not the file — most editors save via
+    // write-temp-then-rename, which breaks a direct file watch
+    watcher: fs.watch(dir, (_event, changed) => {
+      if (changed !== fileName) return
+      if (session.pendingTimer) clearTimeout(session.pendingTimer)
+      session.pendingTimer = setTimeout(() => pushEditSession(session, fileName), 600)
+    }),
+  }
+  _editSessions.set(remotePath, session)
+
+  const err = await shell.openPath(localPath)
+  if (err) {
+    session.watcher.close()
+    _editSessions.delete(remotePath)
+    throw new Error(err)
+  }
+  sendEditEvent({ type: 'opened', fileName })
+})
+
+app.on('will-quit', () => {
+  for (const s of _editSessions.values()) {
+    s.watcher.close()
+    if (s.pendingTimer) clearTimeout(s.pendingTimer)
+  }
+})
+
 ipcMain.handle('adb:zip-pull', async (event, remoteDirPath: string, folderName: string, transferId: string) => {
   const remoteZip = '/sdcard/._droidwire_tmp.zip'
   const parent = remoteDirPath.replace(/\/$/, '').replace(/\/[^/]+$/, '') || '/'
