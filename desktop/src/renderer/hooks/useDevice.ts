@@ -83,7 +83,9 @@ export function useDevice() {
   }, [check])
 
   const disconnect = useCallback(() => {
-    pauseUntil.current = Date.now() + 5000
+    // Eject stops polling entirely — no auto-reconnect while the phone stays
+    // plugged in. rescan() (user picking a connection again) resumes.
+    pauseUntil.current = Infinity
     setDeviceSync(null)
     setStorage(null)
     setStatus('disconnected')

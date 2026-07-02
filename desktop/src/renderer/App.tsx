@@ -780,7 +780,17 @@ export default function App() {
               </svg>
             )}
           </button>
-          <ConnectionBadge status={status} device={device} safeToUnplug={safeToUnplug} onRescan={rescan} onDisconnect={disconnect} />
+          <ConnectionBadge
+            status={status}
+            device={device}
+            safeToUnplug={safeToUnplug}
+            onRescan={rescan}
+            onDisconnect={() => {
+              disconnect()
+              // Back to the connection-type start screen after eject
+              setConnectionPicked(false)
+            }}
+          />
         </div>
       </header>
 
@@ -836,7 +846,7 @@ export default function App() {
 
           {!isConnected ? (
             !connectionPicked ? (
-              <ConnectionTypePicker onSelect={() => setConnectionPicked(true)} />
+              <ConnectionTypePicker onSelect={() => { setConnectionPicked(true); rescan() }} />
             ) : (
               <SetupGuide
                 scanning={status === 'connecting' || status === 'reconnecting'}

@@ -131,7 +131,6 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
     .map(name => rootDirs.find(d => d.name === name))
     .filter((d): d is FileNode => d !== undefined)
 
-  const others = rootDirs.filter(d => !PINNED_DIRS.includes(d.name))
 
   const sectionHeader = {
     fontSize: '11px',
@@ -255,12 +254,6 @@ export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, boo
         </>
       )}
 
-      {others.length > 0 && (
-        <>
-          <div style={{ ...sectionHeader, paddingTop: '10px' }}>All</div>
-          {others.map(node => <DirItem key={node.path} node={node} />)}
-        </>
-      )}
 
       {bookmarks.length > 0 && (
         <>
