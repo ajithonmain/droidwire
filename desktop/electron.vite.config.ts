@@ -10,11 +10,6 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias: sharedAlias },
-    build: {
-      rollupOptions: {
-        output: { format: 'es' },
-      },
-    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

@@ -1,54 +1,75 @@
 import React from 'react'
+import { useTheme } from '../lib/ThemeContext'
 
 interface Props {
   path: string
   onNavigate: (path: string) => void
+  compact?: boolean
 }
 
-export function Breadcrumb({ path, onNavigate }: Props) {
+const LABEL_OVERRIDES: Record<string, string> = {
+  '/storage/emulated/0': 'Internal Storage',
+  '/storage/emulated': 'Internal Storage',
+  '/sdcard': 'Internal Storage',
+}
+
+const HIDDEN_SEGMENTS = new Set(['/storage', '/storage/emulated'])
+
+export function Breadcrumb({ path, onNavigate, compact = false }: Props) {
+  const { theme } = useTheme()
   const parts = path.split('/').filter(Boolean)
-  const crumbs = [
-    { label: 'Storage', path: '/' },
+  const allCrumbs = [
+    { label: 'Device', path: '/' },
     ...parts.map((part, i) => ({
       label: part,
       path: '/' + parts.slice(0, i + 1).join('/'),
     })),
   ]
+  const crumbs = allCrumbs
+    .filter(c => !HIDDEN_SEGMENTS.has(c.path))
+    .map(c => ({ ...c, label: LABEL_OVERRIDES[c.path] ?? c.label }))
 
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '8px 16px', borderBottom: '1px solid #1E1E1E', flexShrink: 0 }}>
-      {crumbs.map((crumb, i) => {
-        const isLast = i === crumbs.length - 1
-        return (
-          <React.Fragment key={crumb.path}>
-            {i > 0 && (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: '#3a3a3a', flexShrink: 0 }}>
-                <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-            <button
-              onClick={() => !isLast && onNavigate(crumb.path)}
-              style={{
-                fontSize: '12px',
-                color: isLast ? '#F5F5F5' : '#6B6B6B',
-                background: 'none',
-                border: 'none',
-                padding: '2px 4px',
-                cursor: isLast ? 'default' : 'pointer',
-                borderRadius: '3px',
-                maxWidth: '160px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { if (!isLast) (e.currentTarget as HTMLButtonElement).style.color = '#F5F5F5' }}
-              onMouseLeave={e => { if (!isLast) (e.currentTarget as HTMLButtonElement).style.color = '#6B6B6B' }}
-            >
-              {crumb.label}
-            </button>
-          </React.Fragment>
-        )
-      })}
-    </div>
-  )
+  if (compact) {
+    // Bottom path bar — Finder style: subtle, small, full path
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1px', overflow: 'hidden' }}>
+        {crumbs.map((crumb, i) => {
+          const isLast = i === crumbs.length - 1
+          return (
+            <React.Fragment key={crumb.path}>
+              {i > 0 && (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ color: theme.border, flexShrink: 0, margin: '0 1px' }}>
+                  <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              <button
+                onClick={() => !isLast && onNavigate(crumb.path)}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: isLast ? 500 : 400,
+                  color: isLast ? theme.textSecondary : theme.textMuted,
+                  background: 'none',
+                  border: 'none',
+                  padding: '1px 3px',
+                  cursor: isLast ? 'default' : 'pointer',
+                  borderRadius: '3px',
+                  flexShrink: isLast ? 1 : 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: isLast ? '200px' : '100px',
+                }}
+                onMouseEnter={e => { if (!isLast) (e.currentTarget as HTMLButtonElement).style.color = theme.textPrimary }}
+                onMouseLeave={e => { if (!isLast) (e.currentTarget as HTMLButtonElement).style.color = theme.textMuted }}
+              >
+                {crumb.label}
+              </button>
+            </React.Fragment>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return null
 }

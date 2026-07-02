@@ -3,6 +3,7 @@ CLAUDE.md
 .claude/
 *.private.md
 *.local.md
+DEVLOG.md
 
 # Dependencies
 node_modules/
