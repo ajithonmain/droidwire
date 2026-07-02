@@ -11,11 +11,13 @@ interface Props {
   onRescan: () => void
   onDisconnect: () => void
   onSelectDevice?: (serial: string) => void
+  onEjectDevice?: (serial: string) => void
 }
 
-export function ConnectionBadge({ status, device, devices = [], safeToUnplug, onRescan, onDisconnect, onSelectDevice }: Props) {
+export function ConnectionBadge({ status, device, devices = [], safeToUnplug, onRescan, onDisconnect, onSelectDevice, onEjectDevice }: Props) {
   const { theme } = useTheme()
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [ejectMenuOpen, setEjectMenuOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
   const multi = devices.length > 1 && !!onSelectDevice
 
@@ -157,28 +159,73 @@ export function ConnectionBadge({ status, device, devices = [], safeToUnplug, on
       </div>
 
       {status === 'connected' && (
-        <button
-          onClick={onDisconnect}
-          data-tip="Eject device"
-          style={{
-            fontSize: '11px',
-            color: theme.textMuted,
-            background: 'none',
-            border: `1px solid ${theme.border}`,
-            borderRadius: '4px',
-            padding: '2px 8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1L11 7H1L6 1Z" fill={theme.textMuted} />
-            <rect x="1" y="9" width="10" height="2" rx="1" fill={theme.textMuted} />
-          </svg>
-          Eject
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => {
+              // Multiple phones: let the user pick current-only or all
+              if (devices.length > 1 && onEjectDevice) setEjectMenuOpen(o => !o)
+              else onDisconnect()
+            }}
+            data-tip={devices.length > 1 ? 'Eject…' : 'Eject device'}
+            style={{
+              fontSize: '11px',
+              color: theme.textMuted,
+              background: 'none',
+              border: `1px solid ${theme.border}`,
+              borderRadius: '4px',
+              padding: '2px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1L11 7H1L6 1Z" fill={theme.textMuted} />
+              <rect x="1" y="9" width="10" height="2" rx="1" fill={theme.textMuted} />
+            </svg>
+            Eject
+          </button>
+
+          {ejectMenuOpen && (
+            <>
+            <div
+              onMouseDown={() => setEjectMenuOpen(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 299,
+                WebkitAppRegion: 'no-drag' as CSSProperties['WebkitAppRegion'],
+              }}
+            />
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '10px', padding: '4px',
+              minWidth: '210px', zIndex: 300,
+              boxShadow: `0 16px 48px ${theme.shadow}`,
+            }}>
+              {[
+                { label: `Eject ${device?.name ?? 'this device'}`, sub: 'Keep other devices connected', action: () => { setEjectMenuOpen(false); if (device) onEjectDevice?.(device.serial) } },
+                { label: 'Eject All Devices', sub: 'Back to the start screen', action: () => { setEjectMenuOpen(false); onDisconnect() } },
+              ].map(item => (
+                <div
+                  key={item.label}
+                  onClick={item.action}
+                  style={{
+                    padding: '8px 10px', fontSize: '13px', cursor: 'pointer',
+                    borderRadius: '6px', color: theme.textPrimary, userSelect: 'none',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = theme.surfaceHover }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                >
+                  {item.label}
+                  <span style={{ display: 'block', fontSize: '11px', color: theme.textMuted, marginTop: '1px' }}>{item.sub}</span>
+                </div>
+              ))}
+            </div>
+            </>
+          )}
+        </div>
       )}
 
       {status === 'disconnected' && !safeToUnplug && (

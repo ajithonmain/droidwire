@@ -351,6 +351,20 @@ app.on('window-all-closed', () => {
 // IPC: device
 // ---------------------------------------------------------------------------
 
+// Per-device eject: these serials are hidden from the app until the user
+// rescans, so ejecting one phone doesn't kick out the others
+const _ejectedSerials = new Set<string>()
+
+ipcMain.handle('adb:eject-device', async (_e, serial: string) => {
+  _ejectedSerials.add(serial)
+  if (_activeSerial === serial) _activeSerial = null
+  _remoteSizeCache.clear()
+})
+
+ipcMain.handle('adb:uneject-all', async () => {
+  _ejectedSerials.clear()
+})
+
 ipcMain.handle('adb:devices', async () => {
   const out = await adb(['devices'])
   const devices = out
@@ -362,6 +376,7 @@ ipcMain.handle('adb:devices', async () => {
       const [serial, state] = l.split('\t')
       return { serial: serial.trim(), state: state.trim(), model: '' }
     })
+    .filter(d => !_ejectedSerials.has(d.serial))
 
   // Keep the active serial valid: default to the first online device,
   // reset if the active one vanished

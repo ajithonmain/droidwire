@@ -105,6 +105,8 @@ export function useDevice() {
   }, [])
 
   const rescan = useCallback(() => {
+    // A user-initiated rescan also brings back individually ejected devices
+    window.droidwire.unejectAll().catch(() => {})
     pauseUntil.current = 0
     if (intervalRef.current) clearTimeout(intervalRef.current)
     check()
@@ -112,8 +114,18 @@ export function useDevice() {
 
   const selectDevice = useCallback(async (serial: string) => {
     await window.droidwire.setDevice(serial)
-    rescan()
-  }, [rescan])
+    pauseUntil.current = 0
+    if (intervalRef.current) clearTimeout(intervalRef.current)
+    check()
+  }, [check])
 
-  return { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice }
+  // Eject one device of several — the poll switches to the next one
+  const ejectDevice = useCallback(async (serial: string) => {
+    await window.droidwire.ejectDevice(serial)
+    pauseUntil.current = 0
+    if (intervalRef.current) clearTimeout(intervalRef.current)
+    check()
+  }, [check])
+
+  return { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice }
 }

@@ -34,7 +34,7 @@ type SearchMode = 'local' | 'deep'
 
 export default function App() {
   const { theme, mode, toggle } = useTheme()
-  const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice } = useDevice()
+  const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
   // Branded splash on launch — covers the first device probe so the
   // connection picker doesn't pop in abruptly
@@ -358,6 +358,19 @@ export default function App() {
 
   function handleCopyPath(file: FileNode) {
     navigator.clipboard.writeText(file.path).catch(() => {})
+  }
+
+  // Same /sdcard paths across phones — after a device change, drop
+  // path-keyed caches and restart the browser at the storage root
+  function resetBrowserToRoot() {
+    clearFileGridCaches()
+    const id = crypto.randomUUID()
+    setTabs([{ id, path: '/storage/emulated/0' }])
+    setActiveTabId(id)
+    activeTabIdRef.current = id
+    navHistoryRef.current = []
+    navIndexRef.current = -1
+    navigate('/storage/emulated/0')
   }
 
   async function handleDeviceScreenshot() {
@@ -837,15 +850,12 @@ export default function App() {
             }}
             onSelectDevice={async serial => {
               await selectDevice(serial)
-              // Same paths, different phone — drop path-keyed caches and restart at root
-              clearFileGridCaches()
-              const id = crypto.randomUUID()
-              setTabs([{ id, path: '/storage/emulated/0' }])
-              setActiveTabId(id)
-              activeTabIdRef.current = id
-              navHistoryRef.current = []
-              navIndexRef.current = -1
-              navigate('/storage/emulated/0')
+              resetBrowserToRoot()
+            }}
+            onEjectDevice={async serial => {
+              // Single-device eject: the poll moves to the next phone
+              await ejectDevice(serial)
+              resetBrowserToRoot()
             }}
           />
         </div>

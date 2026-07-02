@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld('droidwire', {
   setDevice: (serial: string): Promise<void> =>
     ipcRenderer.invoke('adb:set-device', serial),
 
+  ejectDevice: (serial: string): Promise<void> =>
+    ipcRenderer.invoke('adb:eject-device', serial),
+
+  unejectAll: (): Promise<void> =>
+    ipcRenderer.invoke('adb:uneject-all'),
+
   getDeviceInfo: (): Promise<{ name: string; battery: number }> =>
     ipcRenderer.invoke('adb:device-info'),
 
