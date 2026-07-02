@@ -61,7 +61,13 @@ function SidebarContextMenu({ menu, onNavigate, onOpenInNewTab, onClose }: {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('mousedown', handler)
     document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', esc) }
+    // Click on another app / desktop
+    window.addEventListener('blur', onClose)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', esc)
+      window.removeEventListener('blur', onClose)
+    }
   }, [onClose])
 
   // Clamp to viewport
@@ -85,6 +91,16 @@ function SidebarContextMenu({ menu, onNavigate, onOpenInNewTab, onClose }: {
   }
 
   return (
+    <>
+    {/* Neutralize the titlebar's native drag region so clicks there close the menu */}
+    <div
+      onMouseDown={onClose}
+      onContextMenu={e => { e.preventDefault(); onClose() }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9998,
+        WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
+      }}
+    />
     <div
       ref={ref}
       style={{
@@ -113,6 +129,7 @@ function SidebarContextMenu({ menu, onNavigate, onOpenInNewTab, onClose }: {
         </div>
       ))}
     </div>
+    </>
   )
 }
 
