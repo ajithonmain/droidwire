@@ -200,6 +200,8 @@
       <a href="#features">Features</a>
       <a href="#install">Install</a>
       <a href="#requirements">Requirements</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#licenses">Licenses</a>
     </div>
   </nav>
 
@@ -241,7 +243,7 @@
         <h3>Connect via Wi-Fi</h3>
         <p class="mode-sub">Wireless debugging — same network required</p>
         <ul>
-          <li>Same speed and features as ADB, no cable</li>
+          <li>Same features as ADB, no cable — speed depends on your Wi-Fi</li>
           <li>Pair once with a QR code, reconnects automatically</li>
           <li>Phone and Mac must be on the same Wi-Fi network</li>
         </ul>
@@ -287,7 +289,7 @@
       <div class="card">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
         <h3>Menu bar mode</h3>
-        <p>Mini drop-zone in the menu bar for quick transfers without opening the full window.</p>
+        <p>Droidwire lives in your menu bar too. Click the icon for a mini drop-zone — files you drop land straight in the phone's Download folder, no need to open the full window.</p>
       </div>
       <div class="card">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="12" rx="1"/><rect x="12" y="3" width="9" height="7" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/><rect x="3" y="17" width="7" height="4" rx="1"/></svg>
@@ -320,7 +322,7 @@
         <div class="step-num"></div>
         <div>
           <h3>Download the .dmg</h3>
-          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above.</p>
+          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above. By installing, you accept the <a href="#licenses">beta terms</a> — short version: beta software, provided as-is, keep backups of anything irreplaceable.</p>
         </div>
       </div>
       <div class="step">
@@ -377,6 +379,33 @@
       <tr><td>Price</td><td>Free during beta</td></tr>
     </table>
   </section>
+
+  <section id="privacy">
+    <h2>Privacy &amp; security</h2>
+    <p class="section-sub">Your files never leave the cable. Here is exactly what the app does and doesn't do.</p>
+    <table class="req-table">
+      <tr><td>Where files go</td><td>Directly between your Mac and your phone over USB or your local Wi-Fi network. No server, no cloud, no third party ever sees them</td></tr>
+      <tr><td>Accounts</td><td>None. No sign-up, no login, no email</td></tr>
+      <tr><td>Telemetry</td><td>None. No analytics, no tracking, no crash reporting — the app sends nothing anywhere</td></tr>
+      <tr><td>Network use</td><td>Zero, with one exception: if you click <strong>Check for Updates</strong> in the menu, the app asks GitHub for the latest version number and opens your browser if there's a newer one. Nothing is sent except that request; nothing installs itself</td></tr>
+      <tr><td>Your phone</td><td>Nothing is installed on it, ever. Droidwire talks over Android's own built-in protocols (ADB / MTP). Revoke access anytime: turn off USB Debugging or unplug the cable</td></tr>
+      <tr><td>Deleting files</td><td>Every delete asks for confirmation first. Nothing is removed silently</td></tr>
+      <tr><td>Logs</td><td>Kept only on your Mac, for debugging. Shared only if you attach them to a bug report yourself</td></tr>
+      <tr><td>Why the macOS warning?</td><td>Beta builds aren't signed with an Apple Developer certificate yet ($99/yr — coming after beta). The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one</td></tr>
+    </table>
+  </section>
+
+  <section id="licenses">
+    <h2>Beta terms &amp; licenses</h2>
+    <p class="section-sub">The short, honest version.</p>
+    <table class="req-table">
+      <tr><td>Beta status</td><td>Droidwire is in public beta. It's stable in daily use, but bugs are expected — that's what a beta is for. Keep backups of anything irreplaceable before large transfers or deletes</td></tr>
+      <tr><td>Terms of use</td><td>By installing, you accept that the beta is provided <strong>as-is, without warranty</strong>. The developer is not liable for data loss — same terms as any beta software. If that's not acceptable, wait for the signed release</td></tr>
+      <tr><td>License</td><td>Droidwire is proprietary software, © 2026 Ajith M Jose. Free to use during the public beta</td></tr>
+      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, AOSP), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
+      <tr><td>LGPL note</td><td>libmtp and libusb are dynamically linked; you may substitute your own builds of these libraries per the LGPL-2.1</td></tr>
+    </table>
+  </section>
 </div>
 
 <footer>
@@ -387,8 +416,13 @@
       &nbsp;·&nbsp;
       <a href="https://github.com/ajithonmain/droidwire-releases/issues">Report a bug</a>
       &nbsp;·&nbsp;
+      <a href="#privacy">Privacy</a>
+      &nbsp;·&nbsp;
+      <a href="#licenses">Beta terms &amp; licenses</a>
+      &nbsp;·&nbsp;
       <a href="https://ajithmjose.com">ajithmjose.com</a>
     </p>
+    <p>© 2026 Ajith M Jose. Droidwire is in public beta — free during the beta period.</p>
   </div>
 </footer>
 
