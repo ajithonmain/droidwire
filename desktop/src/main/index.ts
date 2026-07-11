@@ -326,6 +326,13 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // Packaged builds pick up mac.icon from electron-builder automatically;
+  // dev runs (npm run dev) launch the raw Electron binary, which shows the
+  // stock Electron dock icon unless set explicitly here.
+  if (isDev) {
+    const devIcon = path.join(__dirname, '../../resources/icon.png')
+    if (fs.existsSync(devIcon)) app.dock?.setIcon(nativeImage.createFromPath(devIcon))
+  }
   mainWindow = createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
@@ -1799,8 +1806,6 @@ function setupAppMenu(): void {
         },
         { type: 'separator' },
         { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
         { type: 'separator' },
         { role: 'quit', label: 'Quit Droidwire' },
       ],
@@ -1821,9 +1826,41 @@ function setupAppMenu(): void {
         },
       ],
     },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
-    { role: 'windowMenu' },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        ...(isDev
+          ? [
+              { role: 'reload' } as const,
+              { role: 'forceReload' } as const,
+              { role: 'toggleDevTools' } as const,
+              { type: 'separator' } as const,
+            ]
+          : []),
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+      ],
+    },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

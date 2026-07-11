@@ -15,6 +15,8 @@ dist/
 dist-electron/
 release/
 build/
+!desktop/build/
+!desktop/build/icon.icns
 out/
 
 # Android native build
