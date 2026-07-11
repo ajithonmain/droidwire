@@ -22,6 +22,16 @@
       ],
       "minimumSystemVersion": "12.0"
     },
+    "dmg": {
+      "title": "Droidwire ${version}",
+      "background": "build/dmg-background.png",
+      "iconSize": 100,
+      "window": { "width": 660, "height": 400 },
+      "contents": [
+        { "x": 180, "y": 170, "type": "file" },
+        { "x": 480, "y": 170, "type": "link", "path": "/Applications" }
+      ]
+    },
     "directories": {
       "output": "release"
     },
