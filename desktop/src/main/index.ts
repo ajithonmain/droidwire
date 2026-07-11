@@ -1617,6 +1617,10 @@ ipcMain.handle('show-main-window', () => {
     mainWindow.show()
   }
   mainWindow.focus()
+  // The menubar popup is a non-activating panel, so a click inside it never
+  // makes Droidwire the active app — without stealing focus here the menu
+  // bar keeps showing the previous app's menus
+  app.focus({ steal: true })
 })
 
 // ---------------------------------------------------------------------------
