@@ -7,14 +7,18 @@
 <meta name="description" content="Fast Android to Mac file transfer over USB. Free during beta. No app to install on your phone.">
 <style>
   :root {
-    --bg: #0A0A0A;
-    --surface: #141414;
-    --border: #1E1E1E;
-    --accent: #00D84A;
-    --accent-dim: rgba(0, 216, 74, 0.125);
-    --text: #F5F5F5;
-    --muted: #6B6B6B;
-    --warning: #FF9500;
+    --bg: #FFFFFF;
+    --surface: #F6F7F8;
+    --border: #E4E4E7;
+    --accent: #00913F;
+    --accent-bright: #00D84A;
+    --accent-bg: #E7FAEE;
+    --accent-border: #B9ECC9;
+    --text: #111113;
+    --muted: #6B6B72;
+    --warning: #A85A00;
+    --warning-bg: #FFF4E6;
+    --warning-border: #F5D9A8;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -24,54 +28,57 @@
     font-family: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
+  img, svg { max-width: 100%; }
   .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
 
   nav {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 0;
+    padding: 20px 0; flex-wrap: wrap; gap: 12px;
   }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
-  .logo svg { display: block; }
-  nav .links { display: flex; gap: 24px; font-size: 14px; }
+  .logo svg { display: block; flex-shrink: 0; }
+  nav .links { display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
   nav .links a { color: var(--muted); text-decoration: none; transition: color .15s; }
   nav .links a:hover { color: var(--text); }
 
   .hero { text-align: center; padding: 88px 0 72px; }
   .beta-badge {
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--accent-dim); color: var(--accent);
-    border: 1px solid rgba(0, 216, 74, 0.3);
+    background: var(--accent-bg); color: var(--accent);
+    border: 1px solid var(--accent-border);
     font-size: 13px; font-weight: 600;
     padding: 5px 14px; border-radius: 100px; margin-bottom: 28px;
   }
-  .beta-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .beta-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
   h1 {
-    font-size: clamp(36px, 6vw, 58px); font-weight: 800;
-    letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 20px;
+    font-size: clamp(30px, 6.5vw, 58px); font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1.12; margin-bottom: 20px;
+    word-wrap: break-word;
   }
   h1 .accent { color: var(--accent); }
-  .sub { color: var(--muted); font-size: 19px; max-width: 620px; margin: 0 auto 40px; }
+  .sub { color: var(--muted); font-size: clamp(15px, 2.6vw, 19px); max-width: 620px; margin: 0 auto 40px; }
   .sub strong { color: var(--text); font-weight: 600; }
 
   .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
   .btn {
-    display: inline-flex; align-items: center; gap: 10px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
     padding: 14px 28px; border-radius: 8px;
     font-size: 16px; font-weight: 600; text-decoration: none;
-    transition: transform .12s, background .15s;
+    transition: transform .12s, background .15s, border-color .15s;
   }
-  .btn-primary { background: var(--accent); color: #04180A; }
-  .btn-primary:hover { transform: translateY(-1px); background: #17E85C; }
+  .btn-primary { background: var(--accent-bright); color: #04240F; }
+  .btn-primary:hover { transform: translateY(-1px); background: #00C243; }
   .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost:hover { border-color: #333; }
+  .btn-ghost:hover { border-color: #C8C8CE; }
   .cta-note { color: var(--muted); font-size: 13px; margin-top: 16px; }
 
-  section { padding: 64px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
-  .section-sub { color: var(--muted); margin-bottom: 36px; }
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: clamp(22px, 4vw, 28px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .section-sub { color: var(--muted); margin-bottom: 32px; }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 24px;
@@ -81,34 +88,38 @@
   .card p { color: var(--muted); font-size: 14px; }
 
   .steps { counter-reset: step; display: flex; flex-direction: column; gap: 0; }
-  .step { display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--border); }
+  .step { display: flex; gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--border); }
   .step:last-child { border-bottom: none; }
   .step-num {
     counter-increment: step; flex-shrink: 0;
     width: 34px; height: 34px; border-radius: 50%;
-    background: var(--accent-dim); color: var(--accent);
+    background: var(--accent-bg); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 15px;
   }
   .step-num::before { content: counter(step); }
+  .step > div { min-width: 0; }
   .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-  .step p { color: var(--muted); font-size: 14.5px; }
+  .step p { color: var(--muted); font-size: 14.5px; overflow-wrap: break-word; }
   .step p + p { margin-top: 6px; }
   code {
     font-family: "SF Mono", ui-monospace, Menlo, monospace;
     font-size: 13px; background: var(--surface);
     border: 1px solid var(--border); border-radius: 4px;
-    padding: 2px 7px; color: var(--text); white-space: nowrap;
+    padding: 2px 7px; color: var(--text);
+    display: inline-block; max-width: 100%;
+    overflow-x: auto; white-space: pre; vertical-align: bottom;
   }
   .callout {
-    background: var(--surface); border: 1px solid var(--border);
+    background: var(--warning-bg); border: 1px solid var(--warning-border);
     border-left: 3px solid var(--warning);
     border-radius: 8px; padding: 18px 20px; margin-top: 28px;
-    font-size: 14.5px; color: var(--muted);
+    font-size: 14.5px; color: #6B4300;
   }
   .callout strong { color: var(--text); }
+  .callout a { color: var(--accent); font-weight: 600; }
 
-  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 8px; }
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 8px; }
   .mode { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
   .mode .tag {
     display: inline-block; font-size: 12px; font-weight: 700;
@@ -126,7 +137,7 @@
   }
 
   .req-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
-  .req-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); }
+  .req-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .req-table td:first-child { color: var(--muted); width: 40%; }
 
   footer { border-top: 1px solid var(--border); padding: 36px 0; margin-top: 32px; }
@@ -137,9 +148,27 @@
   footer .made a { color: var(--text); font-weight: 600; }
   footer .made a:hover { color: var(--accent); }
 
-  @media (max-width: 600px) {
+  /* Tablet */
+  @media (max-width: 720px) {
+    .wrap { padding: 0 20px; }
     .hero { padding: 56px 0 48px; }
-    nav .links { display: none; }
+    section { padding: 44px 0; }
+    .btn { width: 100%; }
+    .cta-row { flex-direction: column; }
+    .req-table td { display: block; width: 100% !important; }
+    .req-table tr { display: block; padding: 13px 0; border-bottom: 1px solid var(--border); }
+    .req-table td { border-bottom: none; padding: 2px 0; }
+    .req-table td:first-child { font-weight: 600; color: var(--text); }
+  }
+
+  /* Phone */
+  @media (max-width: 460px) {
+    .wrap { padding: 0 16px; }
+    nav .links { gap: 14px; font-size: 13px; }
+    .beta-badge { font-size: 12px; text-align: left; }
+    .step { gap: 14px; }
+    .step-num { width: 28px; height: 28px; font-size: 13px; }
+    footer .wrap { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
@@ -148,7 +177,7 @@
 <div class="wrap">
   <nav>
     <div class="logo">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="7" y="2" width="10" height="20" rx="2"/>
         <line x1="11" y1="19" x2="13" y2="19"/>
       </svg>
@@ -212,47 +241,47 @@
     <p class="section-sub">Everything in the beta, free.</p>
     <div class="grid">
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17l-5-5 5-5"/><path d="M16 7l5 5-5 5"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17l-5-5 5-5"/><path d="M16 7l5 5-5 5"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
         <h3>Two-way transfer</h3>
         <p>Drag files onto the window to upload. Drag out of the grid, or download to a folder you pick. Per-file progress with live MB/s.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v6h6"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M9 15l2 2 4-4"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v6h6"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M9 15l2 2 4-4"/></svg>
         <h3>Open &amp; edit round-trip</h3>
         <p>Open a phone file in its Mac app. Save it — Droidwire pushes it back to the phone automatically.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="9" height="16" rx="2"/><rect x="13" y="3" width="9" height="16" rx="2"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="9" height="16" rx="2"/><rect x="13" y="3" width="9" height="16" rx="2"/></svg>
         <h3>Multiple devices</h3>
         <p>Two phones plugged in? Switch between them from the titlebar. USB and wireless at the same time.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
         <h3>Wireless ADB</h3>
         <p>Pair over Wi-Fi with a QR code (Android 11+). Transfer without a cable once paired.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
         <h3>Menu bar mode</h3>
         <p>Mini drop-zone in the menu bar for quick transfers without opening the full window.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="12" rx="1"/><rect x="12" y="3" width="9" height="7" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/><rect x="3" y="17" width="7" height="4" rx="1"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="12" rx="1"/><rect x="12" y="3" width="9" height="7" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/><rect x="3" y="17" width="7" height="4" rx="1"/></svg>
         <h3>Storage analyzer</h3>
         <p>Treemap of what's eating your phone storage. Drill into folders, clean up from the Mac.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         <h3>Transfer queue</h3>
         <p>Pause, resume, reorder. Notification when the batch completes. Cancel mid-flight cleanly.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/></svg>
         <h3>Previews &amp; thumbnails</h3>
         <p>Image previews and grid thumbnails, including HEIC. Tabs, search, bookmarks for fast navigation.</p>
       </div>
       <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
         <h3>Device tools</h3>
         <p>Screenshot capture, battery and storage detail, installed app list with APK export (ADB mode).</p>
       </div>
@@ -297,7 +326,7 @@
     <div class="callout">
       <strong>Found a bug?</strong> This is a beta — that's the point. Grab the log via
       <strong>Droidwire menu &gt; Show Logs in Finder</strong> and open an issue on
-      <a href="https://github.com/ajithonmain/droidwire/issues" style="color:#00D84A">GitHub</a>
+      <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a>
       with the log attached. Every report makes the app better.
     </div>
   </section>
