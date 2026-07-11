@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import logo from './assets/logo.png'
 import type { FileNode, StorageInfo } from '@droidwire/shared'
 import { useDevice } from './hooks/useDevice'
 import { useTransfers } from './hooks/useTransfers'
@@ -956,11 +957,7 @@ export default function App() {
           {!isConnected ? (
             booting ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
-                <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-                  <rect x="14" y="4" width="24" height="44" rx="5" stroke={theme.accent} strokeWidth="2.5" />
-                  <path d="M22 42h8" stroke={theme.accent} strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M4 20v12M48 20v12" stroke={theme.textMuted} strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
+                <img src={logo} width="52" height="52" alt="" style={{ display: 'block' }} />
                 <span style={{ fontSize: '17px', fontWeight: 600, color: theme.textPrimary, letterSpacing: '0.02em' }}>Droidwire</span>
                 <span style={{ fontSize: '12px', color: theme.textMuted }}>Looking for your device…</span>
               </div>

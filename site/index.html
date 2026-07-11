@@ -127,7 +127,9 @@
     letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--accent); margin-bottom: 12px;
   }
-  .mode h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+  .mode h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .mode-sub { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .mode-limited .tag { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); padding: 1px 8px; border-radius: 4px; }
   .mode ul { list-style: none; }
   .mode li { color: var(--muted); font-size: 14.5px; padding: 5px 0 5px 24px; position: relative; }
   .mode li::before {
@@ -208,27 +210,38 @@
   </header>
 
   <section id="modes">
-    <h2>Two ways to connect</h2>
-    <p class="section-sub">Pick per session — Droidwire supports both transports.</p>
+    <h2>Three ways to connect</h2>
+    <p class="section-sub">Pick per session — this is exactly what you'll see on first launch.</p>
     <div class="modes">
       <div class="mode">
-        <span class="tag">Fastest</span>
-        <h3>ADB mode</h3>
+        <span class="tag">Recommended</span>
+        <h3>Connect via ADB</h3>
+        <p class="mode-sub">Wired, fast — requires USB Debugging</p>
         <ul>
           <li>Full USB bandwidth transfers</li>
-          <li>Wireless connection supported (Android 11+, QR pairing)</li>
           <li>Device tools: screenshots, app list, APK export</li>
-          <li>One-time setup: enable USB Debugging</li>
+          <li>One-time setup: enable USB Debugging, accept the phone prompt</li>
         </ul>
       </div>
       <div class="mode">
-        <span class="tag">Zero setup</span>
-        <h3>MTP mode</h3>
+        <span class="tag">Android 11+</span>
+        <h3>Connect via Wi-Fi</h3>
+        <p class="mode-sub">Wireless debugging — same network required</p>
         <ul>
-          <li>No Developer Options needed</li>
-          <li>Plug in, tap "File transfer" on the phone, done</li>
+          <li>Same speed and features as ADB, no cable</li>
+          <li>Pair once with a QR code, reconnects automatically</li>
+          <li>Phone and Mac must be on the same Wi-Fi network</li>
+        </ul>
+      </div>
+      <div class="mode mode-limited">
+        <span class="tag">Limited</span>
+        <h3>Connect via MTP</h3>
+        <p class="mode-sub">Fallback option — no progress, no APK install</p>
+        <ul>
+          <li>Zero setup — no Developer Options needed</li>
           <li>Browse, transfer, rename, delete, edit</li>
-          <li>Works when ADB isn't an option</li>
+          <li>No transfer progress bar, no APK install</li>
+          <li>Use when USB Debugging isn't an option</li>
         </ul>
       </div>
     </div>
@@ -308,9 +321,10 @@
       <div class="step">
         <div class="step-num"></div>
         <div>
-          <h3>Plug in your phone</h3>
-          <p><strong>MTP mode (zero setup):</strong> connect the cable and tap "File transfer / Android Auto" in the USB notification on the phone.</p>
-          <p><strong>ADB mode (fastest):</strong> enable Developer Options (tap Build Number 7 times in Settings &gt; About phone), turn on USB Debugging, plug in, and accept the "Allow USB debugging?" prompt on the phone. One-time per Mac.</p>
+          <h3>Plug in your phone and choose a connection type</h3>
+          <p><strong>ADB (recommended):</strong> enable Developer Options (tap Build Number 7 times in Settings &gt; About phone), turn on USB Debugging, plug in, and accept the "Allow USB debugging?" prompt on the phone. One-time per Mac.</p>
+          <p><strong>Wi-Fi (Android 11+):</strong> same speed and features as ADB, no cable — pair once with a QR code, phone and Mac need to be on the same Wi-Fi network.</p>
+          <p><strong>MTP (fallback, limited):</strong> zero setup — connect the cable and tap "File transfer" in the USB notification. No transfer progress bar, no APK install. Use this only if USB Debugging isn't an option.</p>
         </div>
       </div>
       <div class="step">

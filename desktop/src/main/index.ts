@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import http from 'http'
+import https from 'https'
 import crypto from 'crypto'
 import { execFile, spawn } from 'child_process'
 import type { FileNode, TransferProgress, StorageInfo, BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
@@ -340,7 +341,6 @@ app.whenReady().then(() => {
   setupUsbAutoOpen()
   setupTray()
   setupAppMenu()
-  setupAutoUpdate()
 })
 
 function setupUsbAutoOpen(): void {
@@ -1744,43 +1744,67 @@ ipcMain.handle('app-quit', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Auto-update (electron-updater) — silent background check in packaged
-// builds; requires a signed build + GitHub release feed to actually update
+// Update check — beta builds are unsigned, so Squirrel-style in-app auto
+// update (electron-updater) can't install a replacement on macOS regardless
+// of feed config. Instead: ask GitHub's API for the latest tag on the public
+// downloads repo and, if newer, send the user to the browser to grab it.
 // ---------------------------------------------------------------------------
 
-function setupAutoUpdate(): void {
-  if (!app.isPackaged) return
-  import('electron-updater').then(({ autoUpdater }) => {
-    autoUpdater.on('error', () => { /* unsigned build or offline — silent */ })
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {})
-  }).catch(() => { /* updater unavailable */ })
+const RELEASES_REPO = 'ajithonmain/droidwire-releases'
+
+function fetchLatestReleaseTag(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const req = https.get(
+      `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`,
+      { headers: { 'User-Agent': 'Droidwire' }, timeout: 8000 },
+      (res) => {
+        let body = ''
+        res.on('data', (chunk) => { body += chunk })
+        res.on('end', () => {
+          try {
+            const tag = JSON.parse(body)?.tag_name
+            resolve(typeof tag === 'string' ? tag : null)
+          } catch {
+            resolve(null)
+          }
+        })
+      }
+    )
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => { req.destroy(); resolve(null) })
+  })
+}
+
+// Tags look like "v1.0.0-beta"; app.getVersion() returns "1.0.0" — strip
+// both down to the bare semver so they compare equal when in sync.
+function bareVersion(v: string): string {
+  return v.replace(/^v/, '').replace(/-.*$/, '')
 }
 
 async function checkForUpdatesInteractive(): Promise<void> {
-  if (!app.isPackaged) {
-    dialog.showMessageBox({ type: 'info', message: 'Updates only work in packaged builds.' })
-    return
-  }
-  try {
-    const { autoUpdater } = await import('electron-updater')
-    const result = await autoUpdater.checkForUpdates()
-    const next = result?.updateInfo?.version
-    if (next && next !== app.getVersion()) {
-      dialog.showMessageBox({
-        type: 'info',
-        message: `Droidwire ${next} is available`,
-        detail: 'Downloading in the background — it installs when you quit the app.',
-      })
-    } else {
-      dialog.showMessageBox({ type: 'info', message: 'Droidwire is up to date.' })
-    }
-  } catch (e) {
+  const tag = await fetchLatestReleaseTag()
+  if (!tag) {
     dialog.showMessageBox({
       type: 'warning',
       message: 'Update check failed',
-      detail: e instanceof Error ? e.message : String(e),
+      detail: 'Could not reach GitHub — check your connection and try again.',
     })
+    return
   }
+  const latest = bareVersion(tag)
+  const current = bareVersion(app.getVersion())
+  if (latest === current) {
+    dialog.showMessageBox({ type: 'info', message: `Droidwire is up to date (${current}).` })
+    return
+  }
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    message: `Droidwire ${latest} is available`,
+    detail: `You're on ${current}. Beta builds aren't signed yet, so updates aren't automatic — download the new version from GitHub.`,
+    buttons: ['Open Download Page', 'Later'],
+    defaultId: 0,
+  })
+  if (response === 0) shell.openExternal(`https://github.com/${RELEASES_REPO}/releases/latest`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1791,7 +1815,9 @@ function setupAppMenu(): void {
   app.setAboutPanelOptions({
     applicationName: 'Droidwire',
     applicationVersion: app.getVersion(),
-    copyright: 'Android file transfer over USB via ADB',
+    version: 'Beta',
+    copyright: '© 2026 Ajith M Jose. All rights reserved.',
+    credits: 'Android ↔ Mac file transfer over USB.\nNo app required on your phone.',
   })
 
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -1801,8 +1827,8 @@ function setupAppMenu(): void {
         { role: 'about', label: 'About Droidwire' },
         { label: 'Check for Updates…', click: () => { void checkForUpdatesInteractive() } },
         {
-          label: 'Show Logs in Finder',
-          click: () => { shell.showItemInFolder(path.join(app.getPath('logs'), 'main.log')) },
+          label: 'Licenses…',
+          click: () => { shell.openPath(resourcePath('THIRD-PARTY-NOTICES.md')) },
         },
         { type: 'separator' },
         { role: 'hide' },
@@ -1861,6 +1887,32 @@ function setupAppMenu(): void {
         { role: 'front' },
       ],
     },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Droidwire on GitHub',
+          click: () => { shell.openExternal(`https://github.com/${RELEASES_REPO}`) },
+        },
+        {
+          label: 'Report an Issue…',
+          click: () => { shell.openExternal(`https://github.com/${RELEASES_REPO}/issues`) },
+        },
+        { type: 'separator' },
+        {
+          label: 'Show Logs in Finder',
+          click: () => { shell.showItemInFolder(path.join(app.getPath('logs'), 'main.log')) },
+        },
+      ],
+    },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+// Packaged builds get bundled files (THIRD-PARTY-NOTICES.md, etc.) from
+// Resources/ via extraResources; dev runs fall back to the source tree.
+function resourcePath(name: string): string {
+  const packaged = path.join(process.resourcesPath ?? '', name)
+  if (fs.existsSync(packaged)) return packaged
+  return path.join(__dirname, '../../resources', name)
 }

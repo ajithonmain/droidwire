@@ -40,7 +40,8 @@
       { "from": "resources/luck-node-mtp.node", "to": "luck-node-mtp.node" },
       { "from": "resources/libmtp.9.dylib", "to": "libmtp.9.dylib" },
       { "from": "resources/libusb-1.0.0.dylib", "to": "libusb-1.0.0.dylib" },
-      { "from": "resources/adb", "to": "adb" }
+      { "from": "resources/adb", "to": "adb" },
+      { "from": "resources/THIRD-PARTY-NOTICES.md", "to": "THIRD-PARTY-NOTICES.md" }
     ],
     "publish": {
       "provider": "github",

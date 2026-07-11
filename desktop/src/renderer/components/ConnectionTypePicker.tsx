@@ -1,4 +1,5 @@
 import { useTheme } from '../lib/ThemeContext'
+import logo from '../assets/logo.png'
 
 interface Props {
   onSelect: (type: 'adb' | 'wireless' | 'mtp') => void
@@ -46,7 +47,6 @@ export function ConnectionTypePicker({ onSelect }: Props) {
         gap: '28px',
       }}
     >
-      {/* App icon placeholder */}
       <div
         style={{
           width: '64px',
@@ -59,12 +59,7 @@ export function ConnectionTypePicker({ onSelect }: Props) {
           justifyContent: 'center',
         }}
       >
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <path d="M9 4h18l4 4v24H5V8l4-4z" stroke={theme.accent} strokeWidth="1.5" strokeLinejoin="round" />
-          <circle cx="12" cy="14" r="2" fill={theme.accent} />
-          <circle cx="24" cy="14" r="2" fill={theme.accent} />
-          <path d="M10 20h16" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <img src={logo} width="40" height="40" alt="" style={{ display: 'block' }} />
       </div>
 
       <div style={{ textAlign: 'center' }}>
