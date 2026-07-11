@@ -111,6 +111,19 @@
     display: inline-block; max-width: 100%;
     overflow-x: auto; white-space: pre; vertical-align: bottom;
   }
+  .cmd-box {
+    display: flex; align-items: stretch; gap: 8px;
+    margin: 8px 0; max-width: 100%;
+  }
+  .cmd-box code { flex: 1; min-width: 0; padding: 8px 12px; }
+  .copy-btn {
+    flex-shrink: 0; font-family: inherit;
+    font-size: 12.5px; font-weight: 600; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 0 14px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--accent); }
   .callout {
     background: var(--warning-bg); border: 1px solid var(--warning-border);
     border-left: 3px solid var(--warning);
@@ -236,11 +249,11 @@
       <div class="mode mode-limited">
         <span class="tag">Limited</span>
         <h3>Connect via MTP</h3>
-        <p class="mode-sub">Fallback option — no progress, no APK install</p>
+        <p class="mode-sub">Fallback option — no APK install, no device tools</p>
         <ul>
           <li>Zero setup — no Developer Options needed</li>
           <li>Browse, transfer, rename, delete, edit</li>
-          <li>No transfer progress bar, no APK install</li>
+          <li>No APK install, device tools, or storage stats</li>
           <li>Use when USB Debugging isn't an option</li>
         </ul>
       </div>
@@ -301,37 +314,47 @@
 
   <section id="install">
     <h2>Install</h2>
-    <p class="section-sub">Three minutes, start to first transfer.</p>
+    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because beta builds aren't signed with an Apple certificate yet.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num"></div>
         <div>
-          <h3>Download and open the .dmg</h3>
-          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above, open it, and drag Droidwire into Applications.</p>
+          <h3>Download the .dmg</h3>
+          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num"></div>
         <div>
-          <h3>First launch: bypass Gatekeeper once</h3>
-          <p>Beta builds aren't signed with an Apple certificate yet, so macOS will warn you. <strong>Right-click Droidwire in Applications and choose Open</strong>, then confirm. You only do this once.</p>
-          <p>If macOS says the app is "damaged", run this in Terminal instead: <code>xattr -dr com.apple.quarantine /Applications/Droidwire.app</code></p>
+          <h3>Drag Droidwire into Applications</h3>
+          <p>Open the downloaded .dmg and drag the Droidwire icon onto the Applications folder. You can then eject the .dmg.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num"></div>
         <div>
-          <h3>Plug in your phone and choose a connection type</h3>
-          <p><strong>ADB (recommended):</strong> enable Developer Options (tap Build Number 7 times in Settings &gt; About phone), turn on USB Debugging, plug in, and accept the "Allow USB debugging?" prompt on the phone. One-time per Mac.</p>
-          <p><strong>Wi-Fi (Android 11+):</strong> same speed and features as ADB, no cable — pair once with a QR code, phone and Mac need to be on the same Wi-Fi network.</p>
-          <p><strong>MTP (fallback, limited):</strong> zero setup — connect the cable and tap "File transfer" in the USB notification. No transfer progress bar, no APK install. Use this only if USB Debugging isn't an option.</p>
+          <h3>Open the app once — macOS will block it. Click Cancel</h3>
+          <p>Open Droidwire from Applications. macOS shows an alert — usually <em>"Droidwire is damaged and can't be opened"</em>. The app is not damaged; macOS says this about any app that isn't signed with an Apple certificate. <strong>Click Cancel</strong> (don't click "Move to Trash") and go to the next step.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num"></div>
         <div>
-          <h3>Transfer</h3>
-          <p>Your phone's files appear in the browser. Drag files in to upload, out to download. Downloads land in <code>~/Downloads/Droidwire/</code> by default (configurable).</p>
+          <h3>Run one command in Terminal</h3>
+          <p>Open <strong>Terminal</strong> (press <code>Cmd + Space</code>, type "Terminal", press Enter). Paste this command and press Enter:</p>
+          <div class="cmd-box">
+            <code id="xattr-cmd">xattr -dr com.apple.quarantine /Applications/Droidwire.app</code>
+            <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy command">Copy</button>
+          </div>
+          <p>What it does: macOS tags every downloaded file with a "quarantine" flag, and that flag is what triggers the "damaged" alert on unsigned apps. This command removes the flag from the Droidwire app only. It changes nothing else on your Mac. It prints nothing when it succeeds.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Reopen Droidwire</h3>
+          <p>Open Droidwire again from <strong>Applications</strong> (or Launchpad / Spotlight). It now opens normally, and it stays that way — you never repeat steps 3–5.</p>
+          <p>From here the app guides you: plug in your phone (or use Wi-Fi) and the built-in setup walks you through connecting it.</p>
         </div>
       </div>
     </div>
@@ -368,6 +391,16 @@
     </p>
   </div>
 </footer>
+
+<script>
+function copyCmd(btn) {
+  var cmd = document.getElementById('xattr-cmd').textContent;
+  navigator.clipboard.writeText(cmd).then(function () {
+    btn.textContent = 'Copied';
+    setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+</script>
 
 </body>
 </html>

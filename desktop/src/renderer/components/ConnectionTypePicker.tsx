@@ -191,7 +191,7 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 LIMITED
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option — no progress, no APK install</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option — no APK install, no device tools</span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
             <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
