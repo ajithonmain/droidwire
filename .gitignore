@@ -72,3 +72,8 @@ yarn-error.log*
 
 # OS temp
 Thumbs.db
+
+# Native binaries staged by desktop/scripts/bundle-native.sh
+desktop/resources/adb
+desktop/resources/*.node
+desktop/resources/*.dylib

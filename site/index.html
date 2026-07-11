@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Droidwire — Android file transfer for Mac</title>
+<meta name="description" content="Fast Android to Mac file transfer over USB. Free during beta. No app to install on your phone.">
+<style>
+  :root {
+    --bg: #0A0A0A;
+    --surface: #141414;
+    --border: #1E1E1E;
+    --accent: #00D84A;
+    --accent-dim: rgba(0, 216, 74, 0.125);
+    --text: #F5F5F5;
+    --muted: #6B6B6B;
+    --warning: #FF9500;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+  .logo svg { display: block; }
+  nav .links { display: flex; gap: 24px; font-size: 14px; }
+  nav .links a { color: var(--muted); text-decoration: none; transition: color .15s; }
+  nav .links a:hover { color: var(--text); }
+
+  .hero { text-align: center; padding: 88px 0 72px; }
+  .beta-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent-dim); color: var(--accent);
+    border: 1px solid rgba(0, 216, 74, 0.3);
+    font-size: 13px; font-weight: 600;
+    padding: 5px 14px; border-radius: 100px; margin-bottom: 28px;
+  }
+  .beta-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 {
+    font-size: clamp(36px, 6vw, 58px); font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 20px;
+  }
+  h1 .accent { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 19px; max-width: 620px; margin: 0 auto 40px; }
+  .sub strong { color: var(--text); font-weight: 600; }
+
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px; border-radius: 8px;
+    font-size: 16px; font-weight: 600; text-decoration: none;
+    transition: transform .12s, background .15s;
+  }
+  .btn-primary { background: var(--accent); color: #04180A; }
+  .btn-primary:hover { transform: translateY(-1px); background: #17E85C; }
+  .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: #333; }
+  .cta-note { color: var(--muted); font-size: 13px; margin-top: 16px; }
+
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .section-sub { color: var(--muted); margin-bottom: 36px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+  }
+  .card svg { margin-bottom: 14px; }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .card p { color: var(--muted); font-size: 14px; }
+
+  .steps { counter-reset: step; display: flex; flex-direction: column; gap: 0; }
+  .step { display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--border); }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    counter-increment: step; flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent-dim); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .step-num::before { content: counter(step); }
+  .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .step p { color: var(--muted); font-size: 14.5px; }
+  .step p + p { margin-top: 6px; }
+  code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 13px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 7px; color: var(--text); white-space: nowrap;
+  }
+  .callout {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: 8px; padding: 18px 20px; margin-top: 28px;
+    font-size: 14.5px; color: var(--muted);
+  }
+  .callout strong { color: var(--text); }
+
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 8px; }
+  .mode { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
+  .mode .tag {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
+  }
+  .mode h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+  .mode ul { list-style: none; }
+  .mode li { color: var(--muted); font-size: 14.5px; padding: 5px 0 5px 24px; position: relative; }
+  .mode li::before {
+    content: ""; position: absolute; left: 0; top: 11px;
+    width: 12px; height: 7px;
+    border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+    transform: rotate(-45deg);
+  }
+
+  .req-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .req-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); }
+  .req-table td:first-child { color: var(--muted); width: 40%; }
+
+  footer { border-top: 1px solid var(--border); padding: 36px 0; margin-top: 32px; }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  footer p, footer a { color: var(--muted); font-size: 13.5px; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+  footer .made a { color: var(--text); font-weight: 600; }
+  footer .made a:hover { color: var(--accent); }
+
+  @media (max-width: 600px) {
+    .hero { padding: 56px 0 48px; }
+    nav .links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="2" width="10" height="20" rx="2"/>
+        <line x1="11" y1="19" x2="13" y2="19"/>
+      </svg>
+      Droidwire
+    </div>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#requirements">Requirements</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="beta-badge"><span class="dot"></span>Free during beta — no account, no payment</div>
+    <h1>Android files on your Mac.<br><span class="accent">Over a cable.</span></h1>
+    <p class="sub">
+      Browse, transfer, and edit files on your Android phone from a native Mac app.
+      Full USB speed. <strong>Nothing to install on the phone.</strong>
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/ajithonmain/droidwire/releases/latest">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/>
+        </svg>
+        Download for Mac
+      </a>
+      <a class="btn btn-ghost" href="#install">Install guide</a>
+    </div>
+    <p class="cta-note">.dmg, Apple Silicon, macOS 12+ — beta build, unsigned (see install guide)</p>
+  </header>
+
+  <section id="modes">
+    <h2>Two ways to connect</h2>
+    <p class="section-sub">Pick per session — Droidwire supports both transports.</p>
+    <div class="modes">
+      <div class="mode">
+        <span class="tag">Fastest</span>
+        <h3>ADB mode</h3>
+        <ul>
+          <li>Full USB bandwidth transfers</li>
+          <li>Wireless connection supported (Android 11+, QR pairing)</li>
+          <li>Device tools: screenshots, app list, APK export</li>
+          <li>One-time setup: enable USB Debugging</li>
+        </ul>
+      </div>
+      <div class="mode">
+        <span class="tag">Zero setup</span>
+        <h3>MTP mode</h3>
+        <ul>
+          <li>No Developer Options needed</li>
+          <li>Plug in, tap "File transfer" on the phone, done</li>
+          <li>Browse, transfer, rename, delete, edit</li>
+          <li>Works when ADB isn't an option</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <p class="section-sub">Everything in the beta, free.</p>
+    <div class="grid">
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17l-5-5 5-5"/><path d="M16 7l5 5-5 5"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <h3>Two-way transfer</h3>
+        <p>Drag files onto the window to upload. Drag out of the grid, or download to a folder you pick. Per-file progress with live MB/s.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v6h6"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M9 15l2 2 4-4"/></svg>
+        <h3>Open &amp; edit round-trip</h3>
+        <p>Open a phone file in its Mac app. Save it — Droidwire pushes it back to the phone automatically.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="9" height="16" rx="2"/><rect x="13" y="3" width="9" height="16" rx="2"/></svg>
+        <h3>Multiple devices</h3>
+        <p>Two phones plugged in? Switch between them from the titlebar. USB and wireless at the same time.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+        <h3>Wireless ADB</h3>
+        <p>Pair over Wi-Fi with a QR code (Android 11+). Transfer without a cable once paired.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        <h3>Menu bar mode</h3>
+        <p>Mini drop-zone in the menu bar for quick transfers without opening the full window.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="12" rx="1"/><rect x="12" y="3" width="9" height="7" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/><rect x="3" y="17" width="7" height="4" rx="1"/></svg>
+        <h3>Storage analyzer</h3>
+        <p>Treemap of what's eating your phone storage. Drill into folders, clean up from the Mac.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <h3>Transfer queue</h3>
+        <p>Pause, resume, reorder. Notification when the batch completes. Cancel mid-flight cleanly.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/></svg>
+        <h3>Previews &amp; thumbnails</h3>
+        <p>Image previews and grid thumbnails, including HEIC. Tabs, search, bookmarks for fast navigation.</p>
+      </div>
+      <div class="card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D84A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+        <h3>Device tools</h3>
+        <p>Screenshot capture, battery and storage detail, installed app list with APK export (ADB mode).</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p class="section-sub">Three minutes, start to first transfer.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Download and open the .dmg</h3>
+          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above, open it, and drag Droidwire into Applications.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>First launch: bypass Gatekeeper once</h3>
+          <p>Beta builds aren't signed with an Apple certificate yet, so macOS will warn you. <strong>Right-click Droidwire in Applications and choose Open</strong>, then confirm. You only do this once.</p>
+          <p>If macOS says the app is "damaged", run this in Terminal instead: <code>xattr -dr com.apple.quarantine /Applications/Droidwire.app</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Plug in your phone</h3>
+          <p><strong>MTP mode (zero setup):</strong> connect the cable and tap "File transfer / Android Auto" in the USB notification on the phone.</p>
+          <p><strong>ADB mode (fastest):</strong> enable Developer Options (tap Build Number 7 times in Settings &gt; About phone), turn on USB Debugging, plug in, and accept the "Allow USB debugging?" prompt on the phone. One-time per Mac.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Transfer</h3>
+          <p>Your phone's files appear in the browser. Drag files in to upload, out to download. Downloads land in <code>~/Downloads/Droidwire/</code> by default (configurable).</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Found a bug?</strong> This is a beta — that's the point. Grab the log via
+      <strong>Droidwire menu &gt; Show Logs in Finder</strong> and open an issue on
+      <a href="https://github.com/ajithonmain/droidwire/issues" style="color:#00D84A">GitHub</a>
+      with the log attached. Every report makes the app better.
+    </div>
+  </section>
+
+  <section id="requirements">
+    <h2>Requirements</h2>
+    <p class="section-sub">What you need on each side of the cable.</p>
+    <table class="req-table">
+      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later</td></tr>
+      <tr><td>Android</td><td>Android 8.0+ · MTP mode works out of the box; ADB mode needs USB Debugging enabled</td></tr>
+      <tr><td>Phone-side app</td><td>None. Nothing to install on the phone, ever</td></tr>
+      <tr><td>Cable</td><td>Any USB data cable (or Wi-Fi with wireless ADB on Android 11+)</td></tr>
+      <tr><td>Price</td><td>Free during beta</td></tr>
+    </table>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p class="made">Built by <a href="https://ajithmjose.com">Ajith M Jose</a></p>
+    <p>
+      <a href="https://github.com/ajithonmain/droidwire/releases/latest">Download</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/ajithonmain/droidwire/issues">Report a bug</a>
+      &nbsp;·&nbsp;
+      <a href="https://ajithmjose.com">ajithmjose.com</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

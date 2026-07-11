@@ -7,10 +7,12 @@
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "electron-vite build",
     "electron": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
-    "dist": "electron-vite build && electron-builder"
+    "dist": "electron-vite build && bash scripts/bundle-native.sh && electron-builder"
   },
   "build": {
     "appId": "com.droidwire.desktop",
+    "electronVersion": "42.5.0",
+    "npmRebuild": false,
     "productName": "Droidwire",
     "mac": {
       "target": [
@@ -23,7 +25,11 @@
       "output": "release"
     },
     "extraResources": [
-      { "from": "resources/mtp-worker.cjs", "to": "mtp-worker.cjs" }
+      { "from": "resources/mtp-worker.cjs", "to": "mtp-worker.cjs" },
+      { "from": "resources/luck-node-mtp.node", "to": "luck-node-mtp.node" },
+      { "from": "resources/libmtp.9.dylib", "to": "libmtp.9.dylib" },
+      { "from": "resources/libusb-1.0.0.dylib", "to": "libusb-1.0.0.dylib" },
+      { "from": "resources/adb", "to": "adb" }
     ],
     "publish": {
       "provider": "github",

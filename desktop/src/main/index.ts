@@ -36,6 +36,29 @@ const ANDROID_VENDOR_IDS = new Set([
 const isDev = process.env.NODE_ENV === 'development'
 let mainWindow: BrowserWindow | null = null
 
+// Mirror all main-process console output to ~/Library/Logs/Droidwire/main.log
+// so beta testers can attach something concrete to a bug report (the packaged
+// app has no terminal). Logging must never take the app down with it.
+function setupFileLog(): void {
+  try {
+    const dir = app.getPath('logs')
+    fs.mkdirSync(dir, { recursive: true })
+    const stream = fs.createWriteStream(path.join(dir, 'main.log'), { flags: 'a' })
+    const fmt = (a: unknown): string =>
+      a instanceof Error ? (a.stack ?? a.message) : typeof a === 'string' ? a : JSON.stringify(a)
+    const wrap = (orig: (...args: unknown[]) => void, level: string) =>
+      (...args: unknown[]) => {
+        orig(...args)
+        stream.write(`${new Date().toISOString()} [${level}] ${args.map(fmt).join(' ')}\n`)
+      }
+    console.log = wrap(console.log.bind(console), 'info')
+    console.warn = wrap(console.warn.bind(console), 'warn')
+    console.error = wrap(console.error.bind(console), 'error')
+    console.log(`Droidwire ${app.getVersion()} starting (packaged=${app.isPackaged})`)
+  } catch { /* no log file is better than no app */ }
+}
+setupFileLog()
+
 // Prevent EAGAIN / transient spawn errors from crashing the whole main process.
 // Individual handlers already reject their own promises; this catches anything
 // that slips through (e.g. race between error emission and listener attachment).
@@ -1770,6 +1793,10 @@ function setupAppMenu(): void {
       submenu: [
         { role: 'about', label: 'About Droidwire' },
         { label: 'Check for Updates…', click: () => { void checkForUpdatesInteractive() } },
+        {
+          label: 'Show Logs in Finder',
+          click: () => { shell.showItemInFolder(path.join(app.getPath('logs'), 'main.log')) },
+        },
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },

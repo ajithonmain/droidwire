@@ -8,7 +8,16 @@
 // { id, ok: true, result } or { id, ok: false, error }.
 // A download/upload progress callback is relayed as { id, progress: [sent, total] }.
 
-const mtp = require('luck-node-mtp')
+// Dev: luck-node-mtp resolves from the repo's node_modules. Packaged app:
+// node_modules lives inside app.asar where this forked worker can't reach
+// it, so scripts/bundle-native.sh stages the addon (dylibs rewritten to
+// @loader_path) next to this file in Resources/ and it's loaded directly.
+let mtp
+try {
+  mtp = require('luck-node-mtp')
+} catch {
+  mtp = require(require('path').join(__dirname, 'luck-node-mtp.node'))
+}
 
 process.on('uncaughtException', (err) => {
   try { process.send({ type: 'fatal', error: err.message }) } catch { /* pipe already gone */ }
