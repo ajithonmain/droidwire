@@ -39,6 +39,11 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
+  // Mirrors the main-process connection type — drives which transport the UI
+  // reports and which shell-dependent controls (APK install, device detail,
+  // app list, wireless pairing) are hidden since MTP can't do them at all
+  const [connectionType, setConnectionTypeState] = useState<'adb' | 'mtp' | 'wireless'>('adb')
+  const isMtp = connectionType === 'mtp'
   // Transient status toast (open-and-edit sync feedback)
   const [toast, setToast] = useState<{ msg: string; kind: 'info' | 'success' | 'error' } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -228,9 +233,9 @@ export default function App() {
   // File > Device Tools (Cmd+D)
   useEffect(() => {
     return window.droidwire.onMenuAction(action => {
-      if (action === 'device-tools' && status === 'connected') setShowDeviceTools(true)
+      if (action === 'device-tools' && status === 'connected' && !isMtp) setShowDeviceTools(true)
     })
-  }, [status])
+  }, [status, isMtp])
 
   // Active device switched outside this window (tray menu) — same /sdcard
   // paths on every phone, so drop caches and restart at the storage root
@@ -693,6 +698,10 @@ export default function App() {
   }
 
   function handleStorageBar(s: StorageInfo) {
+    // MTP (libmtp) doesn't expose capacity/free-space — total stays 0 as a
+    // sentinel; hide the bar entirely rather than show a misleading or
+    // placeholder-text bar
+    if (s.total <= 0) return null
     const pct = Math.round((s.used / s.total) * 100)
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -806,7 +815,10 @@ export default function App() {
                   <path d="M4 1.5h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
                 </svg>
               </button>
-              <button
+              {/* Battery/device detail + app list are all adb-shell-dependent
+                  (dumpsys, getprop, pm list) — MTP has no shell, so hide
+                  the entry point rather than let it error on click */}
+              {!isMtp && <button
                 onClick={() => setShowDeviceTools(true)}
                 data-tip="Device tools"
                 style={{
@@ -821,7 +833,7 @@ export default function App() {
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                   <path d="M9.7 2.3a3.6 3.6 0 00-4.6 4.5L2 9.9a1.4 1.4 0 002 2l3.1-3.1a3.6 3.6 0 004.5-4.6L9.5 6.3l-1.8-1.8 2-2.2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                 </svg>
-              </button>
+              </button>}
               <button
                 onClick={bookmarkCurrent}
                 data-tip={isBookmarked ? 'Remove bookmark' : 'Bookmark this folder'}
@@ -886,7 +898,7 @@ export default function App() {
               await ejectDevice(serial)
               resetBrowserToRoot()
             }}
-            onAddWireless={() => setShowWireless(true)}
+            onAddWireless={isMtp ? undefined : () => setShowWireless(true)}
           />
         </div>
       </header>
@@ -954,6 +966,8 @@ export default function App() {
               </div>
             ) : !connectionPicked ? (
               <ConnectionTypePicker onSelect={type => {
+                setConnectionTypeState(type)
+                window.droidwire.setConnectionType(type).catch(() => {})
                 if (type === 'wireless') setShowWireless(true)
                 else { setConnectionPicked(true); rescan() }
               }} />
@@ -977,6 +991,8 @@ export default function App() {
                 files={displayFiles}
                 loading={loading}
                 currentPath={currentPath}
+                hideDirSize={isMtp}
+                isMtp={isMtp}
                 selectedPaths={new Set(selectedFiles.map(f => f.path))}
                 cutPaths={clipboard?.mode === 'cut' ? new Set(clipboard.nodes.map(n => n.path)) : undefined}
                 viewMode={viewMode}
@@ -1126,7 +1142,7 @@ export default function App() {
           onCopyPath={handleCopyPath}
           onNewFolder={() => setShowNewFolder(true)}
           onZipDownload={handleZipDownload}
-          onInstallApk={handleInstallApk}
+          onInstallApk={isMtp ? undefined : handleInstallApk}
           onOpenInNewTab={contextMenu.file?.type === 'dir' ? file => openInNewTab(file.path) : undefined}
           onSelectAll={() => setSelectedFiles(displayFiles)}
           onRefresh={refresh}

@@ -51,6 +51,13 @@ interface Props {
   onInternalDragStart?: (file: FileNode) => void
   onInternalDragEnd?: () => void
   keyboardDisabled?: boolean
+  // MTP has no fast on-device folder-size query — a recursive walk would
+  // queue behind (and block) real operations on the single MTP worker
+  hideDirSize?: boolean
+  // MTP fetches each file's metadata one object at a time (no bulk listing
+  // like ADB's `ls`) — a folder with thousands of photos can take over a
+  // minute to enumerate. Set expectations instead of a plain "Loading..."
+  isMtp?: boolean
 }
 
 function FolderIconSm({ selected, theme }: { selected: boolean; theme: Theme }) {
@@ -260,7 +267,7 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
     }
   }, [file.path, file.name, eligible])
 
-  if (src) return <img src={src} alt={file.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px' }} />
+  if (src) return <img src={src} alt={file.name} onError={() => setSrc(null)} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px' }} />
   return <FileIconLg mimeType={file.mimeType} fileName={file.name} theme={theme} />
 }
 
@@ -274,11 +281,12 @@ export function clearFileGridCaches() {
   _dirSizeCache.clear()
 }
 
-function DirSizeCell({ file }: { file: FileNode }) {
+function DirSizeCell({ file, hidden }: { file: FileNode; hidden?: boolean }) {
   const key = `${file.path}:${file.modified}`
   const [size, setSize] = useState<number | null | undefined>(_dirSizeCache.get(key))
 
   useEffect(() => {
+    if (hidden) return
     if (_dirSizeCache.has(key)) { setSize(_dirSizeCache.get(key)); return }
     let cancelled = false
     let acquired = false
@@ -297,8 +305,9 @@ function DirSizeCell({ file }: { file: FileNode }) {
         if (idx >= 0) _thumbQueue.splice(idx, 1, () => { _thumbActive++; thumbRelease() })
       }
     }
-  }, [key, file.path])
+  }, [key, file.path, hidden])
 
+  if (hidden) return null
   return <>{size === undefined ? '…' : size === null ? '—' : formatSize(size)}</>
 }
 
@@ -413,12 +422,38 @@ const GRID_MIN_W = 110
 const LIST_H = 36    // height of each list row in px
 const OVERSCAN = 8   // buffer rows — 8*124=992px grid, 8*36=288px list
 
+function LoadingState({ isMtp, theme }: { isMtp?: boolean; theme: Theme }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!isMtp) return
+    const start = Date.now()
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [isMtp])
+
+  // MTP fetches each object's metadata one at a time — a folder with
+  // thousands of files can take well over a minute (measured: ~20ms/file).
+  // Set that expectation once it's clearly not a quick listing.
+  const showMtpNote = isMtp && elapsed >= 4
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: theme.textMuted, fontSize: '14px' }}>
+      <span>Loading{showMtpNote ? ` (${elapsed}s)` : '...'}</span>
+      {showMtpNote && (
+        <span style={{ fontSize: '12px', color: theme.textMuted, maxWidth: '280px', textAlign: 'center' }}>
+          MTP lists large folders slowly — a folder with thousands of photos can take a minute or more
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function FileGrid({
   files, loading, currentPath: _currentPath, selectedPaths, cutPaths, viewMode,
   sortField, sortDir, onSort,
   onNavigate, onSelect, onRangeSelect, onDownload, onContextMenu, onEmptyContextMenu, onOpenFile,
   onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRenameInline, onPreview, onNativeDrag: _onNativeDrag,
-  onInternalDragStart, onInternalDragEnd, keyboardDisabled,
+  onInternalDragStart, onInternalDragEnd, keyboardDisabled, hideDirSize, isMtp,
 }: Props) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState<string | null>(null)
@@ -715,11 +750,7 @@ export function FileGrid({
   }, [files, selectedPaths, cursorIndex, editingPath, viewMode, keyboardDisabled, ensureVisible,
       onDeselectAll, onGoUp, onSelectAll, onDeleteSelected, onRefresh, onRangeSelect, onPreview, onNavigate, onSelect])
 
-  if (loading) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textMuted, fontSize: '14px' }}>
-      Loading...
-    </div>
-  )
+  if (loading) return <LoadingState isMtp={isMtp} theme={theme} />
 
   if (files.length === 0) return (
     <div
@@ -975,7 +1006,7 @@ export function FileGrid({
                   </div>
                 </td>
                 <td style={{ padding: '5px 8px', textAlign: 'right', fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
-                  {file.type === 'file' ? formatSize(file.size) : <DirSizeCell file={file} />}
+                  {file.type === 'file' ? formatSize(file.size) : <DirSizeCell file={file} hidden={hideDirSize} />}
                 </td>
                 <td style={{ padding: '5px 8px', fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {formatDate(file.modified)}

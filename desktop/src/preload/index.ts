@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('droidwire', {
+  setConnectionType: (type: string): Promise<void> =>
+    ipcRenderer.invoke('set-connection-type', type),
+
+  getConnectionType: (): Promise<string> =>
+    ipcRenderer.invoke('get-connection-type'),
+
   getDevices: (): Promise<{ devices: { serial: string; state: string; model: string }[]; active: string | null }> =>
     ipcRenderer.invoke('adb:devices'),
 

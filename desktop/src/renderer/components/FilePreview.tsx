@@ -182,7 +182,7 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
     }
     if (isImage(file.mimeType)) {
       return previewSrc
-        ? <img src={previewSrc} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+        ? <img src={previewSrc} alt={file.name} onError={() => setPreviewSrc(null)} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
         : <PlaceholderIcon mimeType={file.mimeType} theme={theme} />
     }
     if (isPdf(file.mimeType)) {

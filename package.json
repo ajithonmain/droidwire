@@ -8,9 +8,17 @@
     "shared"
   ],
   "scripts": {
+    "postinstall": "patch-package && npm run rebuild:mtp",
+    "rebuild:mtp": "cd node_modules/luck-node-mtp && LIBRARY_PATH=/opt/homebrew/lib CPATH=/opt/homebrew/include npx node-gyp rebuild",
     "android": "cd android && npx react-native run-android",
     "desktop:dev": "cd desktop && npm run dev",
     "desktop:electron": "cd desktop && npm run electron",
     "desktop:dist": "cd desktop && npm run dist"
+  },
+  "allowScripts": {
+    "luck-node-mtp@1.0.0": true
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }

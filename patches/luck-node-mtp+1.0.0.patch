@@ -1,0 +1,143 @@
+diff --git a/node_modules/luck-node-mtp/src/luck_mtp.cc b/node_modules/luck-node-mtp/src/luck_mtp.cc
+index b5c4c65..00be90c 100644
+--- a/node_modules/luck-node-mtp/src/luck_mtp.cc
++++ b/node_modules/luck-node-mtp/src/luck_mtp.cc
+@@ -345,6 +345,22 @@ Napi::Boolean connectDevice(const Napi::CallbackInfo &info)
+ 
+   __device = LIBMTP_Open_Raw_Device_Uncached(rawdev);
+ 
++  // Open fails (returns NULL) when another process holds the USB interface
++  // (macOS ptpcamerad, Android File Transfer) — dereferencing crashed the
++  // whole process with SIGSEGV before this check
++  if (!__device)
++  {
++    throw Napi::Error::New(env, "Unable to open MTP device — its USB interface is held by another process.");
++  }
++
++  // No storage exposed: phone is locked or in charge-only USB mode
++  if (!__device->storage)
++  {
++    LIBMTP_Release_Device(__device);
++    __device = NULL;
++    throw Napi::Error::New(env, "MTP device has no accessible storage — unlock the phone and set USB mode to File Transfer.");
++  }
++
+   __storageId = __device->storage->id;
+ 
+   return Napi::Boolean::New(env, true);
+@@ -466,18 +482,26 @@ Napi::Boolean upload(const Napi::CallbackInfo &info)
+   filesize = sb.st_size;
+   filename = sourceFilePath.substr(sourceFilePath.find_last_of("/\\") + 1);
+ 
+-  LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
+-
+-  if (!parent)
++  // Empty path after formatMtpPath() means the storage root — findFile()
++  // cannot represent it. PTP SendObjectInfo denotes root as 0xFFFFFFFF
++  // (parent 0 is rejected by Android).
++  uint32_t parentId = LIBMTP_FILES_AND_FOLDERS_ROOT;
++  if (!targetFolderPath.empty())
+   {
+-    throw Napi::Error::New(env, "Can not find the target parent folder id.");
++    LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
++
++    if (!parent)
++    {
++      throw Napi::Error::New(env, "Can not find the target parent folder id.");
++    }
++    parentId = parent->item_id;
+   }
+ 
+   genfile = LIBMTP_new_file_t();
+   genfile->filesize = filesize;
+   genfile->filename = strdup(filename.c_str());
+   genfile->filetype = find_filetype(strdup(filename.c_str()));
+-  genfile->parent_id = parent->item_id;
++  genfile->parent_id = parentId;
+   genfile->storage_id = __storageId;
+ 
+   if (LIBMTP_Send_File_From_File(__device, sourceFilePath.c_str(), genfile, progress, &info) != 0)
+@@ -706,14 +730,19 @@ Napi::Boolean copyObject(const Napi::CallbackInfo &info)
+     throw Napi::Error::New(env, "Can not find the source file to copy.");
+   }
+ 
+-  LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
+-
+-  if (!parent)
++  uint32_t parentId = 0; // PTP Move/CopyObject: 0 = storage root (findFile cannot represent it)
++  if (!targetFolderPath.empty())
+   {
+-    throw Napi::Error::New(env, "Can not find the target parent folder copy to.");
++    LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
++
++    if (!parent)
++    {
++      throw Napi::Error::New(env, "Can not find the target parent folder copy to.");
++    }
++    parentId = parent->item_id;
+   }
+ 
+-  if (LIBMTP_Copy_Object(__device, sourceFile->item_id, __storageId, parent->item_id) != 0)
++  if (LIBMTP_Copy_Object(__device, sourceFile->item_id, __storageId, parentId) != 0)
+   {
+     throw Napi::Error::New(env, "Error to copy file");
+   }
+@@ -771,14 +800,19 @@ Napi::Boolean moveObject(const Napi::CallbackInfo &info)
+     throw Napi::Error::New(env, "Can not find the source file to move.");
+   }
+ 
+-  LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
+-
+-  if (!parent)
++  uint32_t parentId = 0; // PTP Move/CopyObject: 0 = storage root (findFile cannot represent it)
++  if (!targetFolderPath.empty())
+   {
+-    throw Napi::Error::New(env, "Can not find the target parent folder move to.");
++    LIBMTP_file_t *parent = findFile(__device, targetFolderPath);
++
++    if (!parent)
++    {
++      throw Napi::Error::New(env, "Can not find the target parent folder move to.");
++    }
++    parentId = parent->item_id;
+   }
+ 
+-  if (LIBMTP_Move_Object(__device, sourceFile->item_id, __storageId, parent->item_id) != 0)
++  if (LIBMTP_Move_Object(__device, sourceFile->item_id, __storageId, parentId) != 0)
+   {
+     throw Napi::Error::New(env, "Error to move file");
+   }
+@@ -926,19 +960,24 @@ Napi::Number createFolder(const Napi::CallbackInfo &info)
+     throw Napi::Error::New(env, "Device not connected.");
+   }
+ 
+-  LIBMTP_file_t *file = findFile(__device, parentFolderPath);
+-
+-  if (!file)
++  uint32_t parentId = LIBMTP_FILES_AND_FOLDERS_ROOT; // root (findFile cannot represent it; Android rejects 0)
++  if (!parentFolderPath.empty())
+   {
+-    throw Napi::Error::New(env, "Can not find the parent folder.");
+-  }
++    LIBMTP_file_t *file = findFile(__device, parentFolderPath);
+ 
+-  if (file->filetype != LIBMTP_FILETYPE_FOLDER)
+-  {
+-    throw Napi::Error::New(env, "Parent is not a folder.");
++    if (!file)
++    {
++      throw Napi::Error::New(env, "Can not find the parent folder.");
++    }
++
++    if (file->filetype != LIBMTP_FILETYPE_FOLDER)
++    {
++      throw Napi::Error::New(env, "Parent is not a folder.");
++    }
++    parentId = file->item_id;
+   }
+ 
+-  int folderId = LIBMTP_Create_Folder(__device, strdup(newName.c_str()), file->item_id, __storageId);
++  int folderId = LIBMTP_Create_Folder(__device, strdup(newName.c_str()), parentId, __storageId);
+ 
+   if (folderId == 0)
+   {

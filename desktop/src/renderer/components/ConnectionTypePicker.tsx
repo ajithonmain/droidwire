@@ -1,7 +1,7 @@
 import { useTheme } from '../lib/ThemeContext'
 
 interface Props {
-  onSelect: (type: 'adb' | 'wireless') => void
+  onSelect: (type: 'adb' | 'wireless' | 'mtp') => void
 }
 
 export function ConnectionTypePicker({ onSelect }: Props) {
@@ -161,8 +161,9 @@ export function ConnectionTypePicker({ onSelect }: Props) {
           </svg>
         </button>
 
-        {/* MTP — coming soon */}
-        <div
+        {/* MTP — limited features */}
+        <button
+          onClick={() => onSelect('mtp')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -171,30 +172,36 @@ export function ConnectionTypePicker({ onSelect }: Props) {
             background: theme.surface,
             border: `1px solid ${theme.border}`,
             borderRadius: '10px',
-            opacity: 0.5,
-            cursor: 'not-allowed',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'border-color 0.15s',
           }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = theme.accent)}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = theme.border)}
         >
           <div style={{ flexShrink: 0 }}>{MTP_ICON}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: theme.textMuted }}>Connect via MTP</span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: theme.textPrimary }}>Connect via MTP</span>
               <span style={{
                 fontSize: '11px',
                 fontWeight: 700,
-                color: theme.textMuted,
-                background: theme.surfaceHover,
-                border: `1px solid ${theme.border}`,
+                color: '#FF9500',
+                background: '#FF950020',
+                border: '1px solid #FF950040',
                 borderRadius: '3px',
                 padding: '1px 5px',
                 letterSpacing: '0.4px',
               }}>
-                COMING SOON
+                LIMITED
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textMuted }}>Wired, single-threaded</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option — no progress, no APK install</span>
           </div>
-        </div>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
     </div>
   )

@@ -6,6 +6,10 @@ import http from 'http'
 import crypto from 'crypto'
 import { execFile, spawn } from 'child_process'
 import type { FileNode, TransferProgress, StorageInfo, BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
+import { setActiveSerial, getActiveSerial, getAdbBinary, adbCommand, adbLongCommand, squote } from './adb-transport'
+import { setConnectionType, getConnectionType, getActiveTransport, listDevices as dmListDevices, setActiveDevice as dmSetActiveDevice, getActiveDevice } from './device-manager'
+import type { Transport } from './transport'
+import { stopMtpWorker } from './mtp-worker-client'
 
 // Android USB vendor IDs — covers all major manufacturers
 const ANDROID_VENDOR_IDS = new Set([
@@ -42,91 +46,21 @@ process.on('unhandledRejection', (reason) => {
   console.error('[droidwire] unhandled rejection (suppressed):', reason)
 })
 
-// ---------------------------------------------------------------------------
-// ADB concurrency limiter — prevents EAGAIN on large folders
-// ---------------------------------------------------------------------------
-
-let _adbSlots = 0
-const _adbQueue: Array<() => void> = []
-const ADB_MAX = 6
-
-function withAdbSlot<T>(fn: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const run = () => {
-      _adbSlots++
-      fn().then(resolve, reject).finally(() => {
-        _adbSlots--
-        _adbQueue.shift()?.()
-      })
-    }
-    if (_adbSlots < ADB_MAX) run()
-    else _adbQueue.push(run)
-  })
-}
-
-// ---------------------------------------------------------------------------
-// ADB helpers
-// ---------------------------------------------------------------------------
-
+// Delegation wrappers to AdbTransport (centralizes ADB logic)
 function adbBin(): string {
-  const bundled = path.join(process.resourcesPath ?? '', 'adb')
-  if (fs.existsSync(bundled)) return bundled
-  for (const p of ['/opt/homebrew/bin/adb', '/usr/local/bin/adb']) {
-    if (fs.existsSync(p)) return p
-  }
-  return 'adb'
-}
-
-// Active device — all adb commands are scoped to this serial so that a
-// second connected phone doesn't break every call ("more than one device").
-let _activeSerial: string | null = null
-const _modelCache = new Map<string, string>()
-// Hardware serial (ro.serialno) per adb serial — the same phone shows up
-// once per transport (USB, ip:port, mDNS auto-connect); this identifies them
-const _hwSerialCache = new Map<string, string>()
-
-// Wireless adb serials: "ip:port" or mDNS instance names
-function isWirelessSerial(serial: string): boolean {
-  return serial.includes(':') || serial.startsWith('adb-') || serial.includes('_adb-tls-connect')
-}
-
-// Preference when the same phone is reachable over several transports:
-// USB (fastest) > manual ip:port > mDNS auto-connect
-function transportRank(serial: string): number {
-  if (!isWirelessSerial(serial)) return 0
-  return serial.includes(':') && !serial.includes('_adb-tls-connect') ? 1 : 2
-}
-
-// Per-device eject: these serials are hidden from the app until the user
-// rescans or physically replugs a device
-const _ejectedSerials = new Set<string>()
-
-function adbArgs(args: string[]): string[] {
-  // 'devices' is global; callers passing an explicit -s manage their own scope
-  if (!_activeSerial || args[0] === 'devices' || args[0] === '-s') return args
-  return ['-s', _activeSerial, ...args]
+  return getAdbBinary()
 }
 
 function adb(args: string[]): Promise<string> {
-  return withAdbSlot(() => new Promise((resolve, reject) => {
-    const proc = execFile(adbBin(), adbArgs(args), { timeout: 15000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message))
-      else resolve(stdout)
-    })
-    proc.on('error', reject)
-  }))
+  return adbCommand(args)
 }
 
-// Long-running adb calls (du over a full tree, pm dumps) — bigger timeout and
-// output buffer than the 15s default
-function adbLong(args: string[], timeout = 120_000): Promise<string> {
-  return withAdbSlot(() => new Promise((resolve, reject) => {
-    const proc = execFile(adbBin(), adbArgs(args), { timeout, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message))
-      else resolve(stdout)
-    })
-    proc.on('error', reject)
-  }))
+function adbLong(args: string[], timeout?: number): Promise<string> {
+  return adbLongCommand(args, timeout)
+}
+
+function sq(p: string): string {
+  return squote(p)
 }
 
 function parseLsLa(output: string, dirPath: string): FileNode[] {
@@ -157,10 +91,6 @@ function parseLsLa(output: string, dirPath: string): FileNode[] {
   })
 }
 
-function sq(p: string): string {
-  return `'${p.replace(/'/g, "'\\''")}'`
-}
-
 function guessMime(name: string): string | null {
   const ext = name.split('.').pop()?.toLowerCase()
   const map: Record<string, string> = {
@@ -186,6 +116,25 @@ function guessMime(name: string): string | null {
   return ext ? (map[ext] ?? 'application/octet-stream') : null
 }
 
+function adbArgs(args: string[]): string[] {
+  const serial = getActiveSerial()
+  if (!serial || args[0] === 'devices' || args[0] === '-s') return args
+  return ['-s', serial, ...args]
+}
+
+function isWirelessSerial(serial: string): boolean {
+  return serial.includes(':') || serial.startsWith('adb-') || serial.includes('_adb-tls-connect')
+}
+
+function transportRank(serial: string): number {
+  if (!isWirelessSerial(serial)) return 0
+  return serial.includes(':') && !serial.includes('_adb-tls-connect') ? 1 : 2
+}
+
+const _ejectedSerials = new Set<string>()
+const _modelCache = new Map<string, string>()
+const _hwSerialCache = new Map<string, string>()
+
 // Cross-window drag data store (keyed by source window id)
 let _pendingDragNode: FileNode | null = null
 
@@ -201,6 +150,9 @@ function downloadsDir(): string {
 }
 
 const activeTransfers = new Map<string, ReturnType<typeof spawn>>()
+// MTP transfers block synchronously inside the worker process — there's no
+// per-call cancel API, so cancelling means killing the worker outright
+const activeMtpTransfers = new Set<string>()
 
 function previewDir(): string {
   const dir = path.join(os.tmpdir(), 'droidwire-preview')
@@ -388,9 +340,23 @@ app.on('window-all-closed', () => {
 // IPC: device
 // ---------------------------------------------------------------------------
 
+ipcMain.handle('set-connection-type', async (_e, type: string) => {
+  if (type !== 'adb' && type !== 'mtp' && type !== 'wireless') {
+    throw new Error(`Invalid connection type: ${type}`)
+  }
+  setConnectionType(type)
+  _remoteSizeCache.clear()
+  _modelCache.clear()
+  _hwSerialCache.clear()
+})
+
+ipcMain.handle('get-connection-type', async () => {
+  return getConnectionType()
+})
+
 ipcMain.handle('adb:eject-device', async (_e, serial: string) => {
   _ejectedSerials.add(serial)
-  if (_activeSerial === serial) _activeSerial = null
+  if (getActiveSerial() === serial) setActiveSerial(null)
   _remoteSizeCache.clear()
   // Wireless devices have a real session to tear down — disconnect properly
   // so the phone stops showing an active connection
@@ -419,8 +385,8 @@ async function listDevices(): Promise<{ devices: { serial: string; state: string
   // Keep the active serial valid: default to the first online device,
   // reset if the active one vanished
   const online = devices.filter(d => d.state === 'device')
-  if (!_activeSerial || !online.some(d => d.serial === _activeSerial)) {
-    _activeSerial = online[0]?.serial ?? null
+  if (!getActiveSerial() || !online.some(d => d.serial === getActiveSerial())) {
+    setActiveSerial(online[0]?.serial ?? null)
   }
 
   // Model names for the switcher UI, cached per serial
@@ -447,26 +413,46 @@ async function listDevices(): Promise<{ devices: { serial: string; state: string
     const hw = _hwSerialCache.get(d.serial) ?? d.serial
     const existing = byHw.get(hw)
     if (!existing) { byHw.set(hw, d); continue }
-    const keepNew = d.serial === _activeSerial
-      || (existing.serial !== _activeSerial && transportRank(d.serial) < transportRank(existing.serial))
+    const keepNew = d.serial === getActiveSerial()
+      || (existing.serial !== getActiveSerial() && transportRank(d.serial) < transportRank(existing.serial))
     if (keepNew) byHw.set(hw, d)
   }
   const deduped = online.filter(d => byHw.get(_hwSerialCache.get(d.serial) ?? d.serial) === d)
 
   return {
     devices: [...deduped, ...devices.filter(d => d.state !== 'device')],
-    active: _activeSerial,
+    active: getActiveSerial(),
   }
 }
 
-ipcMain.handle('adb:devices', async () => listDevices())
+ipcMain.handle('adb:devices', async () => {
+  // MTP mode: same response shape as ADB so useDevice polling works unchanged
+  if (getConnectionType() === 'mtp') {
+    const { devices, active } = await dmListDevices()
+    return {
+      devices: devices.map(d => ({ serial: d.serial, state: 'device', model: d.name })),
+      active: active?.serial ?? null,
+    }
+  }
+  return listDevices()
+})
 
 ipcMain.handle('adb:set-device', async (_e, serial: string) => {
-  _activeSerial = serial
+  if (getConnectionType() === 'mtp') {
+    dmSetActiveDevice(serial)
+    return
+  }
+  setActiveSerial(serial)
   _remoteSizeCache.clear()
 })
 
 ipcMain.handle('adb:device-info', async () => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    const info = await getActiveTransport().getDeviceInfo(active.serial)
+    return { name: info.model, battery: info.battery }
+  }
   const [model, batteryOut] = await Promise.all([
     adb(['shell', 'getprop', 'ro.product.model']),
     adb(['shell', 'dumpsys', 'battery']),
@@ -483,11 +469,21 @@ ipcMain.handle('adb:device-info', async () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('adb:list-files', async (_e, dirPath: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    return getActiveTransport().listFiles(active.serial, dirPath)
+  }
   const out = await adb(['shell', `ls -la --color=never ${sq(dirPath)}`])
   return parseLsLa(out, dirPath)
 })
 
 ipcMain.handle('adb:storage', async () => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    return getActiveTransport().getStorage(active.serial)
+  }
   const out = await adb(['shell', 'df', '-k', '/sdcard'])
   const lines = out.split('\n').filter(l => l.trim() && !l.startsWith('Filesystem'))
   if (!lines.length) throw new Error('Could not read storage')
@@ -505,6 +501,38 @@ ipcMain.handle('adb:storage', async () => {
 
 ipcMain.handle('adb:pull', async (event, remotePath: string, fileName: string, transferId: string) => {
   const dest = path.join(downloadsDir(), fileName)
+
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    activeMtpTransfers.add(transferId)
+    let lastTime = Date.now()
+    let lastBytes = 0
+    try {
+      await getActiveTransport().pullFile(active.serial, remotePath, dest, (sent, total) => {
+        const now = Date.now()
+        const elapsed = (now - lastTime) / 1000
+        const speedBps = elapsed > 0 ? (sent - lastBytes) / elapsed : 0
+        lastTime = now
+        lastBytes = sent
+        event.sender.send('transfer-progress', {
+          id: transferId, totalBytes: total, transferredBytes: sent, speedBps, status: 'active',
+        })
+      })
+      const size = (() => { try { return fs.statSync(dest).size } catch { return 0 } })()
+      event.sender.send('transfer-progress', {
+        id: transferId, totalBytes: size, transferredBytes: size, speedBps: 0, status: 'done',
+      })
+      return dest
+    } catch (err) {
+      try { fs.unlinkSync(dest) } catch { /* nothing to clean */ }
+      const msg = err instanceof Error ? err.message : String(err)
+      event.sender.send('transfer-progress', { id: transferId, status: 'error', error: msg })
+      throw err
+    } finally {
+      activeMtpTransfers.delete(transferId)
+    }
+  }
 
   // Get remote file size for progress
   let totalBytes = 0
@@ -565,6 +593,36 @@ ipcMain.handle('adb:pull', async (event, remotePath: string, fileName: string, t
 
 ipcMain.handle('adb:push', async (event, localPath: string, remotePath: string, transferId: string) => {
   const totalBytes = (() => { try { return fs.statSync(localPath).size } catch { return 0 } })()
+
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    activeMtpTransfers.add(transferId)
+    let lastTime = Date.now()
+    let lastBytes = 0
+    try {
+      await getActiveTransport().pushFile(active.serial, localPath, remotePath, (sent, total) => {
+        const now = Date.now()
+        const elapsed = (now - lastTime) / 1000
+        const speedBps = elapsed > 0 ? (sent - lastBytes) / elapsed : 0
+        lastTime = now
+        lastBytes = sent
+        event.sender.send('transfer-progress', {
+          id: transferId, totalBytes: total || totalBytes, transferredBytes: sent, speedBps, status: 'active',
+        })
+      })
+      event.sender.send('transfer-progress', {
+        id: transferId, totalBytes, transferredBytes: totalBytes, speedBps: 0, status: 'done',
+      })
+      return
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      event.sender.send('transfer-progress', { id: transferId, status: 'error', error: msg })
+      throw err
+    } finally {
+      activeMtpTransfers.delete(transferId)
+    }
+  }
 
   return new Promise<void>((resolve, reject) => {
     const proc = spawn(adbBin(), adbArgs(['push', localPath, remotePath]))
@@ -633,14 +691,43 @@ ipcMain.handle('show-in-finder', async (_e, filePath: string) => {
 ipcMain.handle('adb:preview', async (_e, remotePath: string, fileName: string) => {
   const dest = path.join(previewDir(), fileName)
   try {
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn(adbBin(), adbArgs(['pull', remotePath, dest]))
-      proc.on('error', reject)
-      proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
-      proc.stderr.on('data', () => {})
-    })
+    if (getConnectionType() === 'mtp') {
+      const active = getActiveDevice()
+      if (!active) throw new Error('No MTP device selected')
+      await getActiveTransport().pullFile(active.serial, remotePath, dest)
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(adbBin(), adbArgs(['pull', remotePath, dest]))
+        proc.on('error', reject)
+        proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
+        proc.stderr.on('data', () => {})
+      })
+    }
 
     const ext = path.extname(fileName).toLowerCase().replace('.', '')
+
+    // Files unscanned by Android's media store report size 0 over MTP and the
+    // device sends 0 bytes on download — an empty data URL renders as a broken
+    // image in the grid, so fall back to the generic icon instead
+    if (!fs.existsSync(dest) || fs.statSync(dest).size === 0) return null
+
+    // HEIC/HEIF/TIFF: Chromium can't decode these — convert with sips (macOS built-in)
+    if (ext === 'heic' || ext === 'heif' || ext === 'tiff' || ext === 'tif') {
+      const jpgPath = dest + '.preview.jpg'
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn('sips', ['-s', 'format', 'jpeg', '--resampleHeightWidthMax', '1200', dest, '--out', jpgPath])
+          proc.on('error', reject)
+          proc.on('close', code => code === 0 ? resolve() : reject(new Error('sips failed')))
+          proc.stderr.on('data', () => {})
+        })
+        if (fs.existsSync(jpgPath) && fs.statSync(jpgPath).size > 0) {
+          const buf = fs.readFileSync(jpgPath)
+          return `data:image/jpeg;base64,${buf.toString('base64')}`
+        }
+      } catch { /* sips failed — fall through to generic icon */ }
+      return null
+    }
 
     // PDF: generate thumbnail with qlmanage (macOS built-in)
     if (ext === 'pdf') {
@@ -687,22 +774,75 @@ ipcMain.handle('show-open-dialog', async () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('adb:delete', async (_e, remotePath: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    return getActiveTransport().deleteFile(active.serial, remotePath)
+  }
   await adb(['shell', `rm -rf ${sq(remotePath)}`])
 })
 
 ipcMain.handle('adb:rename', async (_e, oldPath: string, newPath: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    const newName = newPath.split('/').pop() ?? newPath
+    return getActiveTransport().renameFile(active.serial, oldPath, newName)
+  }
   await adb(['shell', `mv ${sq(oldPath)} ${sq(newPath)}`])
 })
 
 ipcMain.handle('adb:mkdir', async (_e, dirPath: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    return getActiveTransport().makeDir(active.serial, dirPath)
+  }
   await adb(['shell', `mkdir -p ${sq(dirPath)}`])
 })
 
 ipcMain.handle('adb:copy', async (_e, src: string, dest: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    const transport = getActiveTransport()
+    if (!transport.copy) throw new Error('Copy not supported on this transport')
+    return transport.copy(active.serial, src, dest)
+  }
   await adb(['shell', `cp -r ${sq(src)} ${sq(dest)}`])
 })
 
 ipcMain.handle('adb:find', async (_e, dirPath: string, query: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    const transport = getActiveTransport()
+    const q = query.toLowerCase()
+    const results: FileNode[] = []
+    let foldersVisited = 0
+    const MAX_RESULTS = 300
+    const MAX_FOLDERS = 500
+    const MAX_DEPTH = 8
+
+    async function walk(p: string, depth: number): Promise<void> {
+      if (results.length >= MAX_RESULTS || foldersVisited >= MAX_FOLDERS || depth > MAX_DEPTH) return
+      foldersVisited++
+      let entries: FileNode[]
+      try {
+        entries = await transport.listFiles(active!.serial, p)
+      } catch { return }
+      for (const entry of entries) {
+        if (entry.name.toLowerCase().includes(q)) results.push(entry)
+        if (results.length >= MAX_RESULTS) return
+        if (entry.type === 'dir') await walk(entry.path, depth + 1)
+        if (results.length >= MAX_RESULTS || foldersVisited >= MAX_FOLDERS) return
+      }
+    }
+
+    await walk(dirPath, 0)
+    return results
+  }
+
   const safeQuery = query.replace(/'/g, '')
   const out = await adb([
     'shell',
@@ -735,6 +875,15 @@ ipcMain.handle('adb:cancel-transfer', async (_e, transferId: string) => {
   if (proc) {
     try { proc.kill() } catch { /* already dead */ }
     activeTransfers.delete(transferId)
+    return
+  }
+  if (activeMtpTransfers.has(transferId)) {
+    // No per-call cancel in luck-node-mtp — the blocking native call only
+    // stops if its process dies. The worker's exit handler rejects the
+    // in-flight promise, which the pull/push catch block turns into an
+    // 'error' transfer-progress event (matching ADB's cancel behavior above).
+    stopMtpWorker()
+    activeMtpTransfers.delete(transferId)
   }
 })
 
@@ -747,6 +896,10 @@ interface EditSession {
   localPath: string
   remotePath: string
   serial: string | null      // pin to the device the file came from
+  // Transport the file was pulled over; null means plain adb (spawn path).
+  // Pinned at open time so a later connection-type switch doesn't reroute
+  // the sync-back to a transport that never saw this device.
+  transport: Transport | null
   lastMtimeMs: number
   pushing: boolean
   pendingTimer: ReturnType<typeof setTimeout> | null
@@ -766,6 +919,19 @@ function pushEditSession(session: EditSession, fileName: string) {
   try { st = fs.statSync(session.localPath) } catch { return }
   if (st.mtimeMs <= session.lastMtimeMs || session.pushing) return
   session.pushing = true
+  if (session.transport && session.serial) {
+    session.transport.pushFile(session.serial, session.localPath, session.remotePath)
+      .then(() => {
+        session.lastMtimeMs = st.mtimeMs
+        sendEditEvent({ type: 'synced', fileName })
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'push failed — is the device connected?'
+        sendEditEvent({ type: 'failed', fileName, error: msg })
+      })
+      .finally(() => { session.pushing = false })
+    return
+  }
   const args = session.serial
     ? ['-s', session.serial, 'push', session.localPath, session.remotePath]
     : ['push', session.localPath, session.remotePath]
@@ -796,17 +962,25 @@ ipcMain.handle('edit-open', async (_e, remotePath: string, fileName: string) => 
   fs.mkdirSync(dir, { recursive: true })
   const localPath = path.join(dir, fileName)
 
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn(adbBin(), adbArgs(['pull', remotePath, localPath]))
-    proc.on('error', reject)
-    proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
-    proc.stderr.on('data', () => {})
-  })
+  const isMtp = getConnectionType() === 'mtp'
+  const mtpDevice = isMtp ? getActiveDevice() : null
+  if (isMtp) {
+    if (!mtpDevice) throw new Error('No MTP device selected')
+    await getActiveTransport().pullFile(mtpDevice.serial, remotePath, localPath)
+  } else {
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(adbBin(), adbArgs(['pull', remotePath, localPath]))
+      proc.on('error', reject)
+      proc.on('close', code => code === 0 ? resolve() : reject(new Error('pull failed')))
+      proc.stderr.on('data', () => {})
+    })
+  }
 
   const session: EditSession = {
     localPath,
     remotePath,
-    serial: _activeSerial,
+    serial: isMtp ? mtpDevice!.serial : getActiveSerial(),
+    transport: isMtp ? getActiveTransport() : null,
     lastMtimeMs: fs.statSync(localPath).mtimeMs,
     pushing: false,
     pendingTimer: null,
@@ -837,6 +1011,67 @@ app.on('will-quit', () => {
 })
 
 ipcMain.handle('adb:zip-pull', async (event, remoteDirPath: string, folderName: string, transferId: string) => {
+  // MTP has no shell, so there's no on-device `zip` to run — instead walk
+  // the folder tree, pull every file into a local mirror directory, then
+  // zip that mirror with macOS's own `zip` binary (a local-only operation).
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) throw new Error('No MTP device selected')
+    const transport = getActiveTransport()
+    const mirrorRoot = path.join(os.tmpdir(), `droidwire-zip-${transferId}`)
+    fs.mkdirSync(mirrorRoot, { recursive: true })
+    activeMtpTransfers.add(transferId)
+
+    try {
+      const files: { remotePath: string; localPath: string; size: number }[] = []
+      async function collect(remoteDir: string, localDir: string): Promise<void> {
+        const entries = await transport.listFiles(active!.serial, remoteDir)
+        for (const entry of entries) {
+          const localPath = path.join(localDir, entry.name)
+          if (entry.type === 'dir') {
+            fs.mkdirSync(localPath, { recursive: true })
+            await collect(entry.path, localPath)
+          } else {
+            files.push({ remotePath: entry.path, localPath, size: entry.size })
+          }
+        }
+      }
+      await collect(remoteDirPath, mirrorRoot)
+
+      const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
+      let transferredBytes = 0
+      for (const f of files) {
+        fs.mkdirSync(path.dirname(f.localPath), { recursive: true })
+        await transport.pullFile(active.serial, f.remotePath, f.localPath, (sent) => {
+          event.sender.send('transfer-progress', {
+            id: transferId, totalBytes, transferredBytes: transferredBytes + sent, speedBps: 0, status: 'active',
+          })
+        })
+        transferredBytes += f.size
+      }
+
+      const dest = path.join(downloadsDir(), `${folderName}.zip`)
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn('zip', ['-r', dest, '.'], { cwd: mirrorRoot })
+        proc.on('error', reject)
+        proc.on('close', code => code === 0 ? resolve() : reject(new Error('local zip failed')))
+      })
+
+      const finalSize = (() => { try { return fs.statSync(dest).size } catch { return totalBytes } })()
+      event.sender.send('transfer-progress', {
+        id: transferId, totalBytes: finalSize, transferredBytes: finalSize, speedBps: 0, status: 'done',
+      })
+      return dest
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      event.sender.send('transfer-progress', { id: transferId, status: 'error', error: msg })
+      throw err
+    } finally {
+      activeMtpTransfers.delete(transferId)
+      fs.rm(mirrorRoot, { recursive: true, force: true }, () => {})
+    }
+  }
+
   const remoteZip = '/sdcard/._droidwire_tmp.zip'
   const parent = remoteDirPath.replace(/\/$/, '').replace(/\/[^/]+$/, '') || '/'
   const base = remoteDirPath.replace(/\/$/, '').split('/').filter(Boolean).pop() ?? ''
@@ -941,6 +1176,17 @@ ipcMain.handle('set-download-dir', async (_e, dirPath: string) => {
 })
 
 ipcMain.handle('adb:dir-size', async (_e, remotePath: string) => {
+  if (getConnectionType() === 'mtp') {
+    // FileGrid calls this automatically for every visible folder row. ADB's
+    // `du` is a single fast on-device command; MTP has no equivalent — the
+    // only option is a recursive listFiles() walk, and since the MTP worker
+    // processes one synchronous native call at a time, a handful of visible
+    // folders queuing walks would starve real user actions (mkdir/rename/
+    // delete) behind them for however long the walks take. Not worth it for
+    // a cosmetic size column — always show nothing, matching an untimed ADB
+    // du that "shows nothing" per the comment below.
+    return null
+  }
   try {
     const out = await adb(['shell', `du -sk ${sq(remotePath)}`])
     const kb = parseInt(out.trim().split(/\s+/)[0], 10)
@@ -954,12 +1200,25 @@ ipcMain.handle('local-conflict-check', async (_e, fileName: string) => {
   const dot = fileName.lastIndexOf('.')
   const namePart = dot > 0 ? fileName.slice(0, dot) : fileName
   const extPart = dot > 0 ? fileName.slice(dot) : ''
-  let n = 2
+  let n = 1
   while (fs.existsSync(path.join(dir, `${namePart} (${n})${extPart}`))) n++
   return { exists: true, uniqueName: `${namePart} (${n})${extPart}` }
 })
 
 ipcMain.handle('adb:stat', async (_e, remotePath: string) => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) return null
+    const transport = getActiveTransport()
+    if (!transport.statObject) return null
+    try {
+      // MTP objects carry no Unix permission bits — only what libmtp exposes
+      const modified = await transport.statObject(active.serial, remotePath)
+      return { permissions: null, octal: null, modified }
+    } catch {
+      return null
+    }
+  }
   try {
     const out = await adb(['shell', `stat ${sq(remotePath)}`])
     const permsMatch = out.match(/Access:\s*\((\d+)\/([^)]+)\)/)
@@ -997,9 +1256,13 @@ ipcMain.handle('adb:start-drag', async (event, dragFiles: { remotePath: string; 
   const tmpDir = path.join(os.tmpdir(), 'droidwire-drag')
   await fs.promises.mkdir(tmpDir, { recursive: true })
   const localPaths: string[] = []
+  const mtp = getConnectionType() === 'mtp'
+  const active = mtp ? getActiveDevice() : null
+  if (mtp && !active) throw new Error('No MTP device selected')
   for (const f of dragFiles) {
     const localPath = path.join(tmpDir, f.fileName)
-    await adb(['pull', f.remotePath, localPath])
+    if (mtp) await getActiveTransport().pullFile(active!.serial, f.remotePath, localPath)
+    else await adb(['pull', f.remotePath, localPath])
     localPaths.push(localPath)
   }
   event.sender.startDrag({
@@ -1071,7 +1334,7 @@ ipcMain.handle('adb:device-detail', async (): Promise<DeviceDetail> => {
     androidVersion: prop('ro.build.version.release'),
     sdk: prop('ro.build.version.sdk'),
     buildId: prop('ro.build.id'),
-    serial: _activeSerial ?? '',
+    serial: getActiveSerial() ?? '',
   }
 })
 
@@ -1110,7 +1373,51 @@ ipcMain.handle('adb:list-apps', async (_e, includeSystem: boolean): Promise<Inst
 // IPC: storage analyzer — du one level at a time (renderer drills down)
 // ---------------------------------------------------------------------------
 
+// Sums a subtree's size via repeated listFiles() calls — MTP has no `du`
+// equivalent. Shared by adb:dir-size and adb:du-children's MTP branches.
+async function mtpSubtreeSize(transport: ReturnType<typeof getActiveTransport>, serial: string, dirPath: string, maxFolders = 500): Promise<number> {
+  let total = 0
+  let foldersVisited = 0
+  async function walk(p: string): Promise<void> {
+    if (foldersVisited >= maxFolders) return
+    foldersVisited++
+    let entries: FileNode[]
+    try { entries = await transport.listFiles(serial, p) } catch { return }
+    for (const entry of entries) {
+      if (entry.type === 'dir') await walk(entry.path)
+      else total += entry.size
+      if (foldersVisited >= maxFolders) return
+    }
+  }
+  await walk(dirPath)
+  return total
+}
+
 ipcMain.handle('adb:du-children', async (_e, dirPath: string): Promise<{ entries: DuEntry[]; totalBytes: number }> => {
+  if (getConnectionType() === 'mtp') {
+    const active = getActiveDevice()
+    if (!active) return { entries: [], totalBytes: 0 }
+    const transport = getActiveTransport()
+    const clean = dirPath.replace(/\/$/, '')
+    const immediate = await transport.listFiles(active.serial, clean)
+    const entries: DuEntry[] = []
+    let looseFiles = 0
+    for (const node of immediate) {
+      if (node.type === 'dir') {
+        const bytes = await mtpSubtreeSize(transport, active.serial, node.path)
+        entries.push({ name: node.name, path: node.path, bytes, isDir: true })
+      } else {
+        looseFiles += node.size
+      }
+    }
+    if (looseFiles > 0) {
+      entries.push({ name: 'Files in this folder', path: clean, bytes: looseFiles, isDir: false })
+    }
+    entries.sort((a, b) => b.bytes - a.bytes)
+    const totalBytes = entries.reduce((s, e) => s + e.bytes, 0)
+    return { entries, totalBytes }
+  }
+
   const clean = dirPath.replace(/\/$/, '')
   const out = await adbLong(['shell', `du -d 1 -k ${sq(clean)} 2>/dev/null`])
   const entries: DuEntry[] = []

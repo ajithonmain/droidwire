@@ -1,6 +1,8 @@
 import type { FileNode, StorageInfo, BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
 
 interface DroidwireAPI {
+  setConnectionType(type: 'adb' | 'mtp' | 'wireless'): Promise<void>
+  getConnectionType(): Promise<'adb' | 'mtp' | 'wireless'>
   getDevices(): Promise<{ devices: { serial: string; state: string; model: string }[]; active: string | null }>
   setDevice(serial: string): Promise<void>
   ejectDevice(serial: string): Promise<void>
