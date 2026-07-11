@@ -1743,6 +1743,10 @@ ipcMain.handle('show-about', () => {
   app.showAboutPanel()
 })
 
+ipcMain.handle('get-licenses', () => {
+  return fs.readFileSync(resourcePath('THIRD-PARTY-NOTICES.md'), 'utf8')
+})
+
 ipcMain.handle('app-quit', () => {
   app.quit()
 })
@@ -1832,7 +1836,20 @@ function setupAppMenu(): void {
         { label: 'Check for Updates…', click: () => { void checkForUpdatesInteractive() } },
         {
           label: 'Licenses…',
-          click: () => { shell.openPath(resourcePath('THIRD-PARTY-NOTICES.md')) },
+          click: () => {
+            // Never target the menubar panel — it doesn't render modals
+            const focused = BrowserWindow.getFocusedWindow()
+            const win = (focused && focused !== menubarWindow ? focused : null) ?? mainWindow
+            if (win && !win.isDestroyed()) {
+              win.show()
+              win.webContents.send('menu-action', 'licenses')
+            } else {
+              mainWindow = createWindow()
+              mainWindow.webContents.once('did-finish-load', () => {
+                mainWindow?.webContents.send('menu-action', 'licenses')
+              })
+            }
+          },
         },
         { type: 'separator' },
         { role: 'hide' },

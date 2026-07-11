@@ -27,6 +27,7 @@ import { TabBar } from './components/TabBar'
 import type { Tab } from './components/TabBar'
 import { DeviceTools } from './components/DeviceTools'
 import { WirelessConnectModal } from './components/WirelessConnectModal'
+import { LicensesModal } from './components/LicensesModal'
 import { useTheme } from './lib/ThemeContext'
 import { TooltipLayer } from './components/TooltipLayer'
 
@@ -114,6 +115,7 @@ export default function App() {
   const [recentPaths, setRecentPaths] = useState<string[]>([])
   const [downloadDir, setDownloadDirState] = useState('~/Downloads/Droidwire')
   const [showDeviceTools, setShowDeviceTools] = useState(false)
+  const [showLicenses, setShowLicenses] = useState(false)
   const [showWireless, setShowWireless] = useState(false)
 
   // Drag state
@@ -235,6 +237,7 @@ export default function App() {
   useEffect(() => {
     return window.droidwire.onMenuAction(action => {
       if (action === 'device-tools' && status === 'connected' && !isMtp) setShowDeviceTools(true)
+      if (action === 'licenses') setShowLicenses(true)
     })
   }, [status, isMtp])
 
@@ -1039,7 +1042,7 @@ export default function App() {
                   pendingNavAfterDragRef.current = null
                   if (pending) navigateRaw(pending)
                 }}
-                keyboardDisabled={!!(renameTarget || deleteTargets.length > 0 || showNewFolder || uploadModeFiles || conflictState || contextMenu || internalMoveState || showDeviceTools)}
+                keyboardDisabled={!!(renameTarget || deleteTargets.length > 0 || showNewFolder || uploadModeFiles || conflictState || contextMenu || internalMoveState || showDeviceTools || showLicenses)}
               />
               <FilePreview
                 files={selectedFiles}
@@ -1201,6 +1204,8 @@ export default function App() {
           onExportApk={(apkPath, fileName) => download(apkPath, fileName)}
         />
       )}
+
+      {showLicenses && <LicensesModal onClose={() => setShowLicenses(false)} />}
 
       {showWireless && (
         <WirelessConnectModal

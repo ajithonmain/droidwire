@@ -58,6 +58,7 @@ interface DroidwireAPI {
   showMainWindow(): Promise<void>
   hideWindow(): Promise<void>
   showAbout(): Promise<void>
+  getLicenses(): Promise<string>
   quitApp(): Promise<void>
   onMenuAction(callback: (action: string) => void): () => void
 }

@@ -134,6 +134,7 @@ contextBridge.exposeInMainWorld('droidwire', {
   showMainWindow: (): Promise<void> => ipcRenderer.invoke('show-main-window'),
   hideWindow: (): Promise<void> => ipcRenderer.invoke('hide-window'),
   showAbout: (): Promise<void> => ipcRenderer.invoke('show-about'),
+  getLicenses: (): Promise<string> => ipcRenderer.invoke('get-licenses'),
   quitApp: (): Promise<void> => ipcRenderer.invoke('app-quit'),
 
   onMenuAction: (callback: (action: string) => void): (() => void) => {
