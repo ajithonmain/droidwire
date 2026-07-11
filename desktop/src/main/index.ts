@@ -341,6 +341,7 @@ app.whenReady().then(() => {
   setupUsbAutoOpen()
   setupTray()
   setupAppMenu()
+  retryPendingBetaSignup().catch(() => {})
 })
 
 function setupUsbAutoOpen(): void {
@@ -1749,6 +1750,171 @@ ipcMain.handle('get-licenses', () => {
 
 ipcMain.handle('app-quit', () => {
   app.quit()
+})
+
+// ---------------------------------------------------------------------------
+// Beta registration — the app asks for an email once on first launch so beta
+// testers can be identified later (update notices, early-supporter offer at
+// the paid launch). The email is the only thing sent; it goes to a Firestore
+// collection with create-only security rules. If the network is down at
+// signup time the email is kept locally and re-sent silently on later
+// launches — the user is never blocked or asked twice.
+// ---------------------------------------------------------------------------
+
+const FIREBASE_PROJECT_ID = 'droidwire-3c7f0'
+const FIREBASE_API_KEY = 'AIzaSyCT_xOF2lNRSqwQtjyEylrorSsCAusTS5M'
+
+// app.getVersion() returns Electron's own version when running unpackaged
+// (dev / driver runs) — read the real product version from package.json then.
+function productVersion(): string {
+  if (app.isPackaged) return app.getVersion()
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8')) as { version?: string }
+    return pkg.version ?? app.getVersion()
+  } catch {
+    return app.getVersion()
+  }
+}
+
+interface BetaSignup {
+  email: string
+  createdAt: string
+  synced: boolean
+}
+
+function betaSignupFile(): string {
+  return path.join(app.getPath('userData'), 'beta-signup.json')
+}
+
+function readBetaSignup(): BetaSignup | null {
+  try {
+    const data = JSON.parse(fs.readFileSync(betaSignupFile(), 'utf8')) as BetaSignup
+    return typeof data.email === 'string' ? data : null
+  } catch {
+    return null
+  }
+}
+
+function postBetaSignup(signup: BetaSignup): Promise<boolean> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      fields: {
+        email: { stringValue: signup.email },
+        createdAt: { stringValue: signup.createdAt },
+        appVersion: { stringValue: productVersion() },
+      },
+    })
+    const req = https.request(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/beta_signups?key=${FIREBASE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout: 8000,
+      },
+      (res) => {
+        res.resume()
+        res.on('end', () => resolve(res.statusCode !== undefined && res.statusCode < 300))
+      }
+    )
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => { req.destroy(); resolve(false) })
+    req.end(body)
+  })
+}
+
+// First launch may happen offline — retry the queued signup on every start
+// until it lands once.
+async function retryPendingBetaSignup(): Promise<void> {
+  const signup = readBetaSignup()
+  if (!signup || signup.synced) return
+  if (await postBetaSignup(signup)) {
+    fs.writeFileSync(betaSignupFile(), JSON.stringify({ ...signup, synced: true }))
+  }
+}
+
+ipcMain.handle('beta:get-signup', () => readBetaSignup())
+
+ipcMain.handle('beta:register', async (_e, email: string) => {
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    throw new Error('Invalid email address')
+  }
+  const signup: BetaSignup = { email: email.trim(), createdAt: new Date().toISOString(), synced: false }
+  signup.synced = await postBetaSignup(signup)
+  fs.writeFileSync(betaSignupFile(), JSON.stringify(signup))
+  return signup
+})
+
+// ---------------------------------------------------------------------------
+// In-app messages — docs in the Firestore `messages` collection, written by
+// hand in the Firebase console. Fields: title (string), body (string),
+// url (string, optional link button), audience ('all' or one tester's email),
+// active (boolean — flip false to retract). The collection is world-readable
+// by design (rules allow read); per-email targeting is a routing convenience,
+// not a secret channel. The renderer decides what was already dismissed.
+// ---------------------------------------------------------------------------
+
+interface BetaMessage {
+  id: string
+  title: string
+  body: string
+  url: string | null
+}
+
+function fetchJson(url: string): Promise<unknown> {
+  return new Promise((resolve) => {
+    const req = https.get(url, { timeout: 8000 }, (res) => {
+      let body = ''
+      res.on('data', (chunk) => { body += chunk })
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { resolve(null) }
+      })
+    })
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => { req.destroy(); resolve(null) })
+  })
+}
+
+ipcMain.handle('beta:fetch-messages', async (): Promise<BetaMessage[]> => {
+  const data = await fetchJson(
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/messages?key=${FIREBASE_API_KEY}`
+  ) as { documents?: { name: string; fields?: Record<string, { stringValue?: string; booleanValue?: boolean }> }[] } | null
+  if (!data?.documents) return []
+
+  const email = readBetaSignup()?.email ?? null
+  const messages: BetaMessage[] = []
+  for (const doc of data.documents) {
+    const f = doc.fields ?? {}
+    if (f.active?.booleanValue !== true) continue
+    const audience = f.audience?.stringValue ?? 'all'
+    if (audience !== 'all' && audience !== email) continue
+    const title = f.title?.stringValue
+    const body = f.body?.stringValue
+    if (!title || !body) continue
+    messages.push({
+      id: doc.name.split('/').pop() ?? doc.name,
+      title,
+      body,
+      url: f.url?.stringValue ?? null,
+    })
+  }
+  return messages
+})
+
+// Silent variant of the update check — runs on launch so the renderer can
+// show a banner instead of waiting for the user to hit the menu item.
+ipcMain.handle('update:check-silent', async (): Promise<{ latestTag: string; hasUpdate: boolean } | null> => {
+  const tag = await fetchLatestReleaseTag()
+  if (!tag) return null
+  return { latestTag: tag, hasUpdate: bareVersion(tag) !== bareVersion(productVersion()) }
+})
+
+ipcMain.handle('open-release-page', () => {
+  shell.openExternal(`https://github.com/${RELEASES_REPO}/releases/latest`)
+})
+
+ipcMain.handle('open-external-url', (_e, url: string) => {
+  // Messages come from our own Firestore, but keep the surface tight anyway
+  if (typeof url === 'string' && /^https:\/\//.test(url)) shell.openExternal(url)
 })
 
 // ---------------------------------------------------------------------------

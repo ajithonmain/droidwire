@@ -54,6 +54,16 @@ contextBridge.exposeInMainWorld('droidwire', {
   cancelTransfer: (transferId: string): Promise<void> => ipcRenderer.invoke('adb:cancel-transfer', transferId),
   zipAndPull: (remoteDirPath: string, folderName: string, transferId: string): Promise<string> => ipcRenderer.invoke('adb:zip-pull', remoteDirPath, folderName, transferId),
   installApk: (localPath: string): Promise<void> => ipcRenderer.invoke('adb:install-apk', localPath),
+  getBetaSignup: (): Promise<{ email: string; createdAt: string; synced: boolean } | null> =>
+    ipcRenderer.invoke('beta:get-signup'),
+  registerBeta: (email: string): Promise<{ email: string; createdAt: string; synced: boolean }> =>
+    ipcRenderer.invoke('beta:register', email),
+  fetchBetaMessages: (): Promise<{ id: string; title: string; body: string; url: string | null }[]> =>
+    ipcRenderer.invoke('beta:fetch-messages'),
+  checkUpdateSilent: (): Promise<{ latestTag: string; hasUpdate: boolean } | null> =>
+    ipcRenderer.invoke('update:check-silent'),
+  openReleasePage: (): Promise<void> => ipcRenderer.invoke('open-release-page'),
+  openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
   persistGet: (key: string): Promise<unknown> => ipcRenderer.invoke('persist:get', key),
   persistSet: (key: string, data: unknown): Promise<void> => ipcRenderer.invoke('persist:set', key, data),
   pickDownloadDir: (): Promise<string | null> => ipcRenderer.invoke('pick-download-dir'),

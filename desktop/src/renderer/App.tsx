@@ -28,6 +28,8 @@ import type { Tab } from './components/TabBar'
 import { DeviceTools } from './components/DeviceTools'
 import { WirelessConnectModal } from './components/WirelessConnectModal'
 import { LicensesModal } from './components/LicensesModal'
+import { BetaSignup } from './components/BetaSignup'
+import { MessageBanners } from './components/MessageBanners'
 import { useTheme } from './lib/ThemeContext'
 import { TooltipLayer } from './components/TooltipLayer'
 
@@ -62,6 +64,16 @@ export default function App() {
       else if (e.type === 'synced') setToast({ msg: `Synced ${e.fileName} to the phone`, kind: 'success' })
       else setToast({ msg: `Sync failed for ${e.fileName}: ${e.error ?? 'unknown error'}`, kind: 'error' })
     })
+  }, [])
+
+  // One-time beta registration gate — asks for an email on first launch
+  // (identifies beta testers for the paid launch); 'checking' until the
+  // stored signup is read so the gate never flashes for registered users
+  const [betaGate, setBetaGate] = useState<'checking' | 'needed' | 'done'>('checking')
+  useEffect(() => {
+    window.droidwire.getBetaSignup()
+      .then(signup => setBetaGate(signup ? 'done' : 'needed'))
+      .catch(() => setBetaGate('needed'))
   }, [])
 
   // Branded splash on launch — covers the first device probe so the
@@ -740,6 +752,8 @@ export default function App() {
       }}
       onDrop={handleDrop}
     >
+      {betaGate === 'needed' && <BetaSignup onDone={() => setBetaGate('done')} />}
+
       {/* Combined title + nav bar (single row) */}
       <header style={{
         display: 'flex',
@@ -906,6 +920,8 @@ export default function App() {
           />
         </div>
       </header>
+
+      <MessageBanners />
 
       {/* Tab bar — only when 2+ tabs open */}
       {isConnected && tabs.length >= 2 && (

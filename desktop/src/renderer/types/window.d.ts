@@ -24,6 +24,12 @@ interface DroidwireAPI {
   cancelTransfer(transferId: string): Promise<void>
   zipAndPull(remoteDirPath: string, folderName: string, transferId: string): Promise<string>
   installApk(localPath: string): Promise<void>
+  getBetaSignup(): Promise<{ email: string; createdAt: string; synced: boolean } | null>
+  registerBeta(email: string): Promise<{ email: string; createdAt: string; synced: boolean }>
+  fetchBetaMessages(): Promise<{ id: string; title: string; body: string; url: string | null }[]>
+  checkUpdateSilent(): Promise<{ latestTag: string; hasUpdate: boolean } | null>
+  openReleasePage(): Promise<void>
+  openExternalUrl(url: string): Promise<void>
   persistGet(key: string): Promise<unknown>
   persistSet(key: string, data: unknown): Promise<void>
   pickDownloadDir(): Promise<string | null>
