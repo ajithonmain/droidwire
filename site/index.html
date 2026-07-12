@@ -221,7 +221,14 @@
   /* Phone */
   @media (max-width: 460px) {
     .wrap { padding: 0 16px; }
-    nav .links { gap: 14px; font-size: 13px; }
+    nav { flex-direction: column; align-items: flex-start; gap: 10px; }
+    nav .links {
+      flex-wrap: nowrap; width: 100%; gap: 16px; font-size: 13px;
+      overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    nav .links::-webkit-scrollbar { display: none; }
+    nav .links a { flex-shrink: 0; }
     .beta-badge { font-size: 12px; text-align: left; }
     .step { gap: 14px; }
     .step-num { width: 28px; height: 28px; font-size: 13px; }
