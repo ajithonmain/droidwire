@@ -78,12 +78,19 @@
   nav {
     display: flex; align-items: center; justify-content: space-between;
     padding: 20px 0; flex-wrap: wrap; gap: 12px;
+    position: relative;
   }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
   .logo img { display: block; flex-shrink: 0; }
   nav .links { display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
   nav .links a { color: var(--muted); text-decoration: none; transition: color .15s; }
   nav .links a:hover { color: var(--text); }
+  .nav-toggle {
+    display: none; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; flex-shrink: 0;
+  }
 
   .hero { text-align: center; padding: 88px 0 72px; }
   .beta-badge {
@@ -221,14 +228,17 @@
   /* Phone */
   @media (max-width: 460px) {
     .wrap { padding: 0 16px; }
-    nav { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .nav-toggle { display: flex; }
     nav .links {
-      flex-wrap: nowrap; width: 100%; gap: 16px; font-size: 13px;
-      overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+      display: none; flex-direction: column; gap: 2px;
+      position: absolute; left: 0; right: 0; top: 100%; margin-top: 8px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 8px; font-size: 15px; box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      z-index: 20;
     }
-    nav .links::-webkit-scrollbar { display: none; }
-    nav .links a { flex-shrink: 0; }
+    nav .links.open { display: flex; }
+    nav .links a { padding: 10px 10px; border-radius: 8px; }
+    nav .links a:hover { background: var(--surface); }
     .beta-badge { font-size: 12px; text-align: left; }
     .step { gap: 14px; }
     .step-num { width: 28px; height: 28px; font-size: 13px; }
@@ -244,13 +254,16 @@
       <img src="logo.png" width="24" height="24" alt="Droidwire logo">
       Droidwire
     </div>
-    <div class="links">
+    <div class="links" id="nav-links">
       <a href="#features">Features</a>
       <a href="#install">Install</a>
       <a href="#requirements">Requirements</a>
       <a href="#privacy">Privacy</a>
       <a href="#licenses">Licenses</a>
     </div>
+    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Toggle menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+    </button>
   </nav>
 
   <header class="hero">
@@ -482,6 +495,19 @@ function copyCmd(btn) {
     setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
   });
 }
+
+var navToggle = document.getElementById('nav-toggle');
+var navLinks = document.getElementById('nav-links');
+navToggle.addEventListener('click', function () {
+  var open = navLinks.classList.toggle('open');
+  navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+navLinks.addEventListener('click', function (e) {
+  if (e.target.tagName === 'A') {
+    navLinks.classList.remove('open');
+    navToggle.setAttribute('aria-expanded', 'false');
+  }
+});
 </script>
 
 </body>
