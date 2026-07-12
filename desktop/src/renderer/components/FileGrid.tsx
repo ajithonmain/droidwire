@@ -51,11 +51,11 @@ interface Props {
   onInternalDragStart?: (file: FileNode) => void
   onInternalDragEnd?: () => void
   keyboardDisabled?: boolean
-  // MTP has no fast on-device folder-size query — a recursive walk would
+  // MTP has no fast on-device folder-size query - a recursive walk would
   // queue behind (and block) real operations on the single MTP worker
   hideDirSize?: boolean
   // MTP fetches each file's metadata one object at a time (no bulk listing
-  // like ADB's `ls`) — a folder with thousands of photos can take over a
+  // like ADB's `ls`) - a folder with thousands of photos can take over a
   // minute to enumerate. Set expectations instead of a plain "Loading..."
   isMtp?: boolean
 }
@@ -260,7 +260,7 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
     return () => {
       cancelled = true
       if (!acquired) {
-        // Remove from queue — replace with a no-op that immediately releases
+        // Remove from queue - replace with a no-op that immediately releases
         const idx = _thumbQueue.length - 1
         if (idx >= 0) _thumbQueue.splice(idx, 1, () => { _thumbActive++; thumbRelease() })
       }
@@ -272,7 +272,7 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
 }
 
 // Folder sizes are computed on demand (du -sk per folder) and cached for the
-// session — only visible rows fetch, throttled through the thumb queue.
+// session - only visible rows fetch, throttled through the thumb queue.
 const _dirSizeCache = new Map<string, number | null>()
 
 // Paths are identical across phones (/sdcard/DCIM etc), so switching the
@@ -308,7 +308,7 @@ function DirSizeCell({ file, hidden }: { file: FileNode; hidden?: boolean }) {
   }, [key, file.path, hidden])
 
   if (hidden) return null
-  return <>{size === undefined ? '…' : size === null ? '—' : formatSize(size)}</>
+  return <>{size === undefined ? '…' : size === null ? '-' : formatSize(size)}</>
 }
 
 function VideoThumbLg({ file, theme }: { file: FileNode; theme: Theme }) {
@@ -420,7 +420,7 @@ function InlineRename({ file, onConfirm, onCancel, theme, listMode }: {
 const GRID_H = 124   // height of each grid cell row in px
 const GRID_MIN_W = 110
 const LIST_H = 36    // height of each list row in px
-const OVERSCAN = 8   // buffer rows — 8*124=992px grid, 8*36=288px list
+const OVERSCAN = 8   // buffer rows - 8*124=992px grid, 8*36=288px list
 
 function LoadingState({ isMtp, theme }: { isMtp?: boolean; theme: Theme }) {
   const [elapsed, setElapsed] = useState(0)
@@ -431,7 +431,7 @@ function LoadingState({ isMtp, theme }: { isMtp?: boolean; theme: Theme }) {
     return () => clearInterval(t)
   }, [isMtp])
 
-  // MTP fetches each object's metadata one at a time — a folder with
+  // MTP fetches each object's metadata one at a time - a folder with
   // thousands of files can take well over a minute (measured: ~20ms/file).
   // Set that expectation once it's clearly not a quick listing.
   const showMtpNote = isMtp && elapsed >= 4
@@ -441,7 +441,7 @@ function LoadingState({ isMtp, theme }: { isMtp?: boolean; theme: Theme }) {
       <span>Loading{showMtpNote ? ` (${elapsed}s)` : '...'}</span>
       {showMtpNote && (
         <span style={{ fontSize: '12px', color: theme.textMuted, maxWidth: '280px', textAlign: 'center' }}>
-          MTP lists large folders slowly — a folder with thousands of photos can take a minute or more
+          MTP lists large folders slowly - a folder with thousands of photos can take a minute or more
         </span>
       )}
     </div>
@@ -461,13 +461,13 @@ export function FileGrid({
   const [editingPath, setEditingPath] = useState<string | null>(null)
   const lastClickIndexRef = useRef(-1)
   const shiftAnchorRef = useRef(-1)
-  // When the current selection was made — slow-click rename only arms on an
+  // When the current selection was made - slow-click rename only arms on an
   // item selected well before, so slow double-clicks don't trigger rename.
   const selectedAtRef = useRef(0)
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Scroll position and viewport live in refs — never cause re-renders
+  // Scroll position and viewport live in refs - never cause re-renders
   const scrollTopRef = useRef(0)
   const viewHRef = useRef(700)
   const viewWRef = useRef(900)
@@ -475,7 +475,7 @@ export function FileGrid({
   // so resizes / preview-panel toggles must trigger an immediate re-render
   const [viewW, setViewW] = useState(900)
 
-  // Visible slice — state updated only when row window actually changes
+  // Visible slice - state updated only when row window actually changes
   const [slice, setSlice] = useState({ s: 0, e: 80 })
 
   const recomputeSlice = useCallback(() => {
@@ -553,13 +553,13 @@ export function FileGrid({
   }
 
   // ---------------------------------------------------------------------------
-  // Marquee (rubber-band) selection — Finder-style click-drag on empty space.
+  // Marquee (rubber-band) selection - Finder-style click-drag on empty space.
   // Item rects are computed mathematically (grid is virtualized, so offscreen
   // items have no DOM nodes to measure).
   // ---------------------------------------------------------------------------
   const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   // A real drag fires a trailing click on mouseup which would instantly
-  // deselect what the marquee just selected — swallow that one click.
+  // deselect what the marquee just selected - swallow that one click.
   const marqueeDidDragRef = useRef(false)
   const suppressMarqueeClick = (e: React.MouseEvent) => {
     if (marqueeDidDragRef.current) {
@@ -648,7 +648,7 @@ export function FileGrid({
     e.preventDefault()
   }
 
-  // Right-click on empty space (not on an item) — folder-level menu
+  // Right-click on empty space (not on an item) - folder-level menu
   function handleEmptyContextMenu(e: React.MouseEvent) {
     if ((e.target as HTMLElement).closest('[data-item], thead')) return
     e.preventDefault()
@@ -672,7 +672,7 @@ export function FileGrid({
   useEffect(() => { setCursorIndex(-1); lastClickIndexRef.current = -1; clearRenameTimer() }, [files])
   useEffect(() => () => clearRenameTimer(), [])
 
-  // Scroll the cursor row into view — items are virtualized, so compute
+  // Scroll the cursor row into view - items are virtualized, so compute
   // positions instead of querying DOM nodes.
   const ensureVisible = useCallback((idx: number) => {
     const el = scrollRef.current

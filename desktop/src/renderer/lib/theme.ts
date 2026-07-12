@@ -24,8 +24,8 @@ export interface Theme {
 export const darkTheme: Theme = {
   bg: '#111114',           // main content background
   sidebar: '#0C0C0E',      // noticeably darker sidebar
-  surface: '#1C1C20',      // cards, panels — clear step up from bg
-  surfaceHover: '#242428', // hover state — visible jump
+  surface: '#1C1C20',      // cards, panels - clear step up from bg
+  surfaceHover: '#242428', // hover state - visible jump
   surfaceActive: '#2A2A2F',
   border: 'rgba(255,255,255,0.14)',   // visible separation on dark surfaces
   borderFocus: 'rgba(0,216,74,0.40)',

@@ -7,7 +7,7 @@ interface Props {
 
 // Renders THIRD-PARTY-NOTICES.md with just enough markdown support for
 // that file: #/## headings, - bullets, **bold**, --- rules. Links stay
-// as plain text — the renderer has no external-open bridge.
+// as plain text - the renderer has no external-open bridge.
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
   return parts.map((part, i) =>

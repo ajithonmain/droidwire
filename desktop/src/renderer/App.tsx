@@ -43,7 +43,7 @@ export default function App() {
   const { theme, mode, toggle } = useTheme()
   const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
   const [connectionPicked, setConnectionPicked] = useState(false)
-  // Mirrors the main-process connection type — drives which transport the UI
+  // Mirrors the main-process connection type - drives which transport the UI
   // reports and which shell-dependent controls (APK install, device detail,
   // app list, wireless pairing) are hidden since MTP can't do them at all
   const [connectionType, setConnectionTypeState] = useState<'adb' | 'mtp' | 'wireless'>('adb')
@@ -60,13 +60,13 @@ export default function App() {
 
   useEffect(() => {
     return window.droidwire.onEditEvent(e => {
-      if (e.type === 'opened') setToast({ msg: `Opened ${e.fileName} — saves sync back to the phone`, kind: 'info' })
+      if (e.type === 'opened') setToast({ msg: `Opened ${e.fileName} - saves sync back to the phone`, kind: 'info' })
       else if (e.type === 'synced') setToast({ msg: `Synced ${e.fileName} to the phone`, kind: 'success' })
       else setToast({ msg: `Sync failed for ${e.fileName}: ${e.error ?? 'unknown error'}`, kind: 'error' })
     })
   }, [])
 
-  // One-time beta registration gate — asks for an email on first launch
+  // One-time beta registration gate - asks for an email on first launch
   // (identifies beta testers for the paid launch); 'checking' until the
   // stored signup is read so the gate never flashes for registered users
   const [betaGate, setBetaGate] = useState<'checking' | 'needed' | 'done'>('checking')
@@ -76,7 +76,7 @@ export default function App() {
       .catch(() => setBetaGate('needed'))
   }, [])
 
-  // Branded splash on launch — covers the first device probe so the
+  // Branded splash on launch - covers the first device probe so the
   // connection picker doesn't pop in abruptly
   const [booting, setBooting] = useState(true)
   useEffect(() => {
@@ -135,10 +135,10 @@ export default function App() {
   const isDraggingRef = useRef(false)
   const pendingNavAfterDragRef = useRef<string | null>(null)
 
-  // Pending Finder drop — held until user picks Copy or Move
+  // Pending Finder drop - held until user picks Copy or Move
   const [uploadModeFiles, setUploadModeFiles] = useState<{ name: string; localPath: string }[] | null>(null)
 
-  // Pending conflict — held until user picks Replace / Keep Both / Cancel
+  // Pending conflict - held until user picks Replace / Keep Both / Cancel
   const [conflictState, setConflictState] = useState<{
     names: string[]
     showApplyAll?: boolean
@@ -253,7 +253,7 @@ export default function App() {
     })
   }, [status, isMtp])
 
-  // Active device switched outside this window (tray menu) — same /sdcard
+  // Active device switched outside this window (tray menu) - same /sdcard
   // paths on every phone, so drop caches and restart at the storage root
   const prevSerialRef = useRef<string | null>(null)
   useEffect(() => {
@@ -266,7 +266,7 @@ export default function App() {
   }, [device?.serial])
 
   useEffect(() => {
-    const title = activeCount > 0 ? `Droidwire — ${activeCount} transfer${activeCount !== 1 ? 's' : ''}` : 'Droidwire'
+    const title = activeCount > 0 ? `Droidwire - ${activeCount} transfer${activeCount !== 1 ? 's' : ''}` : 'Droidwire'
     window.droidwire.setTitle(title).catch(() => {})
   }, [activeCount])
 
@@ -423,7 +423,7 @@ export default function App() {
     navigator.clipboard.writeText(file.path).catch(() => {})
   }
 
-  // Same /sdcard paths across phones — after a device change, drop
+  // Same /sdcard paths across phones - after a device change, drop
   // path-keyed caches and restart the browser at the storage root
   function resetBrowserToRoot() {
     clearFileGridCaches()
@@ -643,7 +643,7 @@ export default function App() {
       await window.droidwire.storeDragNode(null) // clear after read
       draggedNodeRef.current = null
 
-      // Same-folder drop — sources already there, nothing to do
+      // Same-folder drop - sources already there, nothing to do
       const nodes = raw.nodes.filter(n => n.path.substring(0, n.path.lastIndexOf('/')) !== dest)
       if (nodes.length === 0) return true
 
@@ -714,7 +714,7 @@ export default function App() {
   }
 
   function handleStorageBar(s: StorageInfo) {
-    // MTP (libmtp) doesn't expose capacity/free-space — total stays 0 as a
+    // MTP (libmtp) doesn't expose capacity/free-space - total stays 0 as a
     // sentinel; hide the bar entirely rather than show a misleading or
     // placeholder-text bar
     if (s.total <= 0) return null
@@ -834,7 +834,7 @@ export default function App() {
                 </svg>
               </button>
               {/* Battery/device detail + app list are all adb-shell-dependent
-                  (dumpsys, getprop, pm list) — MTP has no shell, so hide
+                  (dumpsys, getprop, pm list) - MTP has no shell, so hide
                   the entry point rather than let it error on click */}
               {!isMtp && <button
                 onClick={() => setShowDeviceTools(true)}
@@ -876,7 +876,7 @@ export default function App() {
           </span>
         )}
 
-        {/* Right side controls — always visible */}
+        {/* Right side controls - always visible */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'] }}>
           <button
             onClick={toggle}
@@ -923,7 +923,7 @@ export default function App() {
 
       <MessageBanners />
 
-      {/* Tab bar — only when 2+ tabs open */}
+      {/* Tab bar - only when 2+ tabs open */}
       {isConnected && tabs.length >= 2 && (
         <TabBar
           tabs={tabs}
@@ -989,7 +989,7 @@ export default function App() {
               }} />
             ) : !guideGraceOver ? (
               // Grace period: a device with USB debugging already on connects in
-              // seconds — don't flash the full setup tutorial at it
+              // seconds - don't flash the full setup tutorial at it
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '14px', fontWeight: 500, color: theme.textSecondary }}>Connecting to device…</span>
                 <span style={{ fontSize: '12px', color: theme.textMuted }}>Plug in your phone if it isn't already</span>
@@ -1049,7 +1049,7 @@ export default function App() {
                   isDraggingRef.current = true
                 }}
                 onInternalDragEnd={() => {
-                  // Fired when the native drag session ends (startDrag resolves) —
+                  // Fired when the native drag session ends (startDrag resolves) -
                   // HTML5 dragend never fires for OS-level drags.
                   draggedNodeRef.current = null
                   isDraggingRef.current = false
@@ -1088,7 +1088,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* Path bar — Finder style, bottom of content */}
+      {/* Path bar - Finder style, bottom of content */}
       {isConnected && (
         <div style={{
           borderTop: `1px solid ${theme.border}`,
@@ -1129,7 +1129,7 @@ export default function App() {
             ? selectedFiles.length > 0
               ? (() => {
                   const totalBytes = selectedFiles.reduce((s, f) => s + f.size, 0)
-                  return `${selectedFiles.length} selected${totalBytes > 0 ? ` — ${formatSize(totalBytes)}` : ''}`
+                  return `${selectedFiles.length} selected${totalBytes > 0 ? ` - ${formatSize(totalBytes)}` : ''}`
                 })()
               : `${displayFiles.length} item${displayFiles.length !== 1 ? 's' : ''}`
             : ''}

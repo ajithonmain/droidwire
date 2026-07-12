@@ -47,7 +47,7 @@ function InfoTab() {
   }, [])
 
   if (failed) {
-    return <div style={{ padding: '24px', fontSize: '13px', color: theme.textMuted }}>Could not read device details — is the phone connected?</div>
+    return <div style={{ padding: '24px', fontSize: '13px', color: theme.textMuted }}>Could not read device details - is the phone connected?</div>
   }
   if (!battery || !detail) {
     return <div style={{ padding: '24px', fontSize: '13px', color: theme.textMuted }}>Reading device…</div>
@@ -56,18 +56,18 @@ function InfoTab() {
   return (
     <div style={{ padding: '16px 20px', overflowY: 'auto' }}>
       <p style={{ fontSize: '12px', fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '4px 0 4px' }}>Device</p>
-      <InfoRow label="Model" value={`${detail.manufacturer} ${detail.model}`.trim() || '—'} theme={theme} />
-      <InfoRow label="Android" value={detail.androidVersion ? `${detail.androidVersion} (API ${detail.sdk})` : '—'} theme={theme} />
-      <InfoRow label="Build" value={detail.buildId || '—'} theme={theme} />
-      <InfoRow label="Serial" value={detail.serial || '—'} theme={theme} />
+      <InfoRow label="Model" value={`${detail.manufacturer} ${detail.model}`.trim() || '-'} theme={theme} />
+      <InfoRow label="Android" value={detail.androidVersion ? `${detail.androidVersion} (API ${detail.sdk})` : '-'} theme={theme} />
+      <InfoRow label="Build" value={detail.buildId || '-'} theme={theme} />
+      <InfoRow label="Serial" value={detail.serial || '-'} theme={theme} />
 
       <p style={{ fontSize: '12px', fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '18px 0 4px' }}>Battery</p>
-      <InfoRow label="Level" value={battery.level >= 0 ? `${battery.level}%` : '—'} theme={theme} />
+      <InfoRow label="Level" value={battery.level >= 0 ? `${battery.level}%` : '-'} theme={theme} />
       <InfoRow label="Status" value={`${battery.status} (${battery.powerSource})`} theme={theme} />
       <InfoRow label="Health" value={battery.health} theme={theme} />
-      <InfoRow label="Temperature" value={battery.temperatureC !== null ? `${battery.temperatureC.toFixed(1)} °C` : '—'} theme={theme} />
-      <InfoRow label="Voltage" value={battery.voltageMv !== null ? `${(battery.voltageMv / 1000).toFixed(2)} V` : '—'} theme={theme} />
-      <InfoRow label="Technology" value={battery.technology ?? '—'} theme={theme} />
+      <InfoRow label="Temperature" value={battery.temperatureC !== null ? `${battery.temperatureC.toFixed(1)} °C` : '-'} theme={theme} />
+      <InfoRow label="Voltage" value={battery.voltageMv !== null ? `${(battery.voltageMv / 1000).toFixed(2)} V` : '-'} theme={theme} />
+      <InfoRow label="Technology" value={battery.technology ?? '-'} theme={theme} />
 
       <p style={{ fontSize: '12px', fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '18px 0 8px' }}>Storage</p>
       {mounts.map(m => {
@@ -185,7 +185,7 @@ function AppsTab({ onExportApk }: { onExportApk: (apkPath: string, fileName: str
       </div>
       {apps !== null && (
         <div style={{ padding: '8px 20px', borderTop: `1px solid ${theme.border}`, fontSize: '12px', color: theme.textMuted }}>
-          {filtered.length} app{filtered.length !== 1 ? 's' : ''} — exports land in the transfers panel
+          {filtered.length} app{filtered.length !== 1 ? 's' : ''} - exports land in the transfers panel
         </div>
       )}
     </div>
@@ -193,7 +193,7 @@ function AppsTab({ onExportApk }: { onExportApk: (apkPath: string, fileName: str
 }
 
 // ---------------------------------------------------------------------------
-// Storage tab — squarified treemap, drill-down per directory
+// Storage tab - squarified treemap, drill-down per directory
 // ---------------------------------------------------------------------------
 
 interface TreemapRect extends DuEntry {
@@ -298,7 +298,7 @@ function StorageTab() {
   const MAP_H = 300
   const rects = useMemo(() => entries ? layoutTreemap(entries.slice(0, 40), MAP_W, MAP_H) : [], [entries])
 
-  // Deterministic shade per entry — accent for dirs, muted for the files block
+  // Deterministic shade per entry - accent for dirs, muted for the files block
   const fillFor = (r: TreemapRect, idx: number): string => {
     if (!r.isDir) return theme.surfaceHover
     const alphas = [0.55, 0.42, 0.32, 0.25, 0.19, 0.14, 0.10]
@@ -355,7 +355,7 @@ function StorageTab() {
                 <div
                   key={r.path + r.name}
                   onClick={() => { if (r.isDir) load(r.path) }}
-                  title={`${r.name} — ${formatSize(r.bytes)}`}
+                  title={`${r.name} - ${formatSize(r.bytes)}`}
                   style={{
                     position: 'absolute',
                     left: `${r.x}px`, top: `${r.y}px`,

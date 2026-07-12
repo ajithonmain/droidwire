@@ -18,7 +18,7 @@ export function FileConflictModal({ conflictNames, showApplyAll, onResolve }: Pr
   const { theme } = useTheme()
   const [applyToAll, setApplyToAll] = useState(false)
 
-  // Deliberately no Escape/outside-click dismissal — a conflict needs an
+  // Deliberately no Escape/outside-click dismissal - a conflict needs an
   // explicit decision, accidental dismissal cancels queued transfers.
   const resolve = (choice: ConflictChoice) => onResolve({ choice, applyToAll })
 

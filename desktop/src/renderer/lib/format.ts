@@ -7,12 +7,12 @@ export function formatSize(bytes: number): string {
 }
 
 export function formatSpeed(bps: number): string {
-  if (bps <= 0) return '—'
+  if (bps <= 0) return '-'
   return `${formatSize(bps)}/s`
 }
 
 export function formatEta(remainingBytes: number, bps: number): string {
-  if (bps <= 0 || remainingBytes <= 0) return '—'
+  if (bps <= 0 || remainingBytes <= 0) return '-'
   const secs = remainingBytes / bps
   if (secs < 60) return `${Math.ceil(secs)}s`
   const m = Math.floor(secs / 60)
@@ -21,7 +21,7 @@ export function formatEta(remainingBytes: number, bps: number): string {
 }
 
 export function formatDate(timestamp: number): string {
-  if (!timestamp) return '—'
+  if (!timestamp) return '-'
   return new Date(timestamp).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',

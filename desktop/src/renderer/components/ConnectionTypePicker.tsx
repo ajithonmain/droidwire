@@ -72,7 +72,7 @@ export function ConnectionTypePicker({ onSelect }: Props) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '380px' }}>
-        {/* ADB — active */}
+        {/* ADB - active */}
         <button
           onClick={() => onSelect('adb')}
           style={{
@@ -107,14 +107,14 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 RECOMMENDED
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Wired, fast — requires USB Debugging</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Wired, fast - requires USB Debugging</span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
             <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
-        {/* WiFi — wireless ADB pairing (Android 11+) */}
+        {/* WiFi - wireless ADB pairing (Android 11+) */}
         <button
           onClick={() => onSelect('wireless')}
           style={{
@@ -149,14 +149,14 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 ANDROID 11+
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Wireless debugging — same network required</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Wireless debugging - same network required</span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
             <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
-        {/* MTP — limited features */}
+        {/* MTP - limited features */}
         <button
           onClick={() => onSelect('mtp')}
           style={{
@@ -191,7 +191,7 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 LIMITED
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option — no APK install, no device tools</span>
+            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option - no APK install, no device tools</span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
             <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

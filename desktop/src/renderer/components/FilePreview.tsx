@@ -281,7 +281,7 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
             <span style={{ fontSize: '12px', color: theme.textMuted }}>Size</span>
             <span style={{ fontSize: '12px', color: theme.textSecondary }}>
               {isDir
-                ? dirSize === 'loading' ? 'Calculating…' : dirSize !== null ? formatSize(dirSize) : '—'
+                ? dirSize === 'loading' ? 'Calculating…' : dirSize !== null ? formatSize(dirSize) : '-'
                 : formatSize(file.size)}
             </span>
           </div>

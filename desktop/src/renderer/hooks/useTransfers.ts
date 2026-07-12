@@ -11,7 +11,7 @@ export interface HistoryEntry {
   localPath?: string
 }
 
-// At most this many transfers run at once — the rest wait in the queue.
+// At most this many transfers run at once - the rest wait in the queue.
 // adb serializes device-side anyway; more concurrency just splits bandwidth.
 const MAX_ACTIVE = 3
 
@@ -26,7 +26,7 @@ export function useTransfers() {
   // Queued work: id → thunk that actually runs the transfer. Re-registered
   // on pause so resume restarts the transfer from scratch (adb can't resume).
   const startersRef = useRef<Map<string, () => void>>(new Map())
-  // Upload callers await completion (move-after-upload) — deferred per id
+  // Upload callers await completion (move-after-upload) - deferred per id
   const uploadResolversRef = useRef<Map<string, (ok: boolean) => void>>(new Map())
   // Batch counters for the completion notification
   const batchRef = useRef({ total: 0, done: 0, failed: 0 })
@@ -71,7 +71,7 @@ export function useTransfers() {
       const p = raw as Partial<TransferProgress> & { id: string }
       setTransfers(prev => prev.map(t => {
         if (t.id !== p.id) return t
-        // Killing a paused/cancelled transfer makes adb emit a late error —
+        // Killing a paused/cancelled transfer makes adb emit a late error -
         // the user's chosen state wins
         if (t.status === 'paused' || t.status === 'cancelled') return t
         const merged = { ...t, ...p }
@@ -83,7 +83,7 @@ export function useTransfers() {
     return () => { if (unsubRef.current) unsubRef.current() }
   }, [recordDone, recordFailed])
 
-  // Queue runner — start the oldest pending transfers while slots are free
+  // Queue runner - start the oldest pending transfers while slots are free
   useEffect(() => {
     const active = transfers.filter(t => t.status === 'active').length
     let slots = MAX_ACTIVE - active
@@ -198,9 +198,9 @@ export function useTransfers() {
     if (!t || (t.status !== 'active' && t.status !== 'pending')) return
     if (t.status === 'active') {
       // Active uploads can't be rebuilt from state (the local source path only
-      // lives in the starter closure) — pausing them is not offered (canPause)
+      // lives in the starter closure) - pausing them is not offered (canPause)
       if (t.direction !== 'download') return
-      // adb can't suspend a transfer — kill it and restart from scratch on resume
+      // adb can't suspend a transfer - kill it and restart from scratch on resume
       startersRef.current.set(id, makeDownloadStarter(id, t.filePath, t.fileName))
       setTransfers(prev => prev.map(x => x.id === id ? { ...x, status: 'paused', speedBps: 0 } : x))
       try { await window.droidwire.cancelTransfer(id) } catch { /* already dead */ }
@@ -216,7 +216,7 @@ export function useTransfers() {
 
   const canPause = useCallback((t: TransferProgress) => {
     // Active uploads can't restart from state (local path lives in the starter
-    // closure) — only queued uploads and any download are pausable
+    // closure) - only queued uploads and any download are pausable
     return t.status === 'pending' || (t.status === 'active' && t.direction === 'download')
   }, [])
 

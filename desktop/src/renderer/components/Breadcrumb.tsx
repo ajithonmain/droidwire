@@ -30,7 +30,7 @@ export function Breadcrumb({ path, onNavigate, compact = false }: Props) {
     .map(c => ({ ...c, label: LABEL_OVERRIDES[c.path] ?? c.label }))
 
   if (compact) {
-    // Bottom path bar — Finder style: subtle, small, full path
+    // Bottom path bar - Finder style: subtle, small, full path
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '1px', overflow: 'hidden' }}>
         {crumbs.map((crumb, i) => {

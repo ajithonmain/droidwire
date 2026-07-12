@@ -29,12 +29,12 @@ export function BetaSignup({ onDone }: Props) {
     setBusy(true)
     try {
       // Registration is fail-open: if the network is down the main process
-      // stores the email locally and re-sends it on a later launch — the
+      // stores the email locally and re-sends it on a later launch - the
       // returned signup lets us through either way.
       await window.droidwire.registerBeta(trimmed)
       onDone()
     } catch {
-      setError('Something went wrong — please try again')
+      setError('Something went wrong - please try again')
       setBusy(false)
     }
   }
@@ -62,7 +62,7 @@ export function BetaSignup({ onDone }: Props) {
           fontSize: '13px', color: theme.textMuted, textAlign: 'center',
           maxWidth: '380px', lineHeight: 1.6, margin: 0,
         }}>
-          Leave your email to continue. It identifies you as a beta tester — you'll
+          Leave your email to continue. It identifies you as a beta tester - you'll
           hear about updates and get the early-supporter offer when the paid version
           launches. No spam, never shared, removed on request.
         </p>

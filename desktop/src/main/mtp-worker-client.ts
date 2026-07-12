@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 
 // luck-node-mtp (libmtp/libusb) has been observed to SIGSEGV when its native
-// calls run on Electron's main thread — its libusb macOS backend fights
+// calls run on Electron's main thread - its libusb macOS backend fights
 // Electron's own CFRunLoop. So every call is proxied to a dedicated child
 // process (mtp-worker.cjs) over IPC; a crash there kills only the worker,
 // which we detect and restart, instead of taking down the whole app.
@@ -17,14 +17,14 @@ interface PendingCall {
   method: string
 }
 
-// libmtp calls are synchronous native code — if one wedges (a degraded USB
+// libmtp calls are synchronous native code - if one wedges (a degraded USB
 // session tolerates reads but hangs on writes, observed after a PTP I/O
 // reset), the worker never replies and the caller would hang forever with
 // no error. A quiet call gets killed and restarted; download/upload reset
 // their clock on every progress tick since large transfers can legitimately
 // run long as long as bytes keep moving.
 const QUIET_TIMEOUT_MS = 20_000
-// getList() has no progress signal at all — MTP enumerates a folder's
+// getList() has no progress signal at all - MTP enumerates a folder's
 // objects (and their metadata) one PTP transaction at a time with no bulk
 // fetch. Measured against a real device: ~20ms/object, so a folder with
 // ~3,300 photos took 72s just to list. Give it a lot of rope before
@@ -41,7 +41,7 @@ let _nextId = 1
 const _pending = new Map<number, PendingCall>()
 
 // The transport layer caches its open-session state; a worker death takes the
-// libmtp connection with it, so the transport must be told to forget it —
+// libmtp connection with it, so the transport must be told to forget it -
 // otherwise the next call skips connect() and runs against a session-less
 // fresh worker (observed: getList hanging its full 120s timeout).
 const _exitListeners: Array<() => void> = []
@@ -55,7 +55,7 @@ function workerScriptPath(): string {
     path.join(process.resourcesPath ?? '', 'mtp-worker.cjs'),
     // Dev/unpacked: app.getAppPath() resolves to the directory of the
     // nearest package.json above the entry script (usually desktop/), but
-    // can also land on out/main depending on how the entry was launched —
+    // can also land on out/main depending on how the entry was launched -
     // so resources/ is checked both directly and one level up.
     path.join(app.getAppPath(), 'resources', 'mtp-worker.cjs'),
     path.join(app.getAppPath(), '..', 'resources', 'mtp-worker.cjs'),
@@ -64,7 +64,7 @@ function workerScriptPath(): string {
   ]
   const found = candidates.find(p => fs.existsSync(p))
   if (!found) {
-    throw new Error(`mtp-worker.cjs not found — checked:\n${candidates.join('\n')}`)
+    throw new Error(`mtp-worker.cjs not found - checked:\n${candidates.join('\n')}`)
   }
   return found
 }
@@ -74,7 +74,7 @@ function spawnWorker(): Promise<void> {
 
   _ready = new Promise((resolve, reject) => {
     const child = fork(workerScriptPath(), [], {
-      // Electron doubles as a Node runtime under this flag — the worker
+      // Electron doubles as a Node runtime under this flag - the worker
       // needs Electron's own Node ABI since that's what the native module
       // was rebuilt against (see @electron/rebuild in package setup)
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
@@ -97,7 +97,7 @@ function spawnWorker(): Promise<void> {
       const call = msg?.id != null ? _pending.get(msg.id) : undefined
       if (!call) return
       if (msg.type === 'started') {
-        // The worker only just picked this call off its queue — start the
+        // The worker only just picked this call off its queue - start the
         // clock now, not when we sent it (it may have waited behind other
         // calls, e.g. several large image thumbnails downloading in turn)
         armTimeout(msg.id, call)
@@ -105,7 +105,7 @@ function spawnWorker(): Promise<void> {
       }
       if (msg.type === 'progress') {
         call.onProgress?.(msg.sent, msg.total)
-        armTimeout(msg.id, call) // bytes are moving — the call isn't stuck
+        armTimeout(msg.id, call) // bytes are moving - the call isn't stuck
         return
       }
       if (msg.type === 'result') {
@@ -122,7 +122,7 @@ function spawnWorker(): Promise<void> {
       console.error(`[mtp-worker] exited (code=${code}, signal=${signal})`)
       _worker = null
       _ready = null
-      // Any in-flight calls will never resolve — fail them so callers don't hang
+      // Any in-flight calls will never resolve - fail them so callers don't hang
       for (const [id, call] of _pending) {
         clearTimeout(call.timer)
         call.reject(new Error(`MTP worker crashed (signal=${signal ?? 'none'}) mid-call`))
@@ -146,12 +146,12 @@ function armTimeout(id: number, call: PendingCall): void {
   const ms = timeoutFor(call.method)
   call.timer = setTimeout(() => {
     _pending.delete(id)
-    // The native call is synchronous C code — there's no way to cancel just
+    // The native call is synchronous C code - there's no way to cancel just
     // this call, so the whole worker (and its wedged connection) is killed.
     // The next MTP call reconnects fresh.
-    console.error(`[mtp-worker] call ${id} (${call.method}) silent for ${ms}ms — killing worker`)
+    console.error(`[mtp-worker] call ${id} (${call.method}) silent for ${ms}ms - killing worker`)
     stopMtpWorker()
-    call.reject(new Error('MTP device stopped responding — try re-plugging the cable'))
+    call.reject(new Error('MTP device stopped responding - try re-plugging the cable'))
   }, ms)
 }
 
@@ -167,7 +167,7 @@ export async function callMtp<T = unknown>(
   return new Promise<T>((resolve, reject) => {
     const call: PendingCall = { resolve: resolve as (v: unknown) => void, reject, onProgress, method }
     _pending.set(id, call)
-    // Timeout arms on the worker's 'started' ack, not here — a call can
+    // Timeout arms on the worker's 'started' ack, not here - a call can
     // wait indefinitely behind others in the worker's queue without that
     // wait itself counting as "stuck"
     _worker!.send({ id, method, args })

@@ -12,7 +12,7 @@ import { setConnectionType, getConnectionType, getActiveTransport, listDevices a
 import type { Transport } from './transport'
 import { stopMtpWorker } from './mtp-worker-client'
 
-// Android USB vendor IDs — covers all major manufacturers
+// Android USB vendor IDs - covers all major manufacturers
 const ANDROID_VENDOR_IDS = new Set([
   0x18D1, // Google / Nexus / Pixel
   0x04E8, // Samsung
@@ -174,7 +174,7 @@ function downloadsDir(): string {
 }
 
 const activeTransfers = new Map<string, ReturnType<typeof spawn>>()
-// MTP transfers block synchronously inside the worker process — there's no
+// MTP transfers block synchronously inside the worker process - there's no
 // per-call cancel API, so cancelling means killing the worker outright
 const activeMtpTransfers = new Set<string>()
 
@@ -185,7 +185,7 @@ function previewDir(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Video thumbnails — a local HTTP range server backed by `adb exec-out dd`
+// Video thumbnails - a local HTTP range server backed by `adb exec-out dd`
 // lets ffmpeg seek to the moov atom (which camera MP4s put at the end)
 // without pulling the whole file. Typical cost: ~8MB transfer per video.
 // ---------------------------------------------------------------------------
@@ -215,7 +215,7 @@ function ensureRangeServer(): Promise<number> {
         const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/)
         if (range) {
           if (range[1]) start = parseInt(range[1], 10)
-          // Cap open-ended reads — ffmpeg probes with them and never needs much
+          // Cap open-ended reads - ffmpeg probes with them and never needs much
           end = range[2] ? parseInt(range[2], 10) : Math.min(size - 1, start + 4 * 1024 * 1024 - 1)
         }
         const len = end - start + 1
@@ -255,7 +255,7 @@ function ensureRangeServer(): Promise<number> {
   })
 }
 
-// ffmpeg concurrency limiter — each extraction spawns its own adb readers
+// ffmpeg concurrency limiter - each extraction spawns its own adb readers
 let _ffSlots = 0
 const _ffQueue: Array<() => void> = []
 function withFfSlot<T>(fn: () => Promise<T>): Promise<T> {
@@ -350,7 +350,7 @@ function setupUsbAutoOpen(): void {
     const { usb } = require('usb') as typeof import('usb')
     usb.on('attach', (device) => {
       if (!ANDROID_VENDOR_IDS.has(device.deviceDescriptor.idVendor)) return
-      // Physically replugging a phone is an explicit reconnect request —
+      // Physically replugging a phone is an explicit reconnect request -
       // bring back any individually ejected devices
       _ejectedSerials.clear()
       if (!mainWindow) return
@@ -359,7 +359,7 @@ function setupUsbAutoOpen(): void {
       mainWindow.focus()
     })
   } catch {
-    // usb native module unavailable — skip auto-open
+    // usb native module unavailable - skip auto-open
   }
 }
 
@@ -389,7 +389,7 @@ ipcMain.handle('adb:eject-device', async (_e, serial: string) => {
   _ejectedSerials.add(serial)
   if (getActiveSerial() === serial) setActiveSerial(null)
   _remoteSizeCache.clear()
-  // Wireless devices have a real session to tear down — disconnect properly
+  // Wireless devices have a real session to tear down - disconnect properly
   // so the phone stops showing an active connection
   if (isWirelessSerial(serial)) {
     adbGlobal(['disconnect', serial], 10_000).catch(() => { /* already gone */ })
@@ -662,7 +662,7 @@ ipcMain.handle('adb:push', async (event, localPath: string, remotePath: string, 
     let lastTime = Date.now()
 
     // adb only prints [ XX%] progress when attached to a TTY, which a spawned
-    // process is not — so poll the remote file size instead (mirrors adb:pull).
+    // process is not - so poll the remote file size instead (mirrors adb:pull).
     let polling = false
     const poll = setInterval(async () => {
       if (polling) return
@@ -738,11 +738,11 @@ ipcMain.handle('adb:preview', async (_e, remotePath: string, fileName: string) =
     const ext = path.extname(fileName).toLowerCase().replace('.', '')
 
     // Files unscanned by Android's media store report size 0 over MTP and the
-    // device sends 0 bytes on download — an empty data URL renders as a broken
+    // device sends 0 bytes on download - an empty data URL renders as a broken
     // image in the grid, so fall back to the generic icon instead
     if (!fs.existsSync(dest) || fs.statSync(dest).size === 0) return null
 
-    // HEIC/HEIF/TIFF: Chromium can't decode these — convert with sips (macOS built-in)
+    // HEIC/HEIF/TIFF: Chromium can't decode these - convert with sips (macOS built-in)
     if (ext === 'heic' || ext === 'heif' || ext === 'tiff' || ext === 'tif') {
       const jpgPath = dest + '.preview.jpg'
       try {
@@ -756,7 +756,7 @@ ipcMain.handle('adb:preview', async (_e, remotePath: string, fileName: string) =
           const buf = fs.readFileSync(jpgPath)
           return `data:image/jpeg;base64,${buf.toString('base64')}`
         }
-      } catch { /* sips failed — fall through to generic icon */ }
+      } catch { /* sips failed - fall through to generic icon */ }
       return null
     }
 
@@ -909,7 +909,7 @@ ipcMain.handle('adb:cancel-transfer', async (_e, transferId: string) => {
     return
   }
   if (activeMtpTransfers.has(transferId)) {
-    // No per-call cancel in luck-node-mtp — the blocking native call only
+    // No per-call cancel in luck-node-mtp - the blocking native call only
     // stops if its process dies. The worker's exit handler rejects the
     // in-flight promise, which the pull/push catch block turns into an
     // 'error' transfer-progress event (matching ADB's cancel behavior above).
@@ -957,7 +957,7 @@ function pushEditSession(session: EditSession, fileName: string) {
         sendEditEvent({ type: 'synced', fileName })
       })
       .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : 'push failed — is the device connected?'
+        const msg = err instanceof Error ? err.message : 'push failed - is the device connected?'
         sendEditEvent({ type: 'failed', fileName, error: msg })
       })
       .finally(() => { session.pushing = false })
@@ -977,7 +977,7 @@ function pushEditSession(session: EditSession, fileName: string) {
       session.lastMtimeMs = st.mtimeMs
       sendEditEvent({ type: 'synced', fileName })
     } else {
-      sendEditEvent({ type: 'failed', fileName, error: 'push failed — is the device connected?' })
+      sendEditEvent({ type: 'failed', fileName, error: 'push failed - is the device connected?' })
     }
   })
 }
@@ -1015,7 +1015,7 @@ ipcMain.handle('edit-open', async (_e, remotePath: string, fileName: string) => 
     lastMtimeMs: fs.statSync(localPath).mtimeMs,
     pushing: false,
     pendingTimer: null,
-    // Watch the directory, not the file — most editors save via
+    // Watch the directory, not the file - most editors save via
     // write-temp-then-rename, which breaks a direct file watch
     watcher: fs.watch(dir, (_event, changed) => {
       if (changed !== fileName) return
@@ -1042,7 +1042,7 @@ app.on('will-quit', () => {
 })
 
 ipcMain.handle('adb:zip-pull', async (event, remoteDirPath: string, folderName: string, transferId: string) => {
-  // MTP has no shell, so there's no on-device `zip` to run — instead walk
+  // MTP has no shell, so there's no on-device `zip` to run - instead walk
   // the folder tree, pull every file into a local mirror directory, then
   // zip that mirror with macOS's own `zip` binary (a local-only operation).
   if (getConnectionType() === 'mtp') {
@@ -1209,12 +1209,12 @@ ipcMain.handle('set-download-dir', async (_e, dirPath: string) => {
 ipcMain.handle('adb:dir-size', async (_e, remotePath: string) => {
   if (getConnectionType() === 'mtp') {
     // FileGrid calls this automatically for every visible folder row. ADB's
-    // `du` is a single fast on-device command; MTP has no equivalent — the
+    // `du` is a single fast on-device command; MTP has no equivalent - the
     // only option is a recursive listFiles() walk, and since the MTP worker
     // processes one synchronous native call at a time, a handful of visible
     // folders queuing walks would starve real user actions (mkdir/rename/
     // delete) behind them for however long the walks take. Not worth it for
-    // a cosmetic size column — always show nothing, matching an untimed ADB
+    // a cosmetic size column - always show nothing, matching an untimed ADB
     // du that "shows nothing" per the comment below.
     return null
   }
@@ -1222,7 +1222,7 @@ ipcMain.handle('adb:dir-size', async (_e, remotePath: string) => {
     const out = await adb(['shell', `du -sk ${sq(remotePath)}`])
     const kb = parseInt(out.trim().split(/\s+/)[0], 10)
     return Number.isNaN(kb) ? null : kb * 1024
-  } catch { return null } // huge trees can exceed the adb timeout — show nothing
+  } catch { return null } // huge trees can exceed the adb timeout - show nothing
 })
 
 ipcMain.handle('local-conflict-check', async (_e, fileName: string) => {
@@ -1243,7 +1243,7 @@ ipcMain.handle('adb:stat', async (_e, remotePath: string) => {
     const transport = getActiveTransport()
     if (!transport.statObject) return null
     try {
-      // MTP objects carry no Unix permission bits — only what libmtp exposes
+      // MTP objects carry no Unix permission bits - only what libmtp exposes
       const modified = await transport.statObject(active.serial, remotePath)
       return { permissions: null, octal: null, modified }
     } catch {
@@ -1318,7 +1318,7 @@ ipcMain.handle('delete-local-file', async (_e, localPath: string) => {
 })
 
 // ---------------------------------------------------------------------------
-// IPC: device tools — battery/device/storage detail, app list + APK export
+// IPC: device tools - battery/device/storage detail, app list + APK export
 // ---------------------------------------------------------------------------
 
 const BATTERY_STATUS: Record<string, string> = {
@@ -1338,7 +1338,7 @@ ipcMain.handle('adb:battery-detail', async (): Promise<BatteryDetail> => {
   const volt = grab(/voltage:\s*(\d+)/)
   if (volt) {
     voltageMv = parseInt(volt, 10)
-    // Some devices (e.g. Pixels) report microvolts — normalize to mV
+    // Some devices (e.g. Pixels) report microvolts - normalize to mV
     if (voltageMv > 100_000) voltageMv = Math.round(voltageMv / 1000)
   }
   const ac = /AC powered:\s*true/.test(out)
@@ -1401,10 +1401,10 @@ ipcMain.handle('adb:list-apps', async (_e, includeSystem: boolean): Promise<Inst
 })
 
 // ---------------------------------------------------------------------------
-// IPC: storage analyzer — du one level at a time (renderer drills down)
+// IPC: storage analyzer - du one level at a time (renderer drills down)
 // ---------------------------------------------------------------------------
 
-// Sums a subtree's size via repeated listFiles() calls — MTP has no `du`
+// Sums a subtree's size via repeated listFiles() calls - MTP has no `du`
 // equivalent. Shared by adb:dir-size and adb:du-children's MTP branches.
 async function mtpSubtreeSize(transport: ReturnType<typeof getActiveTransport>, serial: string, dirPath: string, maxFolders = 500): Promise<number> {
   let total = 0
@@ -1462,7 +1462,7 @@ ipcMain.handle('adb:du-children', async (_e, dirPath: string): Promise<{ entries
     const name = p.split('/').filter(Boolean).pop() ?? p
     entries.push({ name, path: p, bytes, isDir: true })
   }
-  // du -d 1 only lists directories — the remainder is loose files in this folder
+  // du -d 1 only lists directories - the remainder is loose files in this folder
   const childSum = entries.reduce((s, e) => s + e.bytes, 0)
   if (totalBytes > childSum) {
     entries.push({ name: 'Files in this folder', path: clean, bytes: totalBytes - childSum, isDir: false })
@@ -1472,7 +1472,7 @@ ipcMain.handle('adb:du-children', async (_e, dirPath: string): Promise<{ entries
 })
 
 // ---------------------------------------------------------------------------
-// IPC: wireless ADB (Android 11+) — pair & connect are host-global commands,
+// IPC: wireless ADB (Android 11+) - pair & connect are host-global commands,
 // so they bypass adbArgs (no -s scoping)
 // ---------------------------------------------------------------------------
 
@@ -1555,7 +1555,7 @@ async function runQrPairLoop(
       return
     }
 
-    // Paired — the phone now advertises its connect port on the same IP
+    // Paired - the phone now advertises its connect port on the same IP
     send({ type: 'connecting' })
     const ip = pairAddr.split(':')[0]
     const connectDeadline = Date.now() + 30_000
@@ -1578,7 +1578,7 @@ async function runQrPairLoop(
       }
       await sleep(1500)
     }
-    send({ type: 'error', message: 'Paired, but the connect port never appeared — connect manually with the IP and port from the Wireless debugging screen.' })
+    send({ type: 'error', message: 'Paired, but the connect port never appeared - connect manually with the IP and port from the Wireless debugging screen.' })
     return
   }
   send({ type: 'error', message: 'Timed out waiting for the phone to scan the code.' })
@@ -1619,13 +1619,13 @@ ipcMain.handle('show-main-window', () => {
   }
   mainWindow.focus()
   // The menubar popup is a non-activating panel, so a click inside it never
-  // makes Droidwire the active app — without stealing focus here the menu
+  // makes Droidwire the active app - without stealing focus here the menu
   // bar keeps showing the previous app's menus
   app.focus({ steal: true })
 })
 
 // ---------------------------------------------------------------------------
-// Menu bar mode — Tray icon + mini drop-zone window
+// Menu bar mode - Tray icon + mini drop-zone window
 // ---------------------------------------------------------------------------
 
 let tray: Tray | null = null
@@ -1660,7 +1660,7 @@ function trayImage(): Electron.NativeImage {
     for (let y = 0; y < dim; y++) {
       for (let x = 0; x < dim; x++) {
         if (TRAY_GLYPH[Math.floor(y / scale)][Math.floor(x / scale)] === '#') {
-          buf[(y * dim + x) * 4 + 3] = 255 // BGRA — black pixel, full alpha
+          buf[(y * dim + x) * 4 + 3] = 255 // BGRA - black pixel, full alpha
         }
       }
     }
@@ -1683,7 +1683,7 @@ function createMenubarWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     hiddenInMissionControl: true,
-    // NSPanel behavior: can take key input without activating the app —
+    // NSPanel behavior: can take key input without activating the app -
     // otherwise clicking the tray raises the main window too
     type: 'panel',
     backgroundColor: '#111114',
@@ -1695,7 +1695,7 @@ function createMenubarWindow(): BrowserWindow {
     },
   })
   // Follow the user to whatever Space/fullscreen app is active, and float
-  // above it — prevents "toggle does nothing" when the window opened on
+  // above it - prevents "toggle does nothing" when the window opened on
   // another Space
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   win.setAlwaysOnTop(true, 'pop-up-menu')
@@ -1753,19 +1753,19 @@ ipcMain.handle('app-quit', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Beta registration — the app asks for an email once on first launch so beta
+// Beta registration - the app asks for an email once on first launch so beta
 // testers can be identified later (update notices, early-supporter offer at
 // the paid launch). The email is the only thing sent; it goes to a Firestore
 // collection with create-only security rules. If the network is down at
 // signup time the email is kept locally and re-sent silently on later
-// launches — the user is never blocked or asked twice.
+// launches - the user is never blocked or asked twice.
 // ---------------------------------------------------------------------------
 
 const FIREBASE_PROJECT_ID = 'droidwire-3c7f0'
 const FIREBASE_API_KEY = 'AIzaSyCT_xOF2lNRSqwQtjyEylrorSsCAusTS5M'
 
 // app.getVersion() returns Electron's own version when running unpackaged
-// (dev / driver runs) — read the real product version from package.json then.
+// (dev / driver runs) - read the real product version from package.json then.
 function productVersion(): string {
   if (app.isPackaged) return app.getVersion()
   try {
@@ -1822,7 +1822,7 @@ function postBetaSignup(signup: BetaSignup): Promise<boolean> {
   })
 }
 
-// First launch may happen offline — retry the queued signup on every start
+// First launch may happen offline - retry the queued signup on every start
 // until it lands once.
 async function retryPendingBetaSignup(): Promise<void> {
   const signup = readBetaSignup()
@@ -1845,10 +1845,10 @@ ipcMain.handle('beta:register', async (_e, email: string) => {
 })
 
 // ---------------------------------------------------------------------------
-// In-app messages — docs in the Firestore `messages` collection, written by
+// In-app messages - docs in the Firestore `messages` collection, written by
 // hand in the Firebase console. Fields: title (string), body (string),
 // url (string, optional link button), audience ('all' or one tester's email),
-// active (boolean — flip false to retract). The collection is world-readable
+// active (boolean - flip false to retract). The collection is world-readable
 // by design (rules allow read); per-email targeting is a routing convenience,
 // not a secret channel. The renderer decides what was already dismissed.
 // ---------------------------------------------------------------------------
@@ -1900,7 +1900,7 @@ ipcMain.handle('beta:fetch-messages', async (): Promise<BetaMessage[]> => {
   return messages
 })
 
-// Silent variant of the update check — runs on launch so the renderer can
+// Silent variant of the update check - runs on launch so the renderer can
 // show a banner instead of waiting for the user to hit the menu item.
 ipcMain.handle('update:check-silent', async (): Promise<{ latestTag: string; hasUpdate: boolean } | null> => {
   const tag = await fetchLatestReleaseTag()
@@ -1918,7 +1918,7 @@ ipcMain.handle('open-external-url', (_e, url: string) => {
 })
 
 // ---------------------------------------------------------------------------
-// Update check — beta builds are unsigned, so Squirrel-style in-app auto
+// Update check - beta builds are unsigned, so Squirrel-style in-app auto
 // update (electron-updater) can't install a replacement on macOS regardless
 // of feed config. Instead: ask GitHub's API for the latest tag on the public
 // downloads repo and, if newer, send the user to the browser to grab it.
@@ -1949,7 +1949,7 @@ function fetchLatestReleaseTag(): Promise<string | null> {
   })
 }
 
-// Tags look like "v1.0.0-beta"; app.getVersion() returns "1.0.0" — strip
+// Tags look like "v1.0.0-beta"; app.getVersion() returns "1.0.0" - strip
 // both down to the bare semver so they compare equal when in sync.
 function bareVersion(v: string): string {
   return v.replace(/^v/, '').replace(/-.*$/, '')
@@ -1961,7 +1961,7 @@ async function checkForUpdatesInteractive(): Promise<void> {
     dialog.showMessageBox({
       type: 'warning',
       message: 'Update check failed',
-      detail: 'Could not reach GitHub — check your connection and try again.',
+      detail: 'Could not reach GitHub - check your connection and try again.',
     })
     return
   }
@@ -1974,7 +1974,7 @@ async function checkForUpdatesInteractive(): Promise<void> {
   const { response } = await dialog.showMessageBox({
     type: 'info',
     message: `Droidwire ${latest} is available`,
-    detail: `You're on ${current}. Beta builds aren't signed yet, so updates aren't automatic — download the new version from GitHub.`,
+    detail: `You're on ${current}. Beta builds aren't signed yet, so updates aren't automatic - download the new version from GitHub.`,
     buttons: ['Open Download Page', 'Later'],
     defaultId: 0,
   })
@@ -2003,7 +2003,7 @@ function setupAppMenu(): void {
         {
           label: 'Licenses…',
           click: () => {
-            // Never target the menubar panel — it doesn't render modals
+            // Never target the menubar panel - it doesn't render modals
             const focused = BrowserWindow.getFocusedWindow()
             const win = (focused && focused !== menubarWindow ? focused : null) ?? mainWindow
             if (win && !win.isDestroyed()) {
@@ -2026,7 +2026,7 @@ function setupAppMenu(): void {
     {
       label: 'File',
       submenu: [
-        // No Cmd+W here — the renderer uses it for closing tabs
+        // No Cmd+W here - the renderer uses it for closing tabs
         { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => { mainWindow = createWindow() } },
         { type: 'separator' },
         {

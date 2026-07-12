@@ -11,8 +11,8 @@ Android (HTTP server) ──USB tethering──▶ Mac (Electron client)
 
 | Package | Description |
 |---------|-------------|
-| `android/` | React Native app — runs HTTP server on device |
-| `desktop/` | Electron + React Mac client — file browser + transfer UI |
+| `android/` | React Native app - runs HTTP server on device |
+| `desktop/` | Electron + React Mac client - file browser + transfer UI |
 | `shared/` | Shared TypeScript types and API constants |
 
 ## Dev Setup
@@ -34,4 +34,4 @@ npm run electron
 
 - Android serves files over HTTP on port `8765` via USB tethering IP (`192.168.42.x` / `192.168.43.x`)
 - Mac client auto-detects the device by scanning those subnets on launch
-- All transfers streamed in 1MB chunks — no full-file memory loading
+- All transfers streamed in 1MB chunks - no full-file memory loading

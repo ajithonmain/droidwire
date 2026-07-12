@@ -74,7 +74,7 @@ function Dropdown<T extends string>({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', handler)
     // Titlebar is a WebkitAppRegion drag area (no mousedown) and clicks in
-    // other apps never reach us — blur covers both.
+    // other apps never reach us - blur covers both.
     window.addEventListener('blur', close)
     window.addEventListener('keydown', onKey)
     return () => {

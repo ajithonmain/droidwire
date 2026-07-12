@@ -14,7 +14,7 @@ interface Props {
 export function UploadModeModal({ fileNames, onCopy, onMove, onCancel, variant = 'upload', destName }: Props) {
   const { theme } = useTheme()
 
-  // Deliberately no Escape/outside-click dismissal — Copy vs Move needs an
+  // Deliberately no Escape/outside-click dismissal - Copy vs Move needs an
   // explicit decision. Enter picks the safe default (Copy).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

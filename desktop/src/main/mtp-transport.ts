@@ -7,12 +7,12 @@ import type { Transport, TransportDevice } from './transport'
 import { callMtp, onMtpWorkerExit } from './mtp-worker-client'
 
 // luck-node-mtp: synchronous libmtp bindings with a singleton connection,
-// proxied through mtp-worker-client (see that file for why — a real SIGSEGV
+// proxied through mtp-worker-client (see that file for why - a real SIGSEGV
 // was observed when calling this module directly from Electron's main
 // process). All calls below go through callMtp() → child process → IPC.
 //
 // API surface (README-verified):
-//   connect(vid?, pid?) / release() — one device at a time
+//   connect(vid?, pid?) / release() - one device at a time
 //   getDeviceInfo() → [{ vendor, vendor_id, product, product_id }]
 //   getList(parentPath) → [{ name, size, type: 'FILE'|'FOLDER', id, modificationdate, ... }]
 //   download(devPath, localPath, (sent, total) => void)
@@ -46,14 +46,14 @@ export function mtpAvailable(): boolean {
   return true
 }
 
-// --- Connection management (singleton — libmtp allows one open device) ------
+// --- Connection management (singleton - libmtp allows one open device) ------
 
 let _connectedSerial: string | null = null
 // Device names captured during enumeration, so later lookups don't need to
 // re-enumerate USB (which contends with an open session)
 const _deviceNames = new Map<string, string>()
 
-// A dead worker took the libmtp session with it — forget it so the next
+// A dead worker took the libmtp session with it - forget it so the next
 // call reconnects instead of running session-less
 onMtpWorkerExit(() => { _connectedSerial = null })
 
@@ -64,7 +64,7 @@ function serialOf(d: MtpRawDevice): string {
 // macOS's ptpcamerad (feeds Image Capture/Photos) claims every attached MTP
 // device's USB interface, making libmtp's claim fail (and it respawns via
 // launchd, re-claiming on each device attach). Evict it right before we
-// connect — same technique OpenMTP uses; once our session holds the
+// connect - same technique OpenMTP uses; once our session holds the
 // interface, its respawn can't take the device back.
 function evictPtpcamerad(): Promise<void> {
   return new Promise(resolve => {
@@ -86,7 +86,7 @@ async function ensureConnected(serial: string): Promise<void> {
     lastErr = err
   }
   if (!ok) {
-    // ptpcamerad may have re-claimed the interface in the race window —
+    // ptpcamerad may have re-claimed the interface in the race window -
     // evict again and retry once
     await evictPtpcamerad()
     try {
@@ -98,7 +98,7 @@ async function ensureConnected(serial: string): Promise<void> {
   if (!ok) {
     const detail = lastErr instanceof Error ? ` (${lastErr.message})` : ''
     throw new Error(
-      `Could not open MTP session — set the phone to "File Transfer / Android Auto" USB mode and close Android File Transfer / OpenMTP if running${detail}`
+      `Could not open MTP session - set the phone to "File Transfer / Android Auto" USB mode and close Android File Transfer / OpenMTP if running${detail}`
     )
   }
   _connectedSerial = serial
@@ -111,7 +111,7 @@ export async function releaseMtpConnection(): Promise<void> {
 }
 
 // On any op failure the session state is suspect (unplug mid-op, worker
-// crash/restart, etc.) — drop it so the next call reconnects fresh.
+// crash/restart, etc.) - drop it so the next call reconnects fresh.
 function invalidate(): void {
   _connectedSerial = null
 }
@@ -151,7 +151,7 @@ export const MtpTransport: Transport = {
         // Session open: check liveness with a cheap session-scoped call.
         // getDeviceInfo() re-enumerates USB, which contends with the open
         // session and was observed to wedge the worker (20s watchdog kill
-        // every poll) — never enumerate while connected.
+        // every poll) - never enumerate while connected.
         try {
           await callMtp('getCurrentDeviceStorageInfo', [])
           _lastDevices = [{
@@ -161,7 +161,7 @@ export const MtpTransport: Transport = {
           }]
           return _lastDevices
         } catch {
-          _connectedSerial = null // session dead — fall through to enumeration
+          _connectedSerial = null // session dead - fall through to enumeration
         }
       }
       const raw = await callMtp<MtpRawDevice[]>('getDeviceInfo', [])
@@ -181,7 +181,7 @@ export const MtpTransport: Transport = {
 
   async getDeviceInfo(serial: string) {
     await ensureConnected(serial)
-    // Name comes from the enumeration cache — re-enumerating USB here would
+    // Name comes from the enumeration cache - re-enumerating USB here would
     // contend with the session just opened above
     const name = _deviceNames.get(serial) ?? 'MTP Device'
     return {
@@ -230,17 +230,17 @@ export const MtpTransport: Transport = {
     const targetFolder = toMtpPath(path.posix.dirname(remotePath))
     const wantedName = path.posix.basename(remotePath)
 
-    // MTP rejects duplicate names instead of overwriting — adb push replaces,
+    // MTP rejects duplicate names instead of overwriting - adb push replaces,
     // so match that: drop an existing object at the destination path first
     // (also what the conflict modal's "Replace" expects)
     try {
       await callMtp('get', [toMtpPath(remotePath)])
       await callMtp('del', [toMtpPath(remotePath)])
-    } catch { /* nothing at the destination — the common case */ }
+    } catch { /* nothing at the destination - the common case */ }
 
     // upload() always names the object after the local file, so a differing
     // destination name (conflict modal's "Keep both" → "x (1).jpg") must be
-    // staged as a local copy with the wanted name — uploading under the
+    // staged as a local copy with the wanted name - uploading under the
     // original name would collide with the file that made it a conflict
     let uploadSrc = localPath
     let stagedDir: string | null = null
@@ -308,7 +308,7 @@ export const MtpTransport: Transport = {
     try {
       const ok = await callMtp<boolean>('copy', [src, targetFolder])
       if (!ok) throw new Error('MTP copy returned failure')
-      // copy() keeps the source name in the target folder — rename if the
+      // copy() keeps the source name in the target folder - rename if the
       // destination path asked for a different name (e.g. "file (2).jpg")
       if (wantedName !== srcName) {
         const obj = await callMtp<{ type: string }>('get', [src])
@@ -336,7 +336,7 @@ export const MtpTransport: Transport = {
 
   async getStorage(serial): Promise<StorageInfo> {
     // getCurrentDeviceStorageInfo() only returns { id, StorageDescription,
-    // VolumeIdentifier } — verified against a real device — no
+    // VolumeIdentifier } - verified against a real device - no
     // capacity/free-space fields exist anywhere in luck-node-mtp's API.
     // total: 0 is a sentinel the UI reads as "storage info unavailable".
     await ensureConnected(serial)

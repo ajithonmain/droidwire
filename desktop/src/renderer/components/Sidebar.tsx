@@ -136,7 +136,7 @@ function SidebarContextMenu({ menu, onNavigate, onOpenInNewTab, onClose }: {
 export function Sidebar({ currentPath, rootDirs, onNavigate, onOpenInNewTab, bookmarks, onRemoveBookmark, recentPaths, onDropOnFolder }: Props) {
   const { theme } = useTheme()
   const [sidebarMenu, setSidebarMenu] = useState<SidebarMenu | null>(null)
-  // Folder currently hovered by an in-flight drag — gets the accent highlight
+  // Folder currently hovered by an in-flight drag - gets the accent highlight
   const [dragOverPath, setDragOverPath] = useState<string | null>(null)
 
   const dropHighlight = (path: string) =>

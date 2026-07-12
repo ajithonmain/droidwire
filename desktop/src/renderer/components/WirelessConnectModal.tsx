@@ -42,8 +42,8 @@ function Field({ label, value, onChange, placeholder, theme, width }: {
 
 const STATUS_TEXT: Record<QrStatus, string> = {
   waiting: 'Waiting for the phone to scan…',
-  pairing: 'Phone found — pairing…',
-  connecting: 'Paired — connecting…',
+  pairing: 'Phone found - pairing…',
+  connecting: 'Paired - connecting…',
   connected: 'Connected',
   error: '',
 }
@@ -81,7 +81,7 @@ export function WirelessConnectModal({ onConnected, onClose }: Props) {
     window.droidwire.qrPairStart().then(text =>
       QRCode.toDataURL(text, { width: 220, margin: 1, color: { dark: '#000000', light: '#FFFFFF' } })
     ).then(url => { if (alive) setQrDataUrl(url) }).catch(() => {
-      if (alive) { setQrStatus('error'); setQrError('Could not start QR pairing — try manual entry.') }
+      if (alive) { setQrStatus('error'); setQrError('Could not start QR pairing - try manual entry.') }
     })
     return () => {
       alive = false
@@ -112,7 +112,7 @@ export function WirelessConnectModal({ onConnected, onClose }: Props) {
     setBusy(null)
     setMsg({ text: res.message, kind: res.ok ? 'ok' : 'err' })
     if (res.ok && !connectAddr) {
-      // The connect port differs from the pairing port — prefill the IP only
+      // The connect port differs from the pairing port - prefill the IP only
       setConnectAddr(pairAddr.split(':')[0] + ':')
     }
   }
@@ -124,7 +124,7 @@ export function WirelessConnectModal({ onConnected, onClose }: Props) {
     const res = await window.droidwire.adbConnect(connectAddr)
     setBusy(null)
     setMsg({
-      text: res.ok ? res.message : `${res.message} — make sure the device is paired first and the port matches the Wireless debugging screen`,
+      text: res.ok ? res.message : `${res.message} - make sure the device is paired first and the port matches the Wireless debugging screen`,
       kind: res.ok ? 'ok' : 'err',
     })
     if (res.ok) setTimeout(onConnected, 600)
@@ -201,7 +201,7 @@ export function WirelessConnectModal({ onConnected, onClose }: Props) {
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Step 1 — Pair (first time only)
+                Step 1 - Pair (first time only)
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Field label="Pairing address" value={pairAddr} onChange={setPairAddr} placeholder="192.168.1.42:37831" theme={theme} />
@@ -214,7 +214,7 @@ export function WirelessConnectModal({ onConnected, onClose }: Props) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Step 2 — Connect
+                Step 2 - Connect
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Field label="IP address and port (shown on the Wireless debugging screen)" value={connectAddr} onChange={setConnectAddr} placeholder="192.168.1.42:40123" theme={theme} />

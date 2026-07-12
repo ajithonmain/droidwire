@@ -5,7 +5,7 @@ import { MenubarApp } from './components/MenubarApp'
 import { ThemeProvider } from './lib/ThemeContext'
 import './index.css'
 
-// The tray window loads the same bundle with #menubar — render the mini UI
+// The tray window loads the same bundle with #menubar - render the mini UI
 const isMenubar = window.location.hash.includes('menubar')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

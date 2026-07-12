@@ -32,7 +32,7 @@ export interface Transport {
   copy?(serial: string, srcPath: string, dstPath: string): Promise<void>
   screenshot?(serial: string): Promise<Buffer>
   installApk?(serial: string, apkPath: string): Promise<void>
-  // Best-effort object metadata — returns an ISO-ish "YYYY-MM-DD HH:MM:SS"
+  // Best-effort object metadata - returns an ISO-ish "YYYY-MM-DD HH:MM:SS"
   // modified timestamp string, or null. Transports without richer stat
   // support (e.g. no Unix permission bits) implement only this subset.
   statObject?(serial: string, path: string): Promise<string | null>

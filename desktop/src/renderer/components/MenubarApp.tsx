@@ -43,13 +43,13 @@ export function MenubarApp() {
       .filter((p): p is string => !!p)
     if (files.length === 0) return
 
-    // Duplicate check against the phone's Download folder — same
+    // Duplicate check against the phone's Download folder - same
     // Replace / Keep Both / Cancel prompt as the main window
     let existingNames = new Set<string>()
     try {
       const listing = await window.droidwire.listFiles(DROP_DEST) as FileNode[]
       existingNames = new Set(listing.map(f => f.name))
-    } catch { /* folder unreadable — push with original names */ }
+    } catch { /* folder unreadable - push with original names */ }
 
     const names = files.map(p => p.split('/').pop() ?? 'file')
     const conflictCount = names.filter(n => existingNames.has(n)).length
@@ -120,7 +120,7 @@ export function MenubarApp() {
         </button>
       </div>
 
-      {/* Device switcher — only when 2+ phones are connected */}
+      {/* Device switcher - only when 2+ phones are connected */}
       {devices.length >= 2 && (
         <div style={{ borderBottom: `1px solid ${theme.border}`, padding: '6px 8px', flexShrink: 0 }}>
           {devices.map(d => {

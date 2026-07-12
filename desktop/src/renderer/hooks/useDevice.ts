@@ -92,7 +92,7 @@ export function useDevice() {
   }, [check])
 
   const disconnect = useCallback(() => {
-    // Eject stops polling entirely — no auto-reconnect while the phone stays
+    // Eject stops polling entirely - no auto-reconnect while the phone stays
     // plugged in. rescan() (user picking a connection again) resumes.
     pauseUntil.current = Infinity
     setDeviceSync(null)
@@ -119,7 +119,7 @@ export function useDevice() {
     check()
   }, [check])
 
-  // Eject one device of several — the poll switches to the next one
+  // Eject one device of several - the poll switches to the next one
   const ejectDevice = useCallback(async (serial: string) => {
     await window.droidwire.ejectDevice(serial)
     pauseUntil.current = 0

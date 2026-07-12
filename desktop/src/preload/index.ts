@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('droidwire', {
   dirSize: (remotePath: string): Promise<number | null> =>
     ipcRenderer.invoke('adb:dir-size', remotePath),
 
-  // File.path was removed in Electron 32 — this is the only way to resolve
+  // File.path was removed in Electron 32 - this is the only way to resolve
   // a dropped File to its filesystem path, and it must run in the preload.
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
