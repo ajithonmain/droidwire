@@ -26,15 +26,67 @@ directory listing, and file operations for free — no protocol to reimplement.
 
 ## Features
 
-- Auto-detects Android device over USB (vendor ID match) with live connection polling
-- File browser: sidebar bookmarks, breadcrumb navigation, tabs, search
-- Download files/folders to a configurable local directory (default `~/Downloads/Droidwire/`)
-- Upload via drag-and-drop onto the app window
-- Folder download as a zip pull
-- Image and file preview, rename, delete, create folder, copy
-- APK install, on-device screenshot capture
-- Real-time transfer speed and per-file progress, with cancel support
-- Dark, minimal UI
+**Connection**
+- Auto-detects Android device over USB (vendor ID match), with live status polling every 2s
+- Device info, battery level, and storage usage on connect
+- Graceful handling of disconnect/replug and unauthorized-device state, with an
+  in-app guide for enabling USB Debugging
+
+**File browsing**
+- Sidebar bookmarks, breadcrumb navigation, multiple tabs, search
+- Grid view with type-aware icons and thumbnails
+- Drag-to-reorder and native macOS drag-out (`adb:start-drag`) to Finder or another app
+
+**Transfers**
+- Download: single files, or whole folders zipped on-device and pulled as one archive
+- Upload: drag files/folders from Finder onto the window; conflict resolution modal
+  when a destination file already exists
+- Configurable download directory (default `~/Downloads/Droidwire/`)
+- Real-time speed (MB/s) and per-file progress, backed by two different progress
+  sources: destination file-size polling for downloads, stderr percentage parsing
+  for uploads
+- Cancel any in-flight transfer — kills the underlying `adb` child process cleanly,
+  no orphaned processes
+
+**File management**
+- Preview (images render inline; video gets a generated poster frame via `ffmpeg`;
+  other types fall back to a Quick Look thumbnail via `qlmanage`)
+- Rename, delete, create folder, copy, find
+- APK install straight from the file browser
+- On-device screenshot capture, pulled directly to the Mac
+
+**UI**
+- Dark, minimal theme with a small, deliberate design system (see [Design
+  system](#design-system))
+- Context menus, keyboard-friendly modals, per-transfer progress panel
+
+## Security
+
+- **No network exposure.** Everything runs over the USB `adb` transport — no HTTP
+  server, no open socket, no port bound on the LAN. This was the reason v0's
+  USB-tethering-plus-HTTP-server design was scrapped: it put an unauthenticated
+  server on a network interface for no benefit over `adb`, which already ships an
+  authenticated, encrypted USB transport.
+- **No ambient Node/OS access in the renderer.** Electron's `contextBridge` exposes
+  only a fixed, typed set of methods (`window.droidwire`) to the UI. The renderer
+  process cannot `require()` Node modules, spawn processes, or touch the filesystem
+  directly — every operation is proxied through an IPC channel handled in the main
+  process.
+- **No shell interpolation.** All `adb` invocations use `execFile`/`spawn` with an
+  argv array, never a concatenated shell string — so there is no shell to inject
+  into. The one place a path is embedded inside an `adb shell` command string
+  (e.g. `dd if=<path> ...`), it is passed through a POSIX single-quote escaper
+  (`squote()` in `adb-transport.ts`) that neutralizes embedded quotes, so a
+  filename like `'; rm -rf /sdcard'` is treated as literal text, not shell syntax.
+- **Explicit device authorization.** The Android side requires the user to accept
+  the RSA host-fingerprint dialog on first connect — Droidwire cannot read or
+  write anything until that's approved on-device, and a rejected/unauthorized
+  device is surfaced in the UI rather than silently retried.
+- **Bounded resource usage.** Every `adb` call has a 15s timeout; a concurrency
+  limiter caps parallel `adb` processes at 6 to prevent resource exhaustion
+  (`EAGAIN`) on large folder operations.
+- **No cloud, no telemetry.** Files never leave the USB cable. There is no
+  backend, no analytics SDK, no account system.
 
 ## Requirements
 
@@ -97,6 +149,56 @@ droidwire/
 - `usb` package for Android vendor ID detection
 - `playwright-core` for the self-test driver
 - `electron-builder` for `.dmg` packaging
+
+## Design system
+
+| Token | Value |
+|---|---|
+| background | `#0A0A0A` |
+| surface | `#141414` |
+| border | `#1E1E1E` |
+| accent | `#00D84A` |
+| accent-dim | `#00D84A20` |
+| text-primary | `#F5F5F5` |
+| text-muted | `#6B6B6B` |
+| success | `#00D84A` |
+| error | `#FF4444` |
+| warning | `#FF9500` |
+
+Typography: Inter, falling back to SF Pro. Border radius: 8px components, 12px
+cards, 4px inputs. Spacing on a 4px base grid.
+
+## Why this project is worth a look
+
+Droidwire is a small, complete product, not a demo. A few things worth pointing
+to if you're evaluating the code:
+
+- **Process boundary discipline.** The Electron main/renderer/preload split is
+  enforced everywhere — every filesystem and `adb` operation is main-process-only,
+  reached through a typed `contextBridge` surface, never `nodeIntegration`.
+- **Defensive parsing against real-world variance.** `adb shell ls -la` output
+  differs across Android versions and OEMs (toybox vs busybox coreutils,
+  different column spacing, filenames with embedded spaces). The parser
+  (`parseLsLa()`) is written against that variance rather than a single reference
+  device.
+- **Correct process lifecycle management.** Transfers are cancellable mid-flight
+  with no orphaned `adb` processes; a semaphore-style concurrency limiter (not an
+  unbounded `Promise.all`) caps parallel `adb` invocations to what the transport
+  can actually sustain.
+- **Two independently-implemented progress mechanisms**, chosen because `adb
+  pull` and `adb push` expose progress differently: destination file-size
+  polling for downloads, stderr percentage parsing for uploads. Neither piggybacks
+  on the other's implementation — each was solved for what the tool actually gives you.
+- **Security modeled around the actual transport**, not bolted on: the whole
+  architecture pivot from v0 (HTTP server over USB tethering) to v1 (raw `adb`)
+  was driven by removing an unauthenticated network listener, not by a feature
+  request.
+- **TypeScript strict end-to-end**, with a genuinely shared types package
+  (`shared/types.ts`) consumed by both the main and renderer processes — not
+  duplicated interfaces drifting apart.
+- **A real self-test harness** (`driver.mjs`) that launches the built app
+  headless via Playwright and screenshots it, used to verify UI changes without
+  a human driving the app manually.
 
 ## Architecture
 
