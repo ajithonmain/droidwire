@@ -77,7 +77,14 @@ export function registerAppHandlers(): void {
 
   handle('show-about', () => { app.showAboutPanel() })
   handle('app-quit', () => { app.quit() })
-  handle('get-licenses', () => fs.readFileSync(resourcePath('THIRD-PARTY-NOTICES.md'), 'utf8'))
+  // Summary notices first, then the full texts of everything bundled (generated at packaging time)
+  handle('get-licenses', () => {
+    const parts = ['THIRD-PARTY-NOTICES.md', 'THIRD-PARTY-LICENSES.txt']
+      .map(name => resourcePath(name))
+      .filter(p => fs.existsSync(p))
+      .map(p => fs.readFileSync(p, 'utf8'))
+    return parts.join('\n\n')
+  })
 
   handle('app:diagnostics', () => collectDiagnostics())
   handle('update:check-silent', () => checkForUpdatesInBackground())

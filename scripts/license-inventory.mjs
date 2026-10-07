@@ -136,7 +136,7 @@ out.push('Droidwire - third-party licenses', '',
 
 out.push(rule, 'Electron and Chromium', rule,
   `Electron ${desktopPkg.devDependencies.electron.replace('^', '')} - MIT. Electron bundles Chromium and many other components; their notices ship with Electron`,
-  'in the app bundle as LICENSES.chromium.html (Contents/Frameworks/Electron Framework.framework/Resources/).', '')
+  'in the app bundle as Resources/LICENSES.chromium.html (Electron\'s own license is Resources/ELECTRON-LICENSE.txt).', '')
 const electronLicense = path.join(root, 'node_modules', 'electron', 'dist', 'LICENSE')
 if (fs.existsSync(electronLicense)) out.push(fs.readFileSync(electronLicense, 'utf8').trim(), '')
 

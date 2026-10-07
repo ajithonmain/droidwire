@@ -60,6 +60,8 @@
       { "from": "resources/adb", "to": "adb" },
       { "from": "resources/droidwire-thumb", "to": "droidwire-thumb" },
       { "from": "resources/THIRD-PARTY-LICENSES.txt", "to": "THIRD-PARTY-LICENSES.txt" },
+      { "from": "../node_modules/electron/dist/LICENSE", "to": "ELECTRON-LICENSE.txt" },
+      { "from": "../node_modules/electron/dist/LICENSES.chromium.html", "to": "LICENSES.chromium.html" },
       { "from": "resources/THIRD-PARTY-NOTICES.md", "to": "THIRD-PARTY-NOTICES.md" }
     ],
     "publish": {

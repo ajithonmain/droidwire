@@ -26,6 +26,11 @@ jobs:
       - name: Install dependencies
         run: node scripts/bootstrap.mjs
 
+      # The AVFoundation helper is a few seconds of swiftc; building it lets the
+      # thumbnail tests run for real instead of skipping
+      - name: Build thumbnail helper
+        run: bash native/thumb/build.sh
+
       - name: Typecheck, unit tests, production build
         run: npm run verify
 

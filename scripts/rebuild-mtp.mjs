@@ -56,6 +56,11 @@ if (!prefix) {
   ].join('\n'))
 }
 
+// The addon must always carry our patch (storage-root handling, no crash on a busy
+// device). patch-package is idempotent, so this is safe on an already-patched tree.
+const patched = spawnSync('npx', ['patch-package'], { cwd: root, stdio: 'inherit' })
+if (patched.status !== 0) finish(1, 'Could not apply patches/luck-node-mtp+1.0.0.patch')
+
 console.log(`Building luck-node-mtp for ${process.arch} against libmtp at ${prefix}`)
 const result = spawnSync('npx', ['node-gyp', 'rebuild'], {
   cwd: addonDir,

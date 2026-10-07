@@ -72,6 +72,8 @@ const REQUIRED = [
   ['droidwire-thumb', 'native video thumbnails'],
   ['THIRD-PARTY-NOTICES.md', 'notices shown in the app'],
   ['THIRD-PARTY-LICENSES.txt', 'full license texts for bundled components'],
+  ['ELECTRON-LICENSE.txt', 'Electron license (required to accompany every Electron app)'],
+  ['LICENSES.chromium.html', 'Chromium third-party notices (required to accompany every Electron app)'],
   ['app.asar', 'application code'],
 ]
 for (const [file, why] of REQUIRED) {
@@ -136,6 +138,12 @@ for (const f of staged) {
   }
 }
 notes.push(`${staged.length} staged binaries checked for dependency resolution and embedded paths`)
+
+// The MTP addon must carry our patch: without it a phone held by another app crashes the worker
+const addon = path.join(resources, 'luck-node-mtp.node')
+if (fs.existsSync(addon) && !fs.readFileSync(addon).includes('its USB interface is held by another process')) {
+  fail('Resources/luck-node-mtp.node was built without patches/luck-node-mtp+1.0.0.patch')
+}
 
 // --- app.asar ----------------------------------------------------------------------------------------
 const asarFile = path.join(resources, 'app.asar')

@@ -1,0 +1,84 @@
+name: Release build
+
+# Builds the self-contained macOS app (adb from AOSP source, libusb/libmtp, native
+# thumbnails), packages it, runs the package checks and the packaged-app smoke test,
+# and uploads the .dmg/.zip as workflow artifacts. It never publishes a release:
+# pushing a v* tag additionally creates a DRAFT release for the owner to review.
+#
+# Signing is optional and driven by repository secrets. Without them the build is
+# UNSIGNED and says so. To sign and notarize, add these secrets (see docs/RELEASING.md):
+#   CSC_LINK, CSC_KEY_PASSWORD                      Developer ID Application certificate (.p12, base64)
+#   APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER   App Store Connect API key for notarytool
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # only used to create a draft release on tag pushes
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build tools for the native toolchain
+        run: brew install cmake ninja pkgconf
+
+      # The native toolchain takes ~20 minutes to compile; its inputs are fully pinned
+      - name: Cache native toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            native/.out
+            native/.cache
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/versions.env', 'native/build.sh', 'native/thumb/**') }}
+
+      - name: Install JavaScript dependencies (the MTP addon is built later against our own libmtp)
+        run: node scripts/bootstrap.mjs --no-mtp
+
+      - name: Build native toolchain
+        run: bash native/build.sh
+
+      - name: Typecheck, tests, build
+        run: npm run verify
+
+      - name: Package, sign if credentials exist, and check
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: npm --prefix desktop run dist
+
+      - name: Smoke-test the packaged app (minimal environment, offline)
+        run: node desktop/driver.mjs --app desktop/release/mac-arm64/Droidwire.app
+        continue-on-error: true
+
+      - name: Checksums
+        run: cd desktop/release && shasum -a 256 Droidwire-*.dmg Droidwire-*.zip | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droidwire-macos-arm64
+          path: |
+            desktop/release/Droidwire-*.dmg
+            desktop/release/Droidwire-*.zip
+            desktop/release/SHA256SUMS
+
+      - name: Create a draft release (tag pushes only; not published)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --draft --title "Droidwire ${GITHUB_REF_NAME#v}" \
+            --notes "Draft - review before publishing. See CHANGELOG.md." \
+            desktop/release/Droidwire-*.dmg desktop/release/Droidwire-*.zip desktop/release/SHA256SUMS

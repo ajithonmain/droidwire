@@ -1,35 +1,36 @@
 # Droidwire - Third-Party Notices
 
 Droidwire is (c) 2026 Ajith M Jose and is released under the MIT License (see the
-LICENSE file in the project repository).
+LICENSE file in the project repository: https://github.com/ajithonmain/droidwire).
 
-Droidwire uses the following third-party and open-source software.
+Droidwire ships third-party software under its own licenses. This summary comes
+first; the full license texts of everything bundled follow it below.
 
-## Runtime & bundled binaries
+## Bundled programs and libraries
 
-- **Electron** - MIT License - https://github.com/electron/electron
-  (Chromium's own third-party notices ship with Electron in LICENSES.chromium.html)
-- **Android Debug Bridge (adb)** - part of the Android Open Source Project
-  (AOSP) platform-tools - Apache License 2.0 - https://source.android.com
-- **libmtp** - LGPL-2.1 or later - https://github.com/libmtp/libmtp
-- **libusb** - LGPL-2.1 or later - https://github.com/libusb/libusb
-- **luck-node-mtp** - ISC License - https://github.com/lucksoft-yungui/luck-node-mtp
-  (Droidwire applies a small local patch to it)
+- **Android Debug Bridge (adb)** - built from the Android Open Source Project
+  source (platform-tools 37.0.0) with the android-tools build system -
+  Apache License 2.0. Droidwire does not redistribute Google's prebuilt SDK
+  platform-tools binaries. adb statically includes BoringSSL, {fmt}, zstd, LZ4,
+  Brotli, PCRE2, Abseil and Protocol Buffers (licenses below).
+  https://source.android.com - https://github.com/nmeum/android-tools
+- **libusb** 1.0.29 - LGPL-2.1 or later - https://github.com/libusb/libusb
+- **libmtp** 1.1.22 - LGPL-2.1 or later - https://github.com/libmtp/libmtp
+- **luck-node-mtp** 1.0.0 (MTP addon, with a small local patch) - declared ISC
+  License - https://github.com/lucksoft-yungui/luck-node-mtp
+- **Electron** 42.5.0 and Chromium - MIT and many other licenses; Chromium's
+  notices ship inside the app as LICENSES.chromium.html (in its Resources folder),
+  with Electron's own license as ELECTRON-LICENSE.txt.
 
-Droidwire dynamically links libmtp and libusb (both LGPL-2.1 or later). Per the
-LGPL, you may obtain, modify, and relink your own build of these libraries
-against Droidwire; their original source is available at the links above.
+libusb and libmtp are shipped as separate shared libraries (Resources folder).
+Per the LGPL you may replace them with your own build of the same libraries;
+their source and the exact build recipe (native/build.sh, pinned in
+native/versions.env) are in the Droidwire repository.
 
-## Application dependencies
+## JavaScript packages in the app
 
-- **React / React DOM** - MIT - https://react.dev
-- **qrcode** - MIT - https://github.com/soldair/node-qrcode
-- **usb (node)** - MIT - https://github.com/node-usb/node-usb
-
-## Development tooling (not shipped in the app)
-
-TypeScript and Playwright (Apache-2.0); Vite, electron-vite, electron-builder,
-TailwindCSS, PostCSS, patch-package and related build tooling (MIT).
+React, React DOM, qrcode (MIT), usb (MIT) and their dependencies. See the
+full list and texts below.
 
 ## Artwork and trademarks
 
@@ -42,6 +43,6 @@ is not affiliated with or endorsed by Google.
 
 ---
 
-This file lists direct and major dependencies for attribution purposes;
-it is not an exhaustive transitive-dependency audit. Full license texts
-are available in each project's own repository at the links above.
+Development-only tooling (TypeScript, Vite, electron-builder, test tools, ...)
+is not part of the app and is not listed here.
+
