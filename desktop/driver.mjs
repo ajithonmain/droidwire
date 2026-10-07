@@ -173,6 +173,21 @@ async function baseline() {
       })
     }
 
+    await check('Licenses dialog shows the bundled-component notices', async () => {
+      await app.evaluate(({ Menu }) => {
+        const item = Menu.getApplicationMenu().items[0].submenu.items.find(i => i.label.startsWith('Licenses'))
+        item.click()
+      })
+      await page.waitForFunction(() => /bundled programs and libraries/i.test(document.body.innerText), null, { timeout: 8000 })
+        .catch(async e => { await page.screenshot({ path: path.join(shotDir, '02-licenses-FAILED.png') }); throw e })
+      const text = await page.evaluate(() => document.body.innerText)
+      for (const needle of ['Android Debug Bridge', 'Apache License', 'libusb', 'libmtp', 'luck-node-mtp', 'Copyright (c) lucksoft', 'Creative Commons']) {
+        assert.ok(text.includes(needle), `licenses dialog is missing "${needle}"`)
+      }
+      await page.screenshot({ path: path.join(shotDir, '02-licenses.png') })
+      await page.keyboard.press('Escape')
+    })
+
     await check('menu bar window launches and needs no sign-up', async () => {
       await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('toggle-menubar').click())
       await page.waitForTimeout(1500)

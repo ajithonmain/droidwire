@@ -35,8 +35,10 @@ export function LicensesModal({ onClose }: Props) {
 
   // Merge markdown soft-wrapped lines into logical blocks before rendering
   const blocks: { kind: 'h1' | 'h2' | 'li' | 'hr' | 'p'; text: string }[] = []
+  // Summary first (formatted), then the full license texts, which must stay exactly as written
+  const [summary, fullTexts] = (text ?? '').split('\n<<<FULL-TEXTS>>>\n')
   if (text) {
-    for (const raw of text.split('\n')) {
+    for (const raw of summary.split('\n')) {
       const line = raw.trimEnd()
       if (!line.trim()) continue
       if (line.startsWith('## ')) blocks.push({ kind: 'h2', text: line.slice(3) })
@@ -103,6 +105,12 @@ export function LicensesModal({ onClose }: Props) {
             )
             return <p key={i} style={{ fontSize: '13px', color: theme.textSecondary, margin: '0 0 10px', wordBreak: 'break-word' }}>{renderInline(b.text, `b${i}`)}</p>
           })}
+          {fullTexts && (
+            <pre style={{
+              fontSize: '11px', lineHeight: 1.5, color: theme.textMuted, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', margin: '18px 0 0', userSelect: 'text',
+            }}>{fullTexts}</pre>
+          )}
         </div>
       </div>
     </div>

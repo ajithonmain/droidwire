@@ -83,7 +83,8 @@ export function registerAppHandlers(): void {
       .map(name => resourcePath(name))
       .filter(p => fs.existsSync(p))
       .map(p => fs.readFileSync(p, 'utf8'))
-    return parts.join('\n\n')
+    // The renderer shows the summary as formatted text and everything after the marker verbatim
+    return parts.join('\n\n<<<FULL-TEXTS>>>\n')
   })
 
   handle('app:diagnostics', () => collectDiagnostics())

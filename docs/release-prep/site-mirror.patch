@@ -1,0 +1,118 @@
+From 013d400e96220fe500e4e59470d5ae021a592353 Mon Sep 17 00:00:00 2001
+From: vibecoderaj <iam.vibecoderaj@gmail.com>
+Date: Wed, 7 Oct 2026 14:20:27 +0530
+Subject: [PATCH] site: self-contained install, bundled adb, MIT, no
+ registration
+
+---
+ index.html | 32 +++++++++++++++++---------------
+ 1 file changed, 17 insertions(+), 15 deletions(-)
+
+diff --git a/index.html b/index.html
+index ee04d6c..c57cfb0 100644
+--- a/index.html
++++ b/index.html
+@@ -34,8 +34,8 @@
+   "applicationCategory": "UtilitiesApplication",
+   "description": "Android to Mac file transfer over USB via ADB. No app required on the phone.",
+   "url": "https://droidwire.vercel.app/",
+-  "downloadUrl": "https://github.com/ajithonmain/droidwire-releases/releases/latest",
+-  "softwareVersion": "1.2.0-beta",
++  "downloadUrl": "https://github.com/ajithonmain/droidwire/releases/latest",
++  "softwareVersion": "1.4.0",
+   "offers": {
+     "@type": "Offer",
+     "price": "0",
+@@ -276,7 +276,7 @@
+       Full USB speed. <strong>Nothing to install on the phone.</strong>
+     </p>
+     <div class="cta-row">
+-      <a class="btn btn-primary" href="https://github.com/ajithonmain/droidwire-releases/releases/latest">
++      <a class="btn btn-primary" href="https://github.com/ajithonmain/droidwire/releases/latest">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/>
+         </svg>
+@@ -379,7 +379,7 @@
+ 
+   <section id="install">
+     <h2>Install</h2>
+-    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because beta builds aren't signed with an Apple certificate yet.</p>
++    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because these builds aren't signed or notarized with an Apple certificate yet.</p>
+     <div class="steps">
+       <div class="step">
+         <div class="step-num"></div>
+@@ -419,14 +419,14 @@
+         <div>
+           <h3>Reopen Droidwire</h3>
+           <p>Open Droidwire again from <strong>Applications</strong> (or Launchpad / Spotlight). It now opens normally, and it stays that way - you never repeat steps 3–5.</p>
+-          <p>On first launch the app asks for your email once - it registers you as a beta tester (see <a href="#privacy">Privacy</a>). After that, plug in your phone (or use Wi-Fi) and the built-in setup walks you through connecting it.</p>
++          <p>Plug in your phone (or use Wi-Fi) and the built-in setup walks you through connecting it. There is nothing to sign up for.</p>
+         </div>
+       </div>
+     </div>
+     <div class="callout">
+       <strong>Found a bug?</strong> This is a beta - that's the point. Grab the log via
+       <strong>Droidwire menu &gt; Show Logs in Finder</strong> and open an issue on
+-      <a href="https://github.com/ajithonmain/droidwire-releases/issues">GitHub</a>
++      <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a>
+       with the log attached. Every report makes the app better.
+     </div>
+   </section>
+@@ -435,10 +435,12 @@
+     <h2>Requirements</h2>
+     <p class="section-sub">What you need on each side of the cable.</p>
+     <table class="req-table">
+-      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later</td></tr>
+-      <tr><td>Android</td><td>Android 8.0+ · MTP mode works out of the box; ADB mode needs USB Debugging enabled</td></tr>
++      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later. Intel Macs are not supported</td></tr>
++      <tr><td>Android</td><td>Android 8.0+ · USB mode needs USB Debugging, Wi-Fi mode needs Wireless debugging (Android 11+), MTP mode needs "File transfer" selected. Droidwire walks you through each</td></tr>
++      <tr><td>Nothing else to install</td><td>adb, the MTP libraries and video thumbnails are built into the app. No Homebrew, Android SDK or extra downloads</td></tr>
+       <tr><td>Phone-side app</td><td>None. Nothing to install on the phone, ever</td></tr>
+       <tr><td>Cable</td><td>Any USB data cable (or Wi-Fi with wireless ADB on Android 11+)</td></tr>
++      <tr><td>Tested phones</td><td>Earlier builds were tried by the maintainer on a Pixel 10 Pro and a Pixel 4a. This build has not yet been re-tested on a phone and other models are untested - <a href="https://github.com/ajithonmain/droidwire/issues">reports of what works are welcome</a></td></tr>
+       <tr><td>Price</td><td>Free during beta</td></tr>
+     </table>
+   </section>
+@@ -448,13 +450,13 @@
+     <p class="section-sub">Your files never leave the cable. Here is exactly what the app does and doesn't do.</p>
+     <table class="req-table">
+       <tr><td>Where files go</td><td>Directly between your Mac and your phone over USB or your local Wi-Fi network. No server, no cloud, no third party ever sees them</td></tr>
+-      <tr><td>Accounts</td><td>No account, no login, no password. On first launch the app asks for your email once - it identifies you as a beta tester so you can be reached about updates and the early-supporter offer when the paid version launches. Stored privately, never shared or sold, removed on request (<a href="https://www.ajithmjose.com/#contact">contact form</a>)</td></tr>
++      <tr><td>Accounts</td><td>No account, no login, no password, and the app never asks for your email or any personal information. (Earlier beta builds up to 1.2.1 asked for an email address once; that has been removed.)</td></tr>
+       <tr><td>Telemetry</td><td>None. No analytics, no tracking, no crash reporting</td></tr>
+-      <tr><td>Network use</td><td>No file data ever leaves the cable/Wi-Fi link to your phone. Separately, on each launch the app does a couple of small background checks: it pings GitHub for the latest version number (also available anytime via <strong>Check for Updates</strong> in the menu) and reads a short list of in-app announcement messages. Neither sends any personal data, and neither installs anything. Plus the one-time email registration above. That's the full list</td></tr>
++      <tr><td>Network use</td><td>No file data ever leaves the cable/Wi-Fi link to your phone. The app makes exactly one request on its own: on launch it asks GitHub's public API for the latest release number so it can tell you when a newer version exists. It sends no identifiers (GitHub sees your IP address, like any web request) and installs nothing. You can turn it off under <strong>Droidwire menu &gt; Check for Updates Automatically</strong>, or check by hand with <strong>Check for Updates</strong>. That's the full list</td></tr>
+       <tr><td>Your phone</td><td>Nothing is installed on it, ever. Droidwire talks over Android's own built-in protocols (ADB / MTP). Revoke access anytime: turn off USB Debugging or unplug the cable</td></tr>
+       <tr><td>Deleting files</td><td>Every delete asks for confirmation first. Nothing is removed silently</td></tr>
+       <tr><td>Logs</td><td>Kept only on your Mac, for debugging. Shared only if you attach them to a bug report yourself</td></tr>
+-      <tr><td>Why the macOS warning?</td><td>Beta builds aren't signed with an Apple Developer certificate yet ($99/yr - coming after beta). The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one</td></tr>
++      <tr><td>Why the macOS warning?</td><td>Builds aren't signed and notarized with an Apple Developer certificate yet. The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one. Droidwire never removes the flag for you</td></tr>
+     </table>
+   </section>
+ 
+@@ -464,8 +466,8 @@
+     <table class="req-table">
+       <tr><td>Beta status</td><td>Droidwire is in public beta. It's stable in daily use, but bugs are expected - that's what a beta is for. Keep backups of anything irreplaceable before large transfers or deletes</td></tr>
+       <tr><td>Terms of use</td><td>By installing, you accept that the beta is provided <strong>as-is, without warranty</strong>. The developer is not liable for data loss - same terms as any beta software. If that's not acceptable, wait for the signed release</td></tr>
+-      <tr><td>License</td><td>Droidwire is proprietary software, © 2026 Ajith M Jose. Free to use during the public beta</td></tr>
+-      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, AOSP), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
++      <tr><td>License</td><td>© 2026 Ajith M Jose. Droidwire's source code is released under the MIT License; the bundled components listed below keep their own licenses</td></tr>
++      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, built from AOSP source), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Android is a trademark of Google LLC; Droidwire is not affiliated with Google. Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
+       <tr><td>LGPL note</td><td>libmtp and libusb are dynamically linked; you may substitute your own builds of these libraries per the LGPL-2.1</td></tr>
+     </table>
+   </section>
+@@ -475,9 +477,9 @@
+   <div class="wrap">
+     <p class="made">Built by <a href="https://ajithmjose.com">Ajith M Jose</a></p>
+     <p>
+-      <a href="https://github.com/ajithonmain/droidwire-releases/releases/latest">Download</a>
++      <a href="https://github.com/ajithonmain/droidwire/releases/latest">Download</a>
+       &nbsp;·&nbsp;
+-      <a href="https://github.com/ajithonmain/droidwire-releases/issues">Report a bug</a>
++      <a href="https://github.com/ajithonmain/droidwire/issues">Report a bug</a>
+       &nbsp;·&nbsp;
+       <a href="#privacy">Privacy</a>
+       &nbsp;·&nbsp;
+-- 
+2.47.1
+

@@ -379,7 +379,7 @@
 
   <section id="install">
     <h2>Install</h2>
-    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because beta builds aren't signed with an Apple certificate yet.</p>
+    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because these builds aren't signed or notarized with an Apple certificate yet.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num"></div>
@@ -435,11 +435,12 @@
     <h2>Requirements</h2>
     <p class="section-sub">What you need on each side of the cable.</p>
     <table class="req-table">
-      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later</td></tr>
-      <tr><td>Android</td><td>Android 8.0+ · MTP mode works out of the box; ADB mode needs USB Debugging enabled</td></tr>
-      <tr><td>adb on the Mac</td><td>USB and Wi-Fi modes need Android's <code>adb</code> tool on your Mac: <code>brew install android-platform-tools</code>. MTP mode does not</td></tr>
+      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later. Intel Macs are not supported</td></tr>
+      <tr><td>Android</td><td>Android 8.0+ · USB mode needs USB Debugging, Wi-Fi mode needs Wireless debugging (Android 11+), MTP mode needs "File transfer" selected. Droidwire walks you through each</td></tr>
+      <tr><td>Nothing else to install</td><td>adb, the MTP libraries and video thumbnails are built into the app. No Homebrew, Android SDK or extra downloads</td></tr>
       <tr><td>Phone-side app</td><td>None. Nothing to install on the phone, ever</td></tr>
       <tr><td>Cable</td><td>Any USB data cable (or Wi-Fi with wireless ADB on Android 11+)</td></tr>
+      <tr><td>Tested phones</td><td>Earlier builds were tried by the maintainer on a Pixel 10 Pro and a Pixel 4a. This build has not yet been re-tested on a phone and other models are untested - <a href="https://github.com/ajithonmain/droidwire/issues">reports of what works are welcome</a></td></tr>
       <tr><td>Price</td><td>Free during beta</td></tr>
     </table>
   </section>
@@ -455,7 +456,7 @@
       <tr><td>Your phone</td><td>Nothing is installed on it, ever. Droidwire talks over Android's own built-in protocols (ADB / MTP). Revoke access anytime: turn off USB Debugging or unplug the cable</td></tr>
       <tr><td>Deleting files</td><td>Every delete asks for confirmation first. Nothing is removed silently</td></tr>
       <tr><td>Logs</td><td>Kept only on your Mac, for debugging. Shared only if you attach them to a bug report yourself</td></tr>
-      <tr><td>Why the macOS warning?</td><td>Beta builds aren't signed with an Apple Developer certificate yet ($99/yr - coming after beta). The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one</td></tr>
+      <tr><td>Why the macOS warning?</td><td>Builds aren't signed and notarized with an Apple Developer certificate yet. The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one. Droidwire never removes the flag for you</td></tr>
     </table>
   </section>
 
@@ -466,7 +467,7 @@
       <tr><td>Beta status</td><td>Droidwire is in public beta. It's stable in daily use, but bugs are expected - that's what a beta is for. Keep backups of anything irreplaceable before large transfers or deletes</td></tr>
       <tr><td>Terms of use</td><td>By installing, you accept that the beta is provided <strong>as-is, without warranty</strong>. The developer is not liable for data loss - same terms as any beta software. If that's not acceptable, wait for the signed release</td></tr>
       <tr><td>License</td><td>© 2026 Ajith M Jose. Droidwire's source code is released under the MIT License; the bundled components listed below keep their own licenses</td></tr>
-      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, AOSP), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Android is a trademark of Google LLC; Droidwire is not affiliated with Google. Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
+      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, built from AOSP source), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Android is a trademark of Google LLC; Droidwire is not affiliated with Google. Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
       <tr><td>LGPL note</td><td>libmtp and libusb are dynamically linked; you may substitute your own builds of these libraries per the LGPL-2.1</td></tr>
     </table>
   </section>
