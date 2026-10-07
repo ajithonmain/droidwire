@@ -62,3 +62,12 @@ Thumbs.db
 desktop/resources/adb
 desktop/resources/*.node
 desktop/resources/*.dylib
+
+# Native toolchain build output and downloaded sources
+native/.out/
+native/.cache/
+
+# Generated at packaging time
+desktop/resources/THIRD-PARTY-LICENSES.txt
+desktop/resources/droidwire-thumb
+!desktop/build/*.plist

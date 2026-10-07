@@ -18,8 +18,19 @@
 // clear message and ADB keeps working.
 let mtp = null
 let mtpLoadError = null
+let mtpAddonPath = null
 try {
-  mtp = require('luck-node-mtp')
+  // Packaged app: the addon staged next to this file (its libmtp/libusb are
+  // bundled beside it and resolved via @loader_path). Checked first so an
+  // installed app can never pick up a node_modules copy from elsewhere.
+  const packaged = require('path').join(__dirname, 'luck-node-mtp.node')
+  if (require('fs').existsSync(packaged)) {
+    mtp = require(packaged)
+    mtpAddonPath = packaged
+  } else {
+    mtp = require('luck-node-mtp') // development checkout
+    mtpAddonPath = require.resolve('luck-node-mtp')
+  }
 } catch (devErr) {
   try {
     mtp = require(require('path').join(__dirname, 'luck-node-mtp.node'))
@@ -53,6 +64,12 @@ process.on('message', (msg) => {
   // behind a slow-but-healthy one (e.g. several large image downloads).
   try { process.send({ id, type: 'started' }) } catch { /* parent gone */ }
   try {
+    if (method === 'status') {
+      // Loading the addon already resolved its libmtp/libusb dependencies, so
+      // this is a real "can MTP work from this install" probe
+      process.send({ id, type: 'result', ok: true, result: { available: !mtpLoadError, error: mtpLoadError, addon: mtpAddonPath } })
+      return
+    }
     if (mtpLoadError) throw new Error(mtpLoadError)
     let result
     switch (method) {

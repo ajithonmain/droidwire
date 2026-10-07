@@ -152,7 +152,7 @@ function createMenubarWindow(): BrowserWindow {
   return win
 }
 
-function toggleMenubarWindow(): void {
+export function toggleMenubarWindow(): void {
   if (!menubarWindow || menubarWindow.isDestroyed()) menubarWindow = createMenubarWindow()
   if (menubarWindow.isVisible()) {
     menubarWindow.hide()

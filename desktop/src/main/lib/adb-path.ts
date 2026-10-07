@@ -42,3 +42,27 @@ export function findFfmpeg(lookup: BinaryLookup): string | null {
   ]
   return list.find(lookup.exists) ?? null
 }
+
+export type BinarySource = 'override' | 'bundled' | 'sdk' | 'homebrew' | 'path'
+
+/** Where a resolved adb path came from, for diagnostics and support. */
+export function adbSource(adbPath: string, lookup: BinaryLookup): BinarySource {
+  if (lookup.env.DROIDWIRE_ADB && adbPath === lookup.env.DROIDWIRE_ADB) return 'override'
+  if (lookup.resourcesDir && adbPath === path.join(lookup.resourcesDir, 'adb')) return 'bundled'
+  if (adbPath.startsWith('/opt/homebrew/') || adbPath.startsWith('/usr/local/')) return 'homebrew'
+  if (adbPath === 'adb') return 'path'
+  return 'sdk'
+}
+
+/**
+ * The native video-thumbnail helper (AVFoundation). Packaged builds ship it in
+ * Resources/; a development checkout uses the build output of native/thumb.
+ */
+export function findThumbHelper(lookup: BinaryLookup, devBuildDir?: string): string | null {
+  const list = [
+    ...(lookup.env.DROIDWIRE_THUMB ? [lookup.env.DROIDWIRE_THUMB] : []),
+    ...(lookup.resourcesDir ? [path.join(lookup.resourcesDir, 'droidwire-thumb')] : []),
+    ...(devBuildDir ? [path.join(devBuildDir, 'droidwire-thumb')] : []),
+  ]
+  return list.find(lookup.exists) ?? null
+}

@@ -10,7 +10,7 @@ import { adbSpawn } from '../adb-transport.ts'
 import { assertRemotePath, joinInside, safeFileName } from '../lib/paths.ts'
 import { shQuote } from '../lib/shell.ts'
 import { previewKind } from '../lib/preview-kind.ts'
-import { findFfmpeg } from '../lib/adb-path.ts'
+import { findFfmpeg, findThumbHelper } from '../lib/adb-path.ts'
 import { buildPreview } from '../preview-build.ts'
 import { createStreamServer } from '../stream-server.ts'
 
@@ -43,8 +43,28 @@ function withFfSlot<T>(fn: () => Promise<T>): Promise<T> {
   })
 }
 
-function ffmpegBin(): string | null {
-  return findFfmpeg({ resourcesDir: process.resourcesPath, env: process.env, homeDir: os.homedir(), exists: fs.existsSync })
+const toolLookup = () => ({ resourcesDir: process.resourcesPath, env: process.env, homeDir: os.homedir(), exists: fs.existsSync })
+
+/** Native AVFoundation helper shipped with the app (no installs needed). */
+export function thumbHelperBin(): string | null {
+  return findThumbHelper(toolLookup(), path.join(__dirname, '../../../native/.out/thumb'))
+}
+
+/** Optional extra: an installed ffmpeg covers formats AVFoundation cannot decode (WebM, MKV, AVI). */
+export function ffmpegBin(): string | null {
+  return findFfmpeg(toolLookup())
+}
+
+/** Run a thumbnail tool; resolves true only if it exited 0 and produced the file. */
+function runThumbTool(cmd: string, args: string[], out: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const proc = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'ignore'] })
+    ffProcs.add(proc)
+    const timer = setTimeout(() => { proc.kill('SIGKILL'); finish(false) }, 20_000)
+    const finish = (ok: boolean) => { clearTimeout(timer); ffProcs.delete(proc); resolve(ok) }
+    proc.on('error', () => finish(false))
+    proc.on('close', code => finish(code === 0 && fs.existsSync(out)))
+  })
 }
 
 /** Stop the range server and every child it started (called on quit). */
@@ -78,9 +98,10 @@ export function registerPreviewHandlers(): void {
     const remotePath = assertRemotePath(remotePathRaw)
     const size = typeof sizeRaw === 'number' && Number.isFinite(sizeRaw) && sizeRaw > 0 ? Math.floor(sizeRaw) : 0
     const ctx = resolveContext(ctxRaw)
+    const helper = thumbHelperBin()
     const ff = ffmpegBin()
     // The range server speaks adb; MTP devices have no adb path to read from
-    if (!ff || !size || ctx.transport !== 'adb') return null
+    if ((!helper && !ff) || !size || ctx.transport !== 'adb') return null
 
     const cacheDir = path.join(os.tmpdir(), 'droidwire-vthumbs')
     fs.mkdirSync(cacheDir, { recursive: true })
@@ -93,18 +114,17 @@ export function registerPreviewHandlers(): void {
     await streamServer.ensure()
     const url = streamServer.register({ serial: ctx.serial, remotePath, size })
 
-    return withFfSlot(() => new Promise<string | null>(resolve => {
-      // The protocol whitelist stops a crafted "video" (e.g. an HLS/concat
-      // playlist) from making ffmpeg read local files or other hosts
-      const proc = spawn(ff, [
+    return withFfSlot(async () => {
+      // 1. AVFoundation (H.264/HEVC MP4/MOV/3GP). Reads over HTTP range requests,
+      //    so only the bytes needed for the poster frame cross the cable.
+      if (helper && await runThumbTool(helper, [url, out, '320'], out)) return fromCache()
+      // 2. ffmpeg, if the user happens to have it. The protocol whitelist stops a
+      //    crafted "video" (HLS/concat playlist) reading local files or other hosts.
+      if (ff && await runThumbTool(ff, [
         '-nostdin', '-y', '-v', 'error', '-protocol_whitelist', 'http,tcp',
         '-i', url, '-frames:v', '1', '-vf', 'scale=320:-2', out,
-      ])
-      ffProcs.add(proc)
-      const timer = setTimeout(() => { proc.kill('SIGKILL'); resolve(null) }, 20_000)
-      const finish = (value: string | null) => { clearTimeout(timer); ffProcs.delete(proc); resolve(value) }
-      proc.on('error', () => finish(null))
-      proc.on('close', code => finish(code === 0 && fs.existsSync(out) ? fromCache() : null))
-    }))
+      ], out)) return fromCache()
+      return null
+    })
   })
 }

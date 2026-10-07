@@ -15,6 +15,7 @@ import { clearEjectedSerials } from './adb-transport.ts'
 import { createWindow, getMainWindow, installSecurityPolicy, setDevDockIcon, setupTray } from './windows.ts'
 import { setupAppMenu } from './menu.ts'
 import { removeStaleDirs } from './lib/fsx.ts'
+import { collectDiagnostics, formatDiagnostics } from './diagnostics.ts'
 
 // Android USB vendor IDs - covers all major manufacturers
 const ANDROID_VENDOR_IDS = new Set([
@@ -129,6 +130,8 @@ app.whenReady().then(() => {
   setupTray()
   setupAppMenu()
   cleanStaleTemp()
+  // Record what this install can do at the top of every log
+  void collectDiagnostics().then(d => console.log(`[diagnostics]\n${formatDiagnostics(d)}`)).catch(() => {})
 })
 
 app.on('window-all-closed', () => {

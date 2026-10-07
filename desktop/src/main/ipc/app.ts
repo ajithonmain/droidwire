@@ -6,6 +6,7 @@ import { handle } from './common.ts'
 import { downloadsDir, persistRead, persistWrite, updateSettings } from '../settings.ts'
 import { checkForUpdatesInBackground } from '../updates.ts'
 import { RELEASES_LATEST_URL } from '../app-info.ts'
+import { collectDiagnostics } from '../diagnostics.ts'
 import { ensureMainWindow, hideMenubarWindow } from '../windows.ts'
 import { assertLocalPath } from '../lib/paths.ts'
 import { assertString } from '../lib/ipc-validate.ts'
@@ -78,6 +79,7 @@ export function registerAppHandlers(): void {
   handle('app-quit', () => { app.quit() })
   handle('get-licenses', () => fs.readFileSync(resourcePath('THIRD-PARTY-NOTICES.md'), 'utf8'))
 
+  handle('app:diagnostics', () => collectDiagnostics())
   handle('update:check-silent', () => checkForUpdatesInBackground())
   handle('open-release-page', () => { void shell.openExternal(RELEASES_LATEST_URL) })
 

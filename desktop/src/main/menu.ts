@@ -1,10 +1,11 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, clipboard, Menu, shell } from 'electron'
 import path from 'path'
 import { ISSUES_URL, PRODUCT_VERSION, REPO_URL } from './app-info.ts'
 import { checkForUpdatesInteractive } from './updates.ts'
 import { readSettings, updateSettings } from './settings.ts'
 import { updatesEnabled } from './lib/settings-schema.ts'
-import { createWindow, ensureMainWindow, getMenubarWindow, isDev } from './windows.ts'
+import { createWindow, ensureMainWindow, getMenubarWindow, isDev, toggleMenubarWindow } from './windows.ts'
+import { collectDiagnostics, formatDiagnostics } from './diagnostics.ts'
 import { broadcast } from './ipc/common.ts'
 
 // Application menu (macOS menu bar when the app is focused)
@@ -85,6 +86,7 @@ export function setupAppMenu(): void {
               { type: 'separator' } as const,
             ]
           : []),
+        { id: 'toggle-menubar', label: 'Toggle Menu Bar Panel', click: () => toggleMenubarWindow() },
         { role: 'togglefullscreen' },
       ],
     },
@@ -98,6 +100,10 @@ export function setupAppMenu(): void {
         { label: 'Droidwire on GitHub', click: () => { void shell.openExternal(REPO_URL) } },
         { label: 'Report an Issue…', click: () => { void shell.openExternal(ISSUES_URL) } },
         { type: 'separator' },
+        {
+          label: 'Copy Diagnostics',
+          click: () => { void collectDiagnostics().then(d => clipboard.writeText(formatDiagnostics(d))) },
+        },
         { label: 'Show Logs in Finder', click: () => { shell.showItemInFolder(path.join(app.getPath('logs'), 'main.log')) } },
       ],
     },

@@ -1,6 +1,6 @@
 import type {
   BatteryDetail, DeviceContext, DeviceDetail, DuEntry, FileNode, InstalledApp, MountInfo,
-  PreviewResult, StorageInfo, UpdateCheckResult,
+  PreviewResult, StorageInfo, UpdateCheckResult, Diagnostics,
 } from './types'
 
 export type ConnectionTypeName = 'adb' | 'mtp' | 'wireless'
@@ -45,7 +45,7 @@ export interface DroidwireAPI {
   // Connection and device selection
   setConnectionType(type: ConnectionTypeName): Promise<void>
   getConnectionType(): Promise<ConnectionTypeName>
-  getDevices(): Promise<{ devices: DeviceListItem[]; active: string | null }>
+  getDevices(): Promise<{ devices: DeviceListItem[]; active: string | null; issues?: { serial: string; state: string }[] }>
   setDevice(serial: string): Promise<void>
   ejectDevice(serial: string): Promise<void>
   unejectAll(): Promise<void>
@@ -110,6 +110,7 @@ export interface DroidwireAPI {
   // App
   persistGet(key: string): Promise<unknown>
   persistSet(key: string, data: unknown): Promise<void>
+  getDiagnostics(): Promise<Diagnostics>
   checkUpdateSilent(): Promise<UpdateCheckResult | null>
   openReleasePage(): Promise<void>
   notify(title: string, body: string): Promise<void>

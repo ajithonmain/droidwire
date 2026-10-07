@@ -12,8 +12,9 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-force-exit \"test/*.test.ts\"",
     "verify": "npm run typecheck && npm test && npm run build",
     "smoke": "env -u ELECTRON_RUN_AS_NODE node driver.mjs",
-    "dist": "electron-vite build && bash scripts/bundle-native.sh && electron-builder",
-    "dist:release": "electron-vite build && BUNDLE_ADB=0 bash scripts/bundle-native.sh && electron-builder"
+    "native:build": "bash ../native/build.sh",
+    "dist": "electron-vite build && bash scripts/bundle-native.sh && node scripts/dist.mjs",
+    "check:package": "node scripts/check-package.mjs"
   },
   "build": {
     "appId": "com.droidwire.desktop",
@@ -22,11 +23,16 @@
     "productName": "Droidwire",
     "mac": {
       "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
       "target": [
         "dmg",
         "zip"
       ],
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "Droidwire ${version}",
@@ -38,6 +44,7 @@
         { "x": 480, "y": 170, "type": "link", "path": "/Applications" }
       ]
     },
+    "afterPack": "scripts/after-pack.cjs",
     "directories": {
       "output": "release"
     },
@@ -50,7 +57,9 @@
       { "from": "resources/luck-node-mtp.node", "to": "luck-node-mtp.node" },
       { "from": "resources/libmtp.9.dylib", "to": "libmtp.9.dylib" },
       { "from": "resources/libusb-1.0.0.dylib", "to": "libusb-1.0.0.dylib" },
-      { "from": "resources", "to": ".", "filter": ["adb"] },
+      { "from": "resources/adb", "to": "adb" },
+      { "from": "resources/droidwire-thumb", "to": "droidwire-thumb" },
+      { "from": "resources/THIRD-PARTY-LICENSES.txt", "to": "THIRD-PARTY-LICENSES.txt" },
       { "from": "resources/THIRD-PARTY-NOTICES.md", "to": "THIRD-PARTY-NOTICES.md" }
     ],
     "publish": {

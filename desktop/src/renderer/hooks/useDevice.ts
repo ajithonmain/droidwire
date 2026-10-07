@@ -23,6 +23,7 @@ export function useDevice() {
   const [devices, setDevices] = useState<AdbDevice[]>([])
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [safeToUnplug, setSafeToUnplug] = useState(false)
+  const [issues, setIssues] = useState<{ serial: string; state: string }[]>([])
 
   const mounted = useRef(true)
   const pauseUntil = useRef(0)
@@ -53,6 +54,7 @@ export function useDevice() {
 
       const online = res.devices.filter(d => d.state === 'device')
       setDevices(online)
+      setIssues(res.issues ?? [])
       if (online.length === 0 || !res.active) {
         setStatus('disconnected')
         setDeviceSync(null)
@@ -127,5 +129,5 @@ export function useDevice() {
     check()
   }, [check])
 
-  return { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice }
+  return { status, device, devices, issues, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice }
 }

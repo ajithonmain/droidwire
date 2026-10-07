@@ -1,51 +1,22 @@
+import type { Diagnostics } from '@droidwire/shared'
 import { useTheme } from '../lib/ThemeContext'
+import { guideNotices, guideSteps, guideSubtitle, guideTitle, type ConnectionMode, type DeviceIssue } from '../lib/setupGuidance'
 
 interface Props {
+  mode: ConnectionMode
+  issues: DeviceIssue[]
+  diagnostics: Diagnostics | null
   scanning: boolean
   onRescan: () => void
   onBack: () => void
+  /** Wireless mode: reopen the pairing dialog */
+  onPair?: () => void
 }
 
-export function SetupGuide({ scanning, onRescan, onBack }: Props) {
+export function SetupGuide({ mode, issues, diagnostics, scanning, onRescan, onBack, onPair }: Props) {
   const { theme } = useTheme()
-
-  const steps = [
-    {
-      num: 1,
-      title: 'Enable Developer Options',
-      body: 'On your Android device, go to Settings > About phone. Tap Build number 7 times until you see "You are now a developer".',
-      icon: (
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <rect x="2" y="2" width="32" height="32" rx="6" stroke={theme.border} strokeWidth="1.5" />
-          <circle cx="18" cy="14" r="5" stroke={theme.textMuted} strokeWidth="1.5" />
-          <path d="M8 28c0-5.523 4.477-10 10-10s10 4.477 10 10" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      num: 2,
-      title: 'Enable USB Debugging',
-      body: 'Go to Settings > Developer Options and toggle on USB Debugging.',
-      icon: (
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <rect x="8" y="3" width="20" height="30" rx="3" stroke={theme.textMuted} strokeWidth="1.5" />
-          <rect x="14" y="28" width="8" height="2" rx="1" fill={theme.textMuted} />
-          <path d="M13 12h10M13 16h7M13 20h8" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      num: 3,
-      title: 'Connect via USB & Authorize',
-      body: 'Plug your Android into this Mac. When prompted on your phone, tap Allow and check "Always allow from this computer".',
-      icon: (
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <path d="M18 4v20M12 18l6 6 6-6" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M6 28h24" stroke={theme.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-  ]
+  const steps = guideSteps(mode)
+  const notices = guideNotices(mode, issues, diagnostics)
 
   return (
     <div
@@ -82,16 +53,37 @@ export function SetupGuide({ scanning, onRescan, onBack }: Props) {
           Back
         </button>
         <p style={{ fontSize: '16px', fontWeight: 600, color: theme.textPrimary, marginBottom: '6px' }}>
-          Connect via ADB
+          {guideTitle(mode)}
         </p>
         <p style={{ fontSize: '13px', color: theme.textMuted }}>
-          Follow these steps to access your device files over USB
+          {guideSubtitle(mode)}
         </p>
       </div>
 
+      {notices.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '460px' }}>
+          {notices.map(n => (
+            <div
+              key={n.title}
+              role="alert"
+              style={{
+                padding: '12px 14px',
+                background: theme.surface,
+                border: `1px solid ${n.tone === 'error' ? theme.error : theme.warning}`,
+                borderLeft: `3px solid ${n.tone === 'error' ? theme.error : theme.warning}`,
+                borderRadius: '8px',
+              }}
+            >
+              <p style={{ fontSize: '13px', fontWeight: 600, color: theme.textPrimary, margin: '0 0 4px' }}>{n.title}</p>
+              <p style={{ fontSize: '13px', color: theme.textSecondary, lineHeight: '1.5', margin: 0 }}>{n.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', maxWidth: '460px' }}>
         {steps.map((step, i) => (
-          <div key={step.num}>
+          <div key={step.title}>
             <div
               style={{
                 display: 'flex',
@@ -103,7 +95,6 @@ export function SetupGuide({ scanning, onRescan, onBack }: Props) {
                 borderRadius: '8px',
               }}
             >
-              <div style={{ flexShrink: 0, marginTop: '2px' }}>{step.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span
@@ -118,7 +109,7 @@ export function SetupGuide({ scanning, onRescan, onBack }: Props) {
                       letterSpacing: '0.5px',
                     }}
                   >
-                    STEP {step.num}
+                    STEP {i + 1}
                   </span>
                   <span style={{ fontSize: '14px', fontWeight: 600, color: theme.textPrimary }}>
                     {step.title}
@@ -137,6 +128,18 @@ export function SetupGuide({ scanning, onRescan, onBack }: Props) {
           </div>
         ))}
       </div>
+
+      {mode === 'wireless' && onPair && (
+        <button
+          onClick={onPair}
+          style={{
+            fontSize: '13px', fontWeight: 600, color: theme.accentText, background: theme.accent,
+            border: 'none', borderRadius: '6px', padding: '8px 22px', cursor: 'pointer',
+          }}
+        >
+          Pair a phone
+        </button>
+      )}
 
       <button
         onClick={onRescan}

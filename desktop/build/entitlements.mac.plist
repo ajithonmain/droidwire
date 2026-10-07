@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Required by Electron's V8 under the hardened runtime (needed for notarization) -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!--
+    Deliberately NOT set: com.apple.security.cs.disable-library-validation.
+    Every Mach-O in the app (adb, libusb, libmtp, the MTP addon, the thumbnail
+    helper) is signed with the same Developer ID as the app, so library
+    validation passes and stays on.
+    The app is not sandboxed, so no com.apple.security.device.usb entitlement is needed.
+  -->
+</dict>
+</plist>

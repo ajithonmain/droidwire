@@ -59,6 +59,14 @@ export interface UpdateCheckResult {
   hasUpdate: boolean
 }
 
+/** What the installed app can actually do, for first-run checks and bug reports. */
+export interface Diagnostics {
+  app: { version: string; packaged: boolean; electron: string; arch: string; macos: string }
+  adb: { path: string; source: 'override' | 'bundled' | 'sdk' | 'homebrew' | 'path'; version: string | null; error: string | null }
+  mtp: { available: boolean; error: string | null; addon: string | null }
+  thumbnails: { native: string | null; ffmpeg: string | null }
+}
+
 export interface AppSettings {
   downloadDir?: string
   /** Check GitHub for a newer release on launch. Defaults to true. */

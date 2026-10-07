@@ -20,12 +20,17 @@
     "desktop:dist": "npm --prefix desktop run dist",
     "typecheck": "npm --prefix desktop run typecheck",
     "test": "npm --prefix desktop test",
-    "verify": "npm --prefix desktop run verify"
+    "verify": "npm --prefix desktop run verify",
+    "native:build": "bash native/build.sh",
+    "license:inventory": "node scripts/license-inventory.mjs",
+    "license:scan": "license-checker-rseidelsohn --summary"
   },
   "allowScripts": {
     "luck-node-mtp@1.0.0": true
   },
   "devDependencies": {
+    "license-checker-rseidelsohn": "5.0.1",
+    "node-gyp": "^12.4.0",
     "patch-package": "^8.0.1"
   }
 }

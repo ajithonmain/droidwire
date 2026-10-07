@@ -72,6 +72,7 @@ const api: DroidwireAPI = {
 
   persistGet: key => invoke('persist:get', key),
   persistSet: (key, data) => invoke('persist:set', key, data),
+  getDiagnostics: () => invoke('app:diagnostics'),
   checkUpdateSilent: () => invoke('update:check-silent'),
   openReleasePage: () => invoke('open-release-page'),
   notify: (title, body) => invoke('notify', title, body),

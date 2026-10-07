@@ -1,16 +1,19 @@
-// Headless Electron smoke test: launches the BUILT app (run `npm run build`
-// first) with a throwaway profile, checks the first-run experience and the
-// renderer security boundary, and saves a screenshot.
+// Headless Electron smoke test.
 //
-//   npm run smoke                 offline: asserts the app makes no network connections
-//   npm run smoke -- --allow-update-check
-//                                 lets the single GitHub release lookup happen and
-//                                 asserts it is the only host contacted
+//   npm run smoke                              the BUILT dev bundle (out/main), offline
+//   npm run smoke -- --allow-update-check      also allow the single GitHub release lookup
+//   npm run smoke -- --app <path/to/Droidwire.app>
+//                                              the PACKAGED app, run like an installed one:
+//                                              minimal PATH (no Homebrew), no adb/ffmpeg
+//                                              overrides, throwaway profile, offline
 //
-// This verifies UI start-up only. It cannot verify USB, wireless ADB or MTP
-// transfers - there is no phone in CI; see CONTRIBUTING.md for the hardware checklist.
+// Always run against a throwaway profile. Checks the first-run experience, the renderer
+// security boundary, what the install can do (bundled adb, MTP addon, thumbnail helper),
+// the menu bar window, and that failures are explained in the UI. It cannot exercise USB,
+// wireless ADB or MTP transfers - there is no phone here; see docs/HARDWARE-CHECKLIST.md.
 import { _electron as electron } from 'playwright-core'
 import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -19,23 +22,29 @@ import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
-const electronBin = require('electron') // resolves to the Electron executable path
-const mainEntry = path.join(here, 'out', 'main', 'index.js')
+const argv = process.argv.slice(2)
+const flagValue = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined }
+const allowUpdateCheck = argv.includes('--allow-update-check')
+const appBundle = flagValue('--app') ? path.resolve(flagValue('--app')) : null
 const shotDir = process.env.DROIDWIRE_SHOT_DIR ?? path.join(os.tmpdir(), 'droidwire-shots')
-const allowUpdateCheck = process.argv.includes('--allow-update-check')
-
-if (!fs.existsSync(mainEntry)) {
-  console.error(`Missing ${mainEntry} - run \`npm run build\` first.`)
-  process.exit(1)
-}
 fs.mkdirSync(shotDir, { recursive: true })
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'droidwire-smoke-profile-'))
+const executablePath = appBundle ? path.join(appBundle, 'Contents', 'MacOS', 'Droidwire') : require('electron')
+const launchArgs = appBundle ? [] : [path.join(here, 'out', 'main', 'index.js')]
+if (appBundle ? !fs.existsSync(executablePath) : !fs.existsSync(launchArgs[0])) {
+  console.error(appBundle ? `No app at ${appBundle}.` : `Missing ${launchArgs[0]} - run \`npm run build\` first.`)
+  process.exit(1)
+}
 
-// Electron must not run as plain Node, and must not inherit that flag from a parent
-const env = { ...process.env, NODE_ENV: 'production' }
-delete env.ELECTRON_RUN_AS_NODE
-if (!allowUpdateCheck) env.DROIDWIRE_OFFLINE = '1'
+// An installed app is launched by macOS with a bare environment, not from a developer shell
+function launchEnv(extra = {}) {
+  const env = appBundle
+    ? { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', HOME: process.env.HOME, TMPDIR: process.env.TMPDIR, LANG: process.env.LANG ?? 'en_US.UTF-8' }
+    : { ...process.env, NODE_ENV: 'production' }
+  delete env.ELECTRON_RUN_AS_NODE // Electron must not run as plain Node
+  if (!allowUpdateCheck) env.DROIDWIRE_OFFLINE = '1'
+  return { ...env, ...extra }
+}
 
 const failures = []
 const check = (name, fn) => Promise.resolve().then(fn).then(
@@ -43,20 +52,17 @@ const check = (name, fn) => Promise.resolve().then(fn).then(
   err => { failures.push(name); console.log(`  FAIL ${name}: ${err.message}`) },
 )
 
-async function main() {
-  let hosts = []
-  console.log(`Launching Droidwire (${allowUpdateCheck ? 'update check allowed' : 'offline'})...`)
+async function withApp(extraEnv, fn) {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'droidwire-smoke-profile-'))
   const app = await electron.launch({
-    executablePath: electronBin,
-    args: [mainEntry, `--user-data-dir=${profile}`],
-    env,
+    executablePath,
+    args: [...launchArgs, `--user-data-dir=${profile}`],
+    env: launchEnv(extraEnv),
     timeout: 30_000,
   })
-
   try {
-    // Record every outbound socket the main process opens from here on. The
-    // only network activity the app starts on its own is the update check,
-    // which begins after the renderer has mounted - well after this hook.
+    // Record every outbound socket the main process opens from here on (the update check
+    // starts after the renderer mounts, well after this hook is installed)
     await app.evaluate(() => {
       const net = process.getBuiltinModule('net')
       const seen = (globalThis.__dwConnections = ['__recorder__'])
@@ -70,29 +76,39 @@ async function main() {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    return await fn({ app, page, profile })
+  } finally {
+    await app.close().catch(() => {})
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+}
+
+async function baseline() {
+  console.log(`Launching ${appBundle ? 'PACKAGED app (minimal environment)' : 'built bundle'}, ${allowUpdateCheck ? 'update check allowed' : 'offline'}...`)
+  await withApp({}, async ({ app, page, profile }) => {
     await page.waitForTimeout(allowUpdateCheck ? 4000 : 2500)
-    await page.screenshot({ path: path.join(shotDir, '01-first-run.png') })
+    await page.screenshot({ path: path.join(shotDir, appBundle ? '01-packaged-first-run.png' : '01-first-run.png') })
     const bodyText = await page.evaluate(() => document.body?.innerText ?? '')
 
     await check('fresh profile opens straight into the app (no registration gate)', async () => {
       assert.ok(bodyText.includes('Droidwire'), `unexpected body: ${bodyText.slice(0, 120)}`)
       assert.equal(await page.locator('input[type="email"], input[type="password"]').count(), 0)
       assert.ok(!/email|register|sign ?up|beta tester/i.test(bodyText), 'body mentions registration')
+      assert.match(bodyText, /Connect via ADB/)
     })
 
     await check('renderer exposes only the typed bridge', async () => {
       const info = await page.evaluate(() => ({
-        hasBridge: typeof window.droidwire === 'object',
         keys: Object.keys(window.droidwire ?? {}),
         hasRequire: typeof window.require !== 'undefined',
         hasProcess: typeof window.process !== 'undefined',
       }))
-      assert.ok(info.hasBridge)
+      assert.ok(info.keys.length > 20)
       assert.ok(!info.hasRequire && !info.hasProcess, 'Node leaked into the renderer')
       for (const gone of ['getBetaSignup', 'registerBeta', 'fetchBetaMessages', 'readLocalFile', 'openExternalUrl']) {
         assert.ok(!info.keys.includes(gone), `${gone} should no longer exist`)
       }
-      for (const wanted of ['moveFile', 'pullFile', 'previewFile', 'checkUpdateSilent']) {
+      for (const wanted of ['moveFile', 'pullFile', 'previewFile', 'checkUpdateSilent', 'getDiagnostics']) {
         assert.ok(info.keys.includes(wanted), `${wanted} missing from the bridge`)
       }
     })
@@ -114,35 +130,109 @@ async function main() {
       await page.evaluate(() => { location.href = 'https://example.com/' })
       await page.waitForTimeout(500)
       assert.equal(page.url(), before)
-      const opened = await page.evaluate(() => window.open('https://example.com/') === null)
-      assert.ok(opened, 'window.open should be denied')
+      assert.ok(await page.evaluate(() => window.open('https://example.com/') === null), 'window.open should be denied')
       assert.equal(app.windows().length, 1)
+    })
+
+    // What this install can actually do
+    const diag = await page.evaluate(() => window.droidwire.getDiagnostics())
+    console.log(`  diagnostics: adb ${diag.adb.version ?? 'NONE'} [${diag.adb.source}], mtp ${diag.mtp.available ? 'ok' : 'UNAVAILABLE'}, native thumbs ${diag.thumbnails.native ? 'yes' : 'no'}`)
+    await check('adb starts and reports its version', async () => {
+      assert.equal(diag.adb.error, null, diag.adb.error ?? '')
+      assert.match(diag.adb.version ?? '', /Android Debug Bridge version/)
+    })
+    await check('MTP worker loads its addon and libraries', async () => {
+      assert.equal(diag.mtp.available, true, diag.mtp.error ?? '')
+      assert.ok(diag.mtp.addon, 'worker did not report which addon it loaded')
+    })
+    await check('video thumbnail helper is present', async () => {
+      assert.ok(diag.thumbnails.native, 'native thumbnail helper not found')
+    })
+
+    if (appBundle) {
+      const resources = path.join(appBundle, 'Contents', 'Resources')
+      await check('packaged app uses ONLY its bundled components', async () => {
+        assert.equal(diag.app.packaged, true)
+        assert.equal(diag.adb.source, 'bundled', `adb resolved from ${diag.adb.path}`)
+        assert.ok(diag.adb.path.startsWith(resources), diag.adb.path)
+        assert.ok(diag.mtp.addon.startsWith(resources), `MTP addon loaded from ${diag.mtp.addon}`)
+        assert.ok(diag.thumbnails.native.startsWith(resources), diag.thumbnails.native)
+      })
+      await check('macOS tools used for previews and archives are present', async () => {
+        for (const tool of ['/usr/bin/sips', '/usr/bin/qlmanage', '/usr/bin/zip', '/usr/bin/killall']) {
+          assert.ok(fs.existsSync(tool), `${tool} is missing on this Mac`)
+        }
+      })
+      await check('bundled thumbnail helper produces a poster frame without ffmpeg', async () => {
+        const fixture = path.join(here, 'test', 'fixtures', 'sample.mp4')
+        const out = path.join(os.tmpdir(), `dw-smoke-thumb-${process.pid}.jpg`)
+        const r = spawnSync(diag.thumbnails.native, [fixture, out, '64'], { env: { PATH: '/usr/bin:/bin' } })
+        assert.equal(r.status, 0, r.stderr?.toString())
+        assert.ok(fs.statSync(out).size > 500)
+        fs.rmSync(out, { force: true })
+      })
+    }
+
+    await check('menu bar window launches and needs no sign-up', async () => {
+      await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('toggle-menubar').click())
+      await page.waitForTimeout(1500)
+      const windows = app.windows()
+      assert.equal(windows.length, 2, `expected 2 windows, saw ${windows.length}`)
+      const panel = windows.find(w => w.url().includes('#menubar'))
+      assert.ok(panel, 'menu bar window did not load the menubar route')
+      const text = await panel.evaluate(() => document.body.innerText)
+      assert.ok(text.length > 0 && !/email|register/i.test(text), `menu bar panel text: ${text.slice(0, 80)}`)
+      await panel.screenshot({ path: path.join(shotDir, '02-menubar.png') })
     })
 
     await check('no registration file is written', async () => {
       assert.ok(!fs.existsSync(path.join(profile, 'beta-signup.json')))
     })
-    hosts = [...new Set(await app.evaluate(() => globalThis.__dwConnections ?? []))]
-  } finally {
-    await app.close()
-  }
-  await check('network recorder was active in the app process', async () => {
-    assert.ok(hosts.includes('__recorder__'), 'recorder did not load; the network checks below would be meaningless')
-  })
-  const external = hosts.filter(h => !['127.0.0.1', 'localhost', '::1', 'unknown', '__recorder__'].includes(h))
-  await check(allowUpdateCheck ? 'only api.github.com is contacted' : 'no outbound connections at all', async () => {
-    const expected = allowUpdateCheck ? external.filter(h => h !== 'api.github.com') : external
-    assert.deepEqual(expected, [], `unexpected hosts: ${external.join(', ')}`)
-    if (allowUpdateCheck) assert.ok(external.includes('api.github.com'), 'the update check never ran')
-  })
-  console.log(`  hosts contacted: ${external.length ? external.join(', ') : '(none)'}`)
 
-  fs.rmSync(profile, { recursive: true, force: true })
+    const hosts = [...new Set(await app.evaluate(() => globalThis.__dwConnections ?? []))]
+    await check('network recorder was active in the app process', async () => {
+      assert.ok(hosts.includes('__recorder__'), 'recorder did not load; the network checks would be meaningless')
+    })
+    const external = hosts.filter(h => !['127.0.0.1', 'localhost', '::1', 'unknown', '__recorder__'].includes(h))
+    await check(allowUpdateCheck ? 'only api.github.com is contacted' : 'no outbound connections at all', async () => {
+      assert.deepEqual(allowUpdateCheck ? external.filter(h => h !== 'api.github.com') : external, [], `unexpected hosts: ${external.join(', ')}`)
+      if (allowUpdateCheck) assert.ok(external.includes('api.github.com'), 'the update check never ran')
+    })
+    console.log(`  hosts contacted: ${external.length ? external.join(', ') : '(none)'}`)
+  })
+}
+
+// Failures must be visible AND actionable. A stand-in adb (the documented DROIDWIRE_ADB
+// override) lets us produce the states a real phone would, without one.
+async function scenario(name, adbScript, expectation) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-fake-adb-'))
+  const fake = path.join(dir, 'adb')
+  fs.writeFileSync(fake, adbScript, { mode: 0o755 })
+  await withApp({ DROIDWIRE_ADB: fake }, async ({ page }) => {
+    await page.getByText('Connect via ADB').first().click()
+    // The setup guide appears after a short grace period
+    await page.waitForTimeout(7500)
+    await page.screenshot({ path: path.join(shotDir, `03-${name}.png`) })
+    const text = await page.evaluate(() => document.body.innerText)
+    await check(`UI explains: ${name}`, async () => assert.match(text, expectation, text.slice(0, 300)))
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+}
+
+async function main() {
+  await baseline()
+  await scenario('phone not authorized',
+    '#!/bin/sh\ncase "$1" in version) echo "Android Debug Bridge version 1.0.41";; devices) printf "List of devices attached\\nFAKE123\\tunauthorized\\n";; esac\n',
+    /has not authorized this Mac[\s\S]*Allow/)
+  await scenario('adb cannot start',
+    '#!/bin/sh\necho "dyld: Library not loaded" >&2\nexit 1\n',
+    /built-in adb could not start[\s\S]*Reinstall/)
+
   if (failures.length) {
-    console.error(`\n${failures.length} check(s) failed. Screenshot: ${shotDir}`)
+    console.error(`\n${failures.length} check(s) failed. Screenshots: ${shotDir}`)
     process.exit(1)
   }
-  console.log(`\nSmoke test passed. Screenshot: ${path.join(shotDir, '01-first-run.png')}`)
+  console.log(`\nSmoke test passed. Screenshots: ${shotDir}`)
 }
 
 main().catch(e => { console.error('ERROR:', e.message); process.exit(1) })

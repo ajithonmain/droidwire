@@ -5,7 +5,7 @@ import type { FileNode, StorageInfo } from '@droidwire/shared'
 import { cancelledError, throwIfAborted, type Transport, type TransportDevice, type TransferOptions } from './transport.ts'
 import { getActiveSerial } from './active-device.ts'
 import { findAdb } from './lib/adb-path.ts'
-import { parseAdbDevices, dedupeByHardware } from './lib/adb-devices.ts'
+import { parseAdbDevices, dedupeByHardware, type AdbDeviceRow } from './lib/adb-devices.ts'
 import { parseLsLa } from './lib/ls-parse.ts'
 import { shQuote } from './lib/shell.ts'
 import { treeSize } from './lib/fsx.ts'
@@ -211,6 +211,11 @@ async function remoteSize(serial: string, remotePath: string): Promise<number | 
   } catch {
     return null
   }
+}
+
+/** Raw `adb devices` rows (any state), for explaining why no phone is usable yet. */
+export async function adbDeviceRows(): Promise<AdbDeviceRow[]> {
+  return parseAdbDevices(await adbExec(null, ['devices'])).filter(d => !ejected.has(d.serial))
 }
 
 export const AdbTransport: Transport = {

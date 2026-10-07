@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import logo from './assets/logo.png'
-import type { FileNode, StorageInfo } from '@droidwire/shared'
+import type { Diagnostics, FileNode, StorageInfo } from '@droidwire/shared'
 import { useDevice } from './hooks/useDevice'
 import { useTransfers } from './hooks/useTransfers'
 import { useBookmarks } from './hooks/useBookmarks'
@@ -41,7 +41,10 @@ type SearchMode = 'local' | 'deep'
 
 export default function App() {
   const { theme, mode, toggle } = useTheme()
-  const { status, device, devices, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
+  const { status, device, devices, issues, storage, safeToUnplug, disconnect, rescan, selectDevice, ejectDevice } = useDevice()
+  // What this install can do (bundled adb runs? MTP addon loads?) - drives actionable setup messages
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null)
+  useEffect(() => { window.droidwire.getDiagnostics().then(setDiagnostics).catch(() => {}) }, [])
   const [connectionPicked, setConnectionPicked] = useState(false)
   // Mirrors the main-process connection type - drives which transport the UI
   // reports and which shell-dependent controls (APK install, device detail,
@@ -996,7 +999,7 @@ export default function App() {
                 <span style={{ fontSize: '12px', color: theme.textMuted }}>Looking for your device…</span>
               </div>
             ) : !connectionPicked ? (
-              <ConnectionTypePicker onSelect={type => {
+              <ConnectionTypePicker mtpUnavailable={diagnostics && !diagnostics.mtp.available ? (diagnostics.mtp.error ?? 'component failed to load') : null} onSelect={type => {
                 setConnectionTypeState(type)
                 setDeviceContext(null)
                 window.droidwire.setConnectionType(type).catch(() => {})
@@ -1012,9 +1015,13 @@ export default function App() {
               </div>
             ) : (
               <SetupGuide
+                mode={connectionType}
+                issues={issues}
+                diagnostics={diagnostics}
                 scanning={status === 'connecting' || status === 'reconnecting'}
                 onRescan={rescan}
                 onBack={() => setConnectionPicked(false)}
+                onPair={() => setShowWireless(true)}
               />
             )
           ) : (

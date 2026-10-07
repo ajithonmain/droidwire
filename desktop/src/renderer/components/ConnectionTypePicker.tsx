@@ -3,9 +3,11 @@ import logo from '../assets/logo.png'
 
 interface Props {
   onSelect: (type: 'adb' | 'wireless' | 'mtp') => void
+  /** Why MTP cannot work in this install, if it cannot (shown on the MTP card) */
+  mtpUnavailable?: string | null
 }
 
-export function ConnectionTypePicker({ onSelect }: Props) {
+export function ConnectionTypePicker({ onSelect, mtpUnavailable }: Props) {
   const { theme } = useTheme()
 
   const ADB_ICON = (
@@ -159,7 +161,9 @@ export function ConnectionTypePicker({ onSelect }: Props) {
         {/* MTP - limited features */}
         <button
           onClick={() => onSelect('mtp')}
+          disabled={!!mtpUnavailable}
           style={{
+            opacity: mtpUnavailable ? 0.6 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: '16px',
@@ -167,11 +171,11 @@ export function ConnectionTypePicker({ onSelect }: Props) {
             background: theme.surface,
             border: `1px solid ${theme.border}`,
             borderRadius: '10px',
-            cursor: 'pointer',
+            cursor: mtpUnavailable ? 'not-allowed' : 'pointer',
             textAlign: 'left',
             transition: 'border-color 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = theme.accent)}
+          onMouseEnter={e => { if (!mtpUnavailable) e.currentTarget.style.borderColor = theme.accent }}
           onMouseLeave={e => (e.currentTarget.style.borderColor = theme.border)}
         >
           <div style={{ flexShrink: 0 }}>{MTP_ICON}</div>
@@ -191,7 +195,9 @@ export function ConnectionTypePicker({ onSelect }: Props) {
                 LIMITED
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: theme.textSecondary }}>Fallback option - no APK install, no device tools</span>
+            <span style={{ fontSize: '13px', color: mtpUnavailable ? theme.error : theme.textSecondary }}>
+              {mtpUnavailable ? `Not available in this install: ${mtpUnavailable}` : 'Fallback option - no APK install, no device tools'}
+            </span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
             <path d="M5 3l4 4-4 4" stroke={theme.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
