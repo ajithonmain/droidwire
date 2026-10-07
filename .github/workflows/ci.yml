@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    # Droidwire is a macOS app: the native MTP addon, the smoke test and the
+    # packaging scripts only make sense on a Mac runner.
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # libmtp is needed to compile the optional MTP addon during install
+      - name: Install native libraries
+        run: brew install libmtp libusb
+
+      - name: Install dependencies
+        run: node scripts/bootstrap.mjs
+
+      - name: Typecheck, unit tests, production build
+        run: npm run verify
+
+      # Launches the built app headless with a throwaway profile and no network.
+      # It checks the first-run UI and the renderer security boundary. It does
+      # NOT exercise USB/wireless ADB or MTP: CI has no phone attached.
+      - name: Smoke test (offline)
+        run: npm --prefix desktop run smoke
+        continue-on-error: true

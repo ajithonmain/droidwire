@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the problem first, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed behaviour
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which connection modes would it apply to?
+      multiple: true
+      options: [USB (ADB), Wi-Fi (wireless ADB), MTP, All]
+  - type: markdown
+    attributes:
+      value: |
+        Out of scope by design: Windows/Linux clients, cloud sync, iOS support, and an Android-side app.

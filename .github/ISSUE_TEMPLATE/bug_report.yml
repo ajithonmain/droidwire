@@ -1,0 +1,65 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Droidwire talks to real phones, so the device and connection mode matter a lot.
+        Reports without them are usually impossible to reproduce.
+  - type: input
+    id: version
+    attributes:
+      label: Droidwire version
+      description: Droidwire menu > About Droidwire
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac chip
+      placeholder: macOS 15.2, Apple M2
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection mode
+      options: [USB (ADB), Wi-Fi (wireless ADB), MTP]
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone model and Android version
+      placeholder: Pixel 8, Android 15
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include file/folder names if they contain spaces, quotes or non-Latin characters.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: |
+        Help > Show Logs in Finder opens main.log. Paste the relevant lines. The log can contain
+        file names and paths from your phone - remove anything private first.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checked
+      options:
+        - label: I searched existing issues
+        - label: The phone is unlocked, USB Debugging (or Wireless debugging) is on, and the connection prompt was accepted
