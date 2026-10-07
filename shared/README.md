@@ -1,14 +1,8 @@
 # @droidwire/shared
 
-Shared TypeScript types and constants for the Droidwire monorepo.
+TypeScript types shared by the Electron main process, the preload script and the React renderer. No runtime code and no constants.
 
-## Exports
+- `types.ts` - data shapes: `FileNode`, `StorageInfo`, `TransferProgress`, `DeviceContext`, `PreviewResult`, `UpdateCheckResult`, `AppSettings`, device-tool types, `ConnectionStatus`. Re-exports `api.ts`.
+- `api.ts` - `DroidwireAPI`, the complete typed surface exposed to the renderer as `window.droidwire`. The preload script implements it and the renderer consumes it, so a change to one side fails type-checking on the other.
 
-- `FileNode` - file/directory descriptor returned by `/files` endpoint
-- `PingResponse` - response shape from `/ping`
-- `StorageInfo` - response shape from `/storage`
-- `TransferProgress` - transfer state used across main/renderer IPC
-- `ConnectionStatus` - union type for device connection state
-- `SERVER_PORT`, `FALLBACK_PORTS`, `TETHERING_SUBNETS` - network constants
-- `CHUNK_SIZE`, `MAX_CONCURRENT_TRANSFERS` - transfer constants
-- `API_ENDPOINTS` - typed endpoint path map
+Imported as `@droidwire/shared` (a path alias to `shared/types.ts` in the desktop tsconfig files and `electron.vite.config.ts`).

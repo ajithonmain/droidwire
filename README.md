@@ -1,250 +1,179 @@
 # Droidwire
 
-Android ↔ Mac file transfer over USB via ADB. No MTP. No app install on Android.
-Enable USB Debugging, plug in the cable, transfer starts.
+Browse, transfer and edit the files on an Android phone from a Mac. Droidwire is an Electron app for macOS that talks to the phone over **USB ADB**, **wireless ADB** or **MTP**. Nothing is installed on the phone, and files only travel over the cable or your local network - there is no cloud service, account or sign-up.
 
-```
-Mac Electron app
-  └── bundles/locates adb binary
-        └── adb over USB ──► Android filesystem
-              adb pull            = download
-              adb push            = upload
-              adb shell ls -la    = browse
-```
+> **Status: beta.** Builds are unsigned, and the maintainer has verified behaviour on a small number of phones (see [Verified devices](#verified-devices)). Keep backups of anything irreplaceable before large transfers or deletes.
+>
+> **License:** not selected yet. Until a `LICENSE` file is added to this repository, all rights are reserved by the author. See [docs/LICENSING.md](docs/LICENSING.md).
 
-> **History:** v0 used a React Native HTTP server on the phone over USB tethering.
-> Scrapped in favor of ADB (same model as MacDroid): full USB bandwidth, zero
-> Android-side install, no tethering setup. The `android/` folder was removed —
-> that architecture will not return.
+## Connection modes
 
-## Why
-
-Most Android-to-Mac transfer tools rely on MTP (slow, flaky mounting) or
-cloud sync (privacy, bandwidth). Droidwire uses `adb`, which is already on
-every Android developer's machine and ships with full USB throughput,
-directory listing, and file operations for free — no protocol to reimplement.
+| Mode | How it connects | Good for | Trade-offs |
+|---|---|---|---|
+| **USB (ADB)** | `adb` over the USB cable | Everything. Fastest, most complete | Needs Developer options and **USB debugging** on, and the on-phone RSA prompt accepted once |
+| **Wi-Fi (wireless ADB)** | `adb pair` / `adb connect` over the local network (Android 11+) | Cable-free use; pairing by 6-digit code or QR code | Same network required; slower than USB; needs **Wireless debugging** on |
+| **MTP** | libmtp, the protocol used by "File Transfer" USB mode | Phones where you cannot or will not enable USB debugging | Fallback: no APK install, no device tools, no storage figures, no folder sizes; one device at a time; some operations (such as moving between folders) depend on the phone supporting them |
 
 ## Features
 
-**Connection**
-- Auto-detects Android device over USB (vendor ID match), with live status polling every 2s
-- Device info, battery level, and storage usage on connect
-- Graceful handling of disconnect/replug and unauthorized-device state, with an
-  in-app guide for enabling USB Debugging
+Implemented in the code today (see [CHANGELOG.md](CHANGELOG.md)):
 
-**File browsing**
-- Sidebar bookmarks, breadcrumb navigation, multiple tabs, search
-- Grid view with type-aware icons and thumbnails
-- Drag-to-reorder and native macOS drag-out (`adb:start-drag`) to Finder or another app
+- **Browsing:** sidebar bookmarks, breadcrumbs, multiple tabs, list and grid views, sorting, type filters, in-folder filter and recursive search, folder sizes (ADB)
+- **Downloads:** queue with up to three concurrent transfers, per-file progress and speed, pause/resume, reorder, cancel, history, completion notification, configurable download folder (default `~/Downloads/Droidwire/`), conflict dialog (replace / keep both / cancel)
+- **Folder download as a .zip:** zipped on the phone when it has `zip`, otherwise pulled and zipped on the Mac
+- **Uploads:** drag files from Finder onto the window or the menu bar panel, or use the file picker; copy or move; conflict dialog
+- **File management:** rename, delete (always confirmed), new folder, copy, cut/paste and drag to move between folders
+- **Preview:** images (HEIC/HEIF/TIFF converted with macOS `sips`), PDF first-page thumbnail (Quick Look), audio, the start of text files, video poster frames (needs `ffmpeg`, see below)
+- **Open and edit:** open a file in its Mac app; saves are pushed back to the phone automatically
+- **Drag-out:** drag files from Droidwire into Finder or another app
+- **Device tools (ADB):** battery, device and storage details, installed-app list with APK export, folder-level storage analyzer, APK install from the file browser
+- **Multiple phones:** device switcher and per-device eject; every queued operation stays bound to the phone it was started for
+- **Menu bar mode:** a small drop target for quick uploads to the phone's `Download` folder
 
-**Transfers**
-- Download: single files, or whole folders zipped on-device and pulled as one archive
-- Upload: drag files/folders from Finder onto the window; conflict resolution modal
-  when a destination file already exists
-- Configurable download directory (default `~/Downloads/Droidwire/`)
-- Real-time speed (MB/s) and per-file progress, backed by two different progress
-  sources: destination file-size polling for downloads, stderr percentage parsing
-  for uploads
-- Cancel any in-flight transfer — kills the underlying `adb` child process cleanly,
-  no orphaned processes
+## Platforms and verified devices
 
-**File management**
-- Preview (images render inline; video gets a generated poster frame via `ffmpeg`;
-  other types fall back to a Quick Look thumbnail via `qlmanage`)
-- Rename, delete, create folder, copy, find
-- APK install straight from the file browser
-- On-device screenshot capture, pulled directly to the Mac
+- **Mac:** macOS 12 (Monterey) or later. Built and exercised on **Apple Silicon (arm64)**. Intel Macs are expected to work from a source build but are **unverified**; no Intel build is produced or tested.
+- **Android:** 8.0 or later for ADB; MTP depends on the phone.
+- **Windows, Linux, iOS:** not supported and not planned.
 
-**UI**
-- Dark, minimal theme with a small, deliberate design system (see [Design
-  system](#design-system))
-- Context menus, keyboard-friendly modals, per-transfer progress panel
+### Verified devices
 
-## Security
+Hardware testing is manual and limited. According to the maintainer's notes, USB ADB and QR wireless pairing were exercised on a **Pixel 10 Pro**, MTP operations on a Pixel (model not recorded), and device tools on a **Pixel 4a**. Nothing else has been verified. Please report what works and what does not - see [CONTRIBUTING.md](CONTRIBUTING.md#hardware-testing-and-bug-reports). Changes made while preparing the beta release (device-bound operations, MTP move, folder zip, previews) are covered by automated tests with fake devices but have **not yet been re-tested on a phone**; the manual checklist is in [docs/HARDWARE-CHECKLIST.md](docs/HARDWARE-CHECKLIST.md).
 
-- **No network exposure.** Everything runs over the USB `adb` transport — no HTTP
-  server, no open socket, no port bound on the LAN. This was the reason v0's
-  USB-tethering-plus-HTTP-server design was scrapped: it put an unauthenticated
-  server on a network interface for no benefit over `adb`, which already ships an
-  authenticated, encrypted USB transport.
-- **No ambient Node/OS access in the renderer.** Electron's `contextBridge` exposes
-  only a fixed, typed set of methods (`window.droidwire`) to the UI. The renderer
-  process cannot `require()` Node modules, spawn processes, or touch the filesystem
-  directly — every operation is proxied through an IPC channel handled in the main
-  process.
-- **No shell interpolation.** All `adb` invocations use `execFile`/`spawn` with an
-  argv array, never a concatenated shell string — so there is no shell to inject
-  into. The one place a path is embedded inside an `adb shell` command string
-  (e.g. `dd if=<path> ...`), it is passed through a POSIX single-quote escaper
-  (`squote()` in `adb-transport.ts`) that neutralizes embedded quotes, so a
-  filename like `'; rm -rf /sdcard'` is treated as literal text, not shell syntax.
-- **Explicit device authorization.** The Android side requires the user to accept
-  the RSA host-fingerprint dialog on first connect — Droidwire cannot read or
-  write anything until that's approved on-device, and a rejected/unauthorized
-  device is surfaced in the UI rather than silently retried.
-- **Bounded resource usage.** Every `adb` call has a 15s timeout; a concurrency
-  limiter caps parallel `adb` processes at 6 to prevent resource exhaustion
-  (`EAGAIN`) on large folder operations.
-- **No cloud, no telemetry.** Files never leave the USB cable. There is no
-  backend, no analytics SDK, no account system.
+## Installing a release build
 
-## Requirements
+Release builds are **not signed or notarized** (that needs an Apple Developer account). macOS will refuse to open a downloaded copy, usually with *"Droidwire is damaged and can't be opened"* - that is Gatekeeper's response to any unsigned, quarantined app.
 
-- macOS 12.0 (Monterey) or later
-- Android 8.0+ with a usable `adb`
-- USB cable
-- Developer Options + USB Debugging enabled on the Android device (accept the
-  RSA fingerprint prompt on first connect)
+1. Download the `.dmg` from the project's GitHub Releases page and drag **Droidwire** into **Applications**.
+2. Open it once and click **Cancel** on the alert (do not choose "Move to Trash").
+3. In Terminal, remove the quarantine flag from this one app:
 
-## Install
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Droidwire.app
+   ```
 
-Signed/notarized builds are pending an Apple Developer account. Until then,
-build locally:
+4. Open Droidwire again. You only do this once per download.
+
+Prefer not to run unsigned binaries? Build from source below and inspect the code first.
+
+## Building from source
+
+Prerequisites (macOS):
+
+- Node.js **22.18 or newer** (24 LTS recommended) and npm
+- Xcode command line tools (`xcode-select --install`)
+- For MTP support: `brew install libmtp libusb`
+- For `npm run dist`: an `adb` binary (`brew install android-platform-tools`, the Android SDK platform-tools, or `ADB_BIN=/path/to/adb`)
 
 ```bash
 git clone https://github.com/ajithonmain/droidwire.git
 cd droidwire
-npm install
-
-cd desktop
-npm run dev      # electron-vite dev, launches Electron with HMR
+node scripts/bootstrap.mjs      # installs dependencies; builds the MTP addon if libmtp is found
+npm run verify                  # typecheck + unit tests + production build
+npm run desktop:dev             # run the app with hot reload
 ```
 
-To produce an unsigned `.dmg` for personal use:
+Why `bootstrap` instead of `npm install`? The MTP dependency compiles a native addon during install, and that fails unless the compiler can find Homebrew's libmtp. `bootstrap` finds it for you. Without libmtp it installs everything else and skips the addon: the app then works over ADB and wireless ADB and reports MTP as unavailable. To add MTP later: `brew install libmtp libusb && npm run rebuild:mtp`.
 
-```bash
-cd desktop
-npm run dist      # electron-vite build + electron-builder → release/*.dmg
-```
+Other commands (from the repository root; each forwards to `desktop/`):
 
-Note: dev/electron scripts run with `env -u ELECTRON_RUN_AS_NODE` — this is
-required for Electron to launch correctly and must not be removed.
-
-## Usage
-
-1. Launch Droidwire on the Mac.
-2. Connect the Android device via USB.
-3. Accept the "Allow USB debugging" dialog on the phone if prompted.
-4. Browse, download, upload, or manage files once the device shows as connected.
-
-## Monorepo structure
-
-```
-droidwire/
-├── desktop/              # Electron + React Mac client (the entire product)
-│   ├── src/
-│   │   ├── main/         # Electron main process — owns all adb calls
-│   │   ├── renderer/     # React UI (components/, hooks/, lib/)
-│   │   └── preload/      # contextBridge → window.droidwire
-│   └── driver.mjs        # Playwright harness: launch app headless, screenshot
-├── shared/                # Shared TypeScript types only (no constants)
-│   └── types.ts           # FileNode, StorageInfo, TransferProgress, ConnectionStatus
-└── site/                  # Landing page
-```
-
-## Tech stack
-
-- Electron (electron-vite) + React 18 + TypeScript, strict mode
-- TailwindCSS — no UI framework, custom components only
-- `usb` package for Android vendor ID detection
-- `playwright-core` for the self-test driver
-- `electron-builder` for `.dmg` packaging
-
-## Design system
-
-| Token | Value |
+| Command | What it does |
 |---|---|
-| background | `#0A0A0A` |
-| surface | `#141414` |
-| border | `#1E1E1E` |
-| accent | `#00D84A` |
-| accent-dim | `#00D84A20` |
-| text-primary | `#F5F5F5` |
-| text-muted | `#6B6B6B` |
-| success | `#00D84A` |
-| error | `#FF4444` |
-| warning | `#FF9500` |
+| `npm run typecheck` | `tsc --noEmit` for the renderer and for main/preload/tests |
+| `npm test` | Unit tests (Node's built-in runner; no phone needed) |
+| `npm run verify` | typecheck, tests and the production build |
+| `npm --prefix desktop run smoke` | Launches the built app headless with a throwaway profile, offline, and checks the first-run UI and security boundary |
+| `npm --prefix desktop run dist` | Build, stage native binaries, and package an unsigned `.dmg` and `.zip` into `desktop/release/` |
 
-Typography: Inter, falling back to SF Pro. Border radius: 8px components, 12px
-cards, 4px inputs. Spacing on a 4px base grid.
+The dev scripts run Electron with `env -u ELECTRON_RUN_AS_NODE`. That is required: if the variable is set (some tools and terminals set it), Electron starts as plain Node and the app does not open. Do not remove it.
 
-## Why this project is worth a look
+### Packaging notes
 
-Droidwire is a small, complete product, not a demo. A few things worth pointing
-to if you're evaluating the code:
+`npm run dist` copies the MTP addon, libmtp, libusb and `adb` into the app so it runs without Homebrew installed on the user's Mac. The staging script rewrites library paths to be relocatable, re-signs them ad-hoc, and fails if anything still points into `/opt/homebrew` or `/usr/local`. `ffmpeg` is **not** bundled: video thumbnails appear only when `ffmpeg` is installed (`brew install ffmpeg`); otherwise videos show a generic icon. The build targets the architecture of the Mac that runs it.
 
-- **Process boundary discipline.** The Electron main/renderer/preload split is
-  enforced everywhere — every filesystem and `adb` operation is main-process-only,
-  reached through a typed `contextBridge` surface, never `nodeIntegration`.
-- **Defensive parsing against real-world variance.** `adb shell ls -la` output
-  differs across Android versions and OEMs (toybox vs busybox coreutils,
-  different column spacing, filenames with embedded spaces). The parser
-  (`parseLsLa()`) is written against that variance rather than a single reference
-  device.
-- **Correct process lifecycle management.** Transfers are cancellable mid-flight
-  with no orphaned `adb` processes; a semaphore-style concurrency limiter (not an
-  unbounded `Promise.all`) caps parallel `adb` invocations to what the transport
-  can actually sustain.
-- **Two independently-implemented progress mechanisms**, chosen because `adb
-  pull` and `adb push` expose progress differently: destination file-size
-  polling for downloads, stderr percentage parsing for uploads. Neither piggybacks
-  on the other's implementation — each was solved for what the tool actually gives you.
-- **Security modeled around the actual transport**, not bolted on: the whole
-  architecture pivot from v0 (HTTP server over USB tethering) to v1 (raw `adb`)
-  was driven by removing an unauthenticated network listener, not by a feature
-  request.
-- **TypeScript strict end-to-end**, with a genuinely shared types package
-  (`shared/types.ts`) consumed by both the main and renderer processes — not
-  duplicated interfaces drifting apart.
-- **A real self-test harness** (`driver.mjs`) that launches the built app
-  headless via Playwright and screenshots it, used to verify UI changes without
-  a human driving the app manually.
+**Redistribution caveat:** the `adb` staged from Google's platform-tools is covered by the Android SDK License Agreement, which restricts redistribution. Review [docs/LICENSING.md](docs/LICENSING.md) before publishing a binary release.
 
 ## Architecture
 
-All `adb` calls live in the Electron main process. The renderer never touches
-Node or `adb` directly — it goes through `window.droidwire`, exposed via
-`contextBridge` in the preload script.
+```
+desktop/                 Electron + React client (the whole product)
+  src/main/              Main process - owns every adb/MTP call and all file access
+    index.ts             App lifecycle, logging, shutdown
+    windows.ts menu.ts   Windows, tray, application menu, renderer security policy
+    ipc/                 One module per area: files, transfers, preview, device-tools, wireless, app
+    device-manager.ts    Picks the transport for a DeviceContext; enumerates devices
+    active-device.ts     The UI's current selection + resolveContext()
+    adb-transport.ts     adb: every call is scoped with `-s <serial>`
+    mtp-transport-core.ts  MTP over a worker; serialises the single libmtp session
+    mtp-worker-host.ts   Worker process lifecycle (startup, timeout, exit, restart)
+    zip-folder.ts        Folder-to-zip orchestration (testable, effects injected)
+    stream-server.ts     Hardened loopback range server for video thumbnails
+    lib/                 Pure, unit-tested helpers (quoting, parsing, validation, versions)
+  src/preload/           contextBridge: exposes the typed `window.droidwire` and nothing else
+  src/renderer/          React UI
+  resources/             mtp-worker.cjs, notices, icon (native binaries are staged here at build time)
+  test/                  Unit tests;   driver.mjs  headless smoke test
+shared/                  Types only, including the `DroidwireAPI` contract used by main, preload and renderer
+patches/                 Local patch to luck-node-mtp (storage-root handling, crash on busy device)
+scripts/                 bootstrap / MTP addon build
+site/                    Landing page
+```
 
-- `adbBin()` locates the bundled `adb`, falling back to a Homebrew or system
-  install
-- `adb()` wraps `execFile` with a 15s timeout per invocation
-- An ADB concurrency limiter caps at 6 concurrent processes to avoid `EAGAIN`
-  on large folder operations (adb also serializes some operations
-  device-side, so more concurrency does not mean more throughput)
-- `parseLsLa()` parses `adb shell ls -la` output into `FileNode[]`, staying
-  defensive since output varies across Android versions/OEMs (toybox vs
-  busybox) and filenames with spaces are common
-- Pull progress is polled from destination file size every 250ms
-- Push progress is parsed from the `[ XX%]` markers in `adb` stderr
-- Remote filesystem root for user content is `/sdcard/`
-  (`/storage/emulated/0/`)
+Key design rules:
 
-Full IPC surface, error-handling behavior, and design tokens are documented
-in [CLAUDE.md](CLAUDE.md).
+- **The renderer never touches Node, adb or the filesystem.** `contextIsolation` is on, `nodeIntegration` off, the renderer is sandboxed, and it only sees the typed bridge in `shared/api.ts`. Navigation away from the app page and child windows are blocked.
+- **Operations carry their device.** Every request that acts on a phone can carry a `DeviceContext { transport, serial }` captured when the work was queued. Transports hold no "current device", so switching phone or connection mode cannot redirect queued downloads, uploads, zips, previews or edit syncs.
+- **Remote paths are hostile input.** Anything placed in an `adb shell` command goes through `shQuote()`; local file names are reduced to a single safe component; IPC arguments are validated.
+- **MTP runs in a separate process.** libmtp/libusb crash Electron's main process on macOS; the worker is isolated, supervised, and restarted, and MTP operations are serialised because libmtp holds one open device.
+
+## Network use and privacy
+
+- **File data** only moves between your Mac and your phone, over USB or your local network. There is no server, cloud or relay.
+- **No accounts, registration, analytics, telemetry or crash reporting.** The app never asks for personal information.
+- **Update check (the only outbound request the app makes by itself):** on launch Droidwire sends one unauthenticated `GET https://api.github.com/repos/<releases repo>/releases/latest` with a generic `User-Agent: Droidwire`, to compare the latest release tag with its own version. GitHub sees your IP address, as with any web request. Nothing is downloaded or installed; if a newer version exists you are pointed at the GitHub release page. Turn this off with **Droidwire menu > Check for Updates Automatically**; you can still check by hand via **Check for Updates...**. The repository queried is set in `desktop/src/main/app-info.ts`.
+- **Local network:** wireless ADB talks to the phone's IP address; the video-thumbnail helper listens on `127.0.0.1` only, with per-stream tokens.
+- **Opening links:** only `https://github.com/...` links are ever opened in your browser.
+
+### Data stored on your Mac
+
+| Location | Contents |
+|---|---|
+| `~/Library/Application Support/@droidwire/desktop/settings.json` | Download folder, update-check preference |
+| `.../bookmarks.json`, `transfer-history.json`, `dismissedMessages.json` | Bookmarks, the last 100 transfers (file names and paths), dismissed update notices |
+| `~/Library/Logs/@droidwire/desktop/main.log` | Diagnostic log; can contain file names and paths from your phone. Never sent anywhere. Open via **Help > Show Logs in Finder** |
+| `~/Downloads/Droidwire/` (or your chosen folder) | Files you download |
+| Temp folders `droidwire-*` under the system temp dir | Previews, drag-out copies and edit-in-place copies; stale ones are removed at start |
+| `.../beta-signup.json` | **Legacy.** Early beta builds stored the email address entered at sign-up here. Current builds neither read nor write it and do not delete it; remove it yourself if present |
+
+Earlier beta builds (up to 1.2.1) asked for an email address and sent it, with the app version, to a Firestore database operated by the maintainer. That feature has been removed from the code. Records already collected are a separate matter for the project owner; see [CHANGELOG.md](CHANGELOG.md).
+
+## Known limitations
+
+- Unsigned builds; Intel Macs and most phone models unverified.
+- MTP: one device at a time, no storage capacity, folder sizes, battery or APK tools; moving between folders relies on the phone supporting `MoveObject` and fails with an explanation otherwise; cancelling a transfer restarts the MTP worker; large folder listings are slow (libmtp lists object by object).
+- Wireless ADB needs Android 11+ and a network that allows device-to-device traffic.
+- Video thumbnails need an installed `ffmpeg`.
+- Text previews show only the start of a file; images and audio above 25 MB are not previewed.
+- Pause/resume restarts a download from the beginning (adb cannot resume); uploads can be cancelled but not paused once running.
+- Folder zip on a phone without `zip` downloads the whole tree first and needs temporary disk space on the Mac.
+- Renderer hook logic (queue behaviour, upload settling) is covered by type checking and a unit-tested helper, not by UI tests.
 
 ## Roadmap
 
-1. Multiple devices — switcher when 2+ phones are connected, all adb calls serial-scoped
-2. Open & edit round-trip — open a file in its Mac app, auto-push back to phone on save
-3. Menu bar mode — quick transfers without the full window
-4. Device tools — battery/storage detail, app list, APK export
-5. Transfer queue upgrades — pause/resume, reorder, completion notifications
-6. Storage analyzer — treemap of device storage
-7. Wireless ADB pairing (Android 11+)
-8. Auto-update via `electron-updater`
-9. MTP fallback for macOS Ventura+ when `adb` is unavailable
+Realistic next steps, in rough priority order. None are promises.
 
-Signed/notarized distribution and Mac App Store submission are deferred until
-an Apple Developer account is available.
+1. Hardware validation of the beta-prep changes on more phones and Android versions; publish a device matrix.
+2. Signed and notarized builds (needs an Apple Developer account), then in-app update installation.
+3. Resumable downloads where the transport allows it; richer queue controls.
+4. A tested Intel build.
+5. Optionally bundling or building `adb` and `ffmpeg` in a redistributable way (see the licensing notes).
+6. UI-level automated tests for the renderer.
 
-## Out of scope
+## Contributing, security, license
 
-- Windows client
-- Cloud sync
-- iOS support
-- Android-side app
+- [CONTRIBUTING.md](CONTRIBUTING.md) - setup, verification, conventions, hardware bug reports
+- [SECURITY.md](SECURITY.md) - reporting vulnerabilities privately
+- [CHANGELOG.md](CHANGELOG.md)
+- [docs/LICENSING.md](docs/LICENSING.md) - dependency and binary inventory; the license decision is pending
 
-## License
-
-Private project. Not currently open source.
+"Android" is a trademark of Google LLC. The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Droidwire is an independent project and is not affiliated with or endorsed by Google.

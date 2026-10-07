@@ -1,31 +1,37 @@
 # @droidwire/desktop
 
-Electron + React Mac client for browsing and transferring files from an Android device over USB tethering.
+The Droidwire macOS app: Electron (electron-vite) + React 18 + TypeScript (strict) + Tailwind. See the [root README](../README.md) for what the app does, installation and the architecture overview; this file covers working in this package.
 
-## Behavior
+## Layout
 
-- Auto-detects Android at `192.168.42.x:8765` and `192.168.43.x:8765` on launch
-- File browser: folder tree left, file grid right
-- Downloads to `~/Downloads/Droidwire/`
-- Drag-drop upload to current path
-- Real-time progress per file + overall speed (MB/s) + ETA
-- Auto-reconnect every 3s on connection loss
+| Path | Role |
+|---|---|
+| `src/main/` | Main process: app lifecycle, windows, IPC handlers (`ipc/`), ADB and MTP transports, native-worker supervision |
+| `src/main/lib/` | Pure helpers with no Electron dependency (shell quoting, parsing, validation, versions). Fully unit-tested |
+| `src/preload/index.ts` | `contextBridge` bridge. Implements `DroidwireAPI` from `shared/api.ts` |
+| `src/renderer/` | React UI (`components/`, `hooks/`, `lib/`) |
+| `resources/` | `mtp-worker.cjs`, `THIRD-PARTY-NOTICES.md`, icon. `adb`, `*.dylib` and `*.node` are staged here by `scripts/bundle-native.sh` and are git-ignored |
+| `test/` | Unit tests (`node --test`, TypeScript run directly by Node >= 22.18) |
+| `driver.mjs` | Headless smoke test of the built app (Playwright) |
+| `scripts/bundle-native.sh` | Stages and relocates native binaries for packaging |
 
-## Structure
-
-```
-src/
-  main/      # Electron main process (file I/O, IPC handlers)
-  renderer/  # React UI (file browser, transfer panel)
-  preload/   # contextBridge IPC definitions
-```
-
-## Run
+## Commands
 
 ```bash
-npm install
-npm run dev       # Vite dev server
-npm run electron  # Launch Electron
-
-npm run dist      # Build .dmg
+npm run dev         # electron-vite dev server with hot reload
+npm run build       # production build into out/
+npm run typecheck   # renderer + main/preload/tests
+npm test            # unit tests
+npm run verify      # typecheck, tests, build
+npm run smoke       # run after `build`: launches the app offline with a temp profile
+npm run dist        # build + stage native binaries + electron-builder -> release/
 ```
+
+Install dependencies from the repository root with `node scripts/bootstrap.mjs`. The `dev`/`electron`/`smoke` scripts deliberately use `env -u ELECTRON_RUN_AS_NODE`; do not remove it.
+
+## Conventions
+
+- Relative imports in `src/main` include the `.ts` extension so tests can load modules directly under Node. Vite and `tsc` accept this.
+- Keep `src/main/lib` and the cores (`mtp-transport-core`, `zip-folder`, `stream-server`, `mtp-worker-host`) free of Electron imports; inject effects instead. That is what makes them testable without a phone.
+- Syntax must stay erasable (no enums, namespaces or constructor parameter properties in main-process code); `erasableSyntaxOnly` enforces it.
+- New IPC handlers validate every argument and take an optional trailing `DeviceContext`; add the method to `shared/api.ts` first.
