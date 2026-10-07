@@ -19,23 +19,6 @@ build/
 !desktop/build/icon.icns
 out/
 
-# Android native build
-android/android/build/
-android/android/app/build/
-android/android/.gradle/
-android/android/local.properties
-android/*.keystore
-android/.keystore/
-
-# iOS (not in scope but guard anyway)
-android/ios/Pods/
-android/ios/build/
-android/ios/*.xcworkspace/xcuserdata/
-
-# React Native cache
-android/.metro-health-check*
-android/.react-native-cache/
-
 # Electron / Vite
 desktop/.vite/
 desktop/dist-electron/

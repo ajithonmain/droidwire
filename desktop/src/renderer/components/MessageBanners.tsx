@@ -8,8 +8,9 @@ interface Banner {
   action: { label: string; run: () => void } | null
 }
 
-// Update-available notice + remote messages (offers, announcements) fetched
-// once per launch. Dismissals persist per message id so nothing nags twice.
+// Update-available notice, shown at most once per release. The check runs once
+// per launch (unless turned off in the Droidwire menu) and only compares the
+// latest GitHub release tag to this build; dismissals persist per release.
 export function MessageBanners() {
   const { theme } = useTheme()
   const [banners, setBanners] = useState<Banner[]>([])
@@ -27,19 +28,8 @@ export function MessageBanners() {
         collected.push({
           id: `update-${update.latestTag}`,
           title: `Droidwire ${update.latestTag.replace(/^v/, '')} is available`,
-          body: 'A newer version is ready to download.',
+          body: `You are on ${update.currentVersion}. Download the new version from GitHub.`,
           action: { label: 'Download', run: () => window.droidwire.openReleasePage() },
-        })
-      }
-
-      const messages = await window.droidwire.fetchBetaMessages().catch(() => [])
-      for (const m of messages) {
-        if (dismissed.has(m.id)) continue
-        collected.push({
-          id: m.id,
-          title: m.title,
-          body: m.body,
-          action: m.url ? { label: 'Open', run: () => window.droidwire.openExternalUrl(m.url!) } : null,
         })
       }
 

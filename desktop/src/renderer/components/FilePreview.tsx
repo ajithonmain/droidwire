@@ -3,6 +3,7 @@ import type { FileNode } from '@droidwire/shared'
 import type { Theme } from '../lib/theme'
 import { useTheme } from '../lib/ThemeContext'
 import { formatSize, formatDate } from '../lib/format'
+import { getDeviceContext } from '../lib/deviceContext'
 
 interface Props {
   files: FileNode[]
@@ -124,7 +125,7 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
     if (!isDir) { setDirSize(null); return }
     let cancelled = false
     setDirSize('loading')
-    window.droidwire.dirSize(file.path)
+    window.droidwire.dirSize(file.path, getDeviceContext() ?? undefined)
       .then(s => { if (!cancelled) setDirSize(s) })
       .catch(() => { if (!cancelled) setDirSize(null) })
     return () => { cancelled = true }
@@ -136,7 +137,7 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
     setVideoFrame(null)
     if (!isVideo(file.mimeType)) return
     let cancelled = false
-    window.droidwire.videoThumb(file.path, file.size)
+    window.droidwire.videoThumb(file.path, file.size, getDeviceContext() ?? undefined)
       .then(r => { if (!cancelled && r) setVideoFrame(r) })
       .catch(() => {})
     return () => { cancelled = true }
@@ -148,22 +149,25 @@ function SinglePreview({ file, onDownload, onZipDownload, onClose, theme }: {
     setStatInfo(null)
     if (!canFetchPreview) return
     setPreviewLoading(true)
-    window.droidwire.previewFile(file.path, file.name)
-      .then(async src => {
-        setPreviewSrc(src)
-        if (isText(file.mimeType) && src) {
-          const content = await window.droidwire.readLocalFile(src.replace('file://', ''))
-          setTextContent(content)
-        }
+    let cancelled = false
+    window.droidwire.previewFile(file.path, file.name, getDeviceContext() ?? undefined)
+      .then(result => {
+        if (cancelled) return
+        // Images and audio arrive as data URLs, text arrives already decoded
+        if (result?.kind === 'text') setTextContent(result.text + (result.truncated ? '\n' : ''))
+        else if (result) setPreviewSrc(result.dataUrl)
         setPreviewLoading(false)
       })
-      .catch(() => setPreviewLoading(false))
+      .catch(() => { if (!cancelled) setPreviewLoading(false) })
+    return () => { cancelled = true }
   }, [file.path])
 
   useEffect(() => {
-    window.droidwire.statFile(file.path)
-      .then(info => { if (info) setStatInfo(info) })
+    let cancelled = false
+    window.droidwire.statFile(file.path, getDeviceContext() ?? undefined)
+      .then(info => { if (info && !cancelled) setStatInfo(info) })
       .catch(() => {})
+    return () => { cancelled = true }
   }, [file.path])
 
   const renderPreviewArea = () => {

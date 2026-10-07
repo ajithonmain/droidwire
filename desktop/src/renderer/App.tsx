@@ -5,6 +5,7 @@ import { useDevice } from './hooks/useDevice'
 import { useTransfers } from './hooks/useTransfers'
 import { useBookmarks } from './hooks/useBookmarks'
 import { listFiles } from './lib/api'
+import { getDeviceContext, setDeviceContext } from './lib/deviceContext'
 import { formatSize } from './lib/format'
 import { uniqueDestName } from './lib/names'
 import { ConnectionBadge } from './components/ConnectionBadge'
@@ -28,7 +29,6 @@ import type { Tab } from './components/TabBar'
 import { DeviceTools } from './components/DeviceTools'
 import { WirelessConnectModal } from './components/WirelessConnectModal'
 import { LicensesModal } from './components/LicensesModal'
-import { BetaSignup } from './components/BetaSignup'
 import { MessageBanners } from './components/MessageBanners'
 import { useTheme } from './lib/ThemeContext'
 import { TooltipLayer } from './components/TooltipLayer'
@@ -66,15 +66,12 @@ export default function App() {
     })
   }, [])
 
-  // One-time beta registration gate - asks for an email on first launch
-  // (identifies beta testers for the paid launch); 'checking' until the
-  // stored signup is read so the gate never flashes for registered users
-  const [betaGate, setBetaGate] = useState<'checking' | 'needed' | 'done'>('checking')
+  // Publish the device the UI is showing; work queued from here on carries it.
+  // Cleared when the connection mode changes so nothing is queued against a
+  // device from the previous mode while the new one is still being detected.
   useEffect(() => {
-    window.droidwire.getBetaSignup()
-      .then(signup => setBetaGate(signup ? 'done' : 'needed'))
-      .catch(() => setBetaGate('needed'))
-  }, [])
+    setDeviceContext(device ? { transport: isMtp ? 'mtp' : 'adb', serial: device.serial } : null)
+  }, [device, isMtp])
 
   // Branded splash on launch - covers the first device probe so the
   // connection picker doesn't pop in abruptly
@@ -389,21 +386,20 @@ export default function App() {
     }
   }
 
-  async function handleZipDownload(file: FileNode) {
-    try {
-      const id = crypto.randomUUID()
-      await window.droidwire.zipAndPull(file.path, file.name, id)
-    } catch (e) {
-      console.error('Zip download failed', e)
-    }
+  function handleZipDownload(file: FileNode) {
+    // Queued like any download so it shows progress and can be cancelled
+    download(file.path, `${file.name}.zip`, 'folder')
   }
 
   async function handleInstallApk(file: FileNode) {
+    const ctx = getDeviceContext()
+    if (!ctx) return
     try {
-      const localPath = await window.droidwire.pullFile(file.path, file.name, crypto.randomUUID())
-      await window.droidwire.installApk(localPath)
+      const localPath = await window.droidwire.pullFile(file.path, file.name, crypto.randomUUID(), ctx)
+      await window.droidwire.installApk(localPath, ctx)
+      setToast({ msg: `Installed ${file.name}`, kind: 'success' })
     } catch (e) {
-      console.error('Install APK failed', e)
+      setToast({ msg: `Install failed: ${e instanceof Error ? e.message : String(e)}`, kind: 'error' })
     }
   }
 
@@ -465,7 +461,11 @@ export default function App() {
   const downloadBatchRef = useRef<{ pending: number; remembered: ConflictChoice | null }>({
     pending: 0, remembered: null,
   })
-  function download(remotePath: string, fileName: string) {
+  function download(remotePath: string, fileName: string, kind: 'file' | 'folder' = 'file') {
+    // Capture the device now: the conflict dialog below can stay open while the
+    // user switches phones, and the transfer must still come from this one
+    const ctx = getDeviceContext()
+    if (!ctx) return
     const batch = downloadBatchRef.current
     batch.pending++
     downloadChainRef.current = downloadChainRef.current.then(async () => {
@@ -482,7 +482,7 @@ export default function App() {
         if (choice === 'cancel') return
         if (choice === 'keep-both') destName = check.uniqueName
       }
-      void rawDownload(remotePath, destName)
+      void rawDownload(remotePath, destName, ctx, kind)
     }).catch(() => {}).finally(() => {
       batch.pending--
       if (batch.pending <= 0) {
@@ -494,6 +494,8 @@ export default function App() {
 
   async function handlePaste() {
     if (!clipboard || clipboard.nodes.length === 0) return
+    // Device the clipboard was pasted onto, fixed before any dialog opens
+    const ctx = getDeviceContext() ?? undefined
     const dest = currentPathRef.current.replace(/\/$/, '')
     const existingNames = new Set(files.map(f => f.name))
 
@@ -506,21 +508,29 @@ export default function App() {
     }
 
     const usedNames = new Set(existingNames)
+    const failures: string[] = []
     for (const node of clipboard.nodes) {
       const destName = choice === 'replace' ? node.name : uniqueDestName(node.name, usedNames)
       usedNames.add(destName)
       const destPath = dest + '/' + destName
       try {
         if (clipboard.mode === 'copy') {
-          await window.droidwire.copyFile(node.path, destPath)
-        } else {
-          await window.droidwire.renameFile(node.path, destPath)
+          await window.droidwire.copyFile(node.path, destPath, ctx)
+        } else if (node.path !== destPath) {
+          // A real move: rename would only change the object's name (MTP) or
+          // fail across folders, so cut/paste goes through moveFile
+          await window.droidwire.moveFile(node.path, destPath, ctx)
         }
       } catch (e) {
         console.error('Paste failed', e)
+        failures.push(e instanceof Error ? e.message : String(e))
       }
     }
-    if (clipboard.mode === 'cut') setClipboard(null)
+    if (failures.length > 0) {
+      setToast({ msg: `${clipboard.mode === 'cut' ? 'Move' : 'Copy'} failed: ${failures[0]}`, kind: 'error' })
+    }
+    // Keep the cut selection if anything failed so the user can retry
+    if (clipboard.mode === 'cut' && failures.length === 0) setClipboard(null)
     refresh()
   }
 
@@ -635,6 +645,7 @@ export default function App() {
   // draggedNodeRef is not reliable because dragend can fire early.
   async function consumeInternalDrop(destPath: string): Promise<boolean> {
     const dest = destPath.replace(/\/$/, '')
+    const ctx = getDeviceContext() ?? undefined
     setIsDragOver(false)
     try {
       const raw = await window.droidwire.retrieveDragNode() as { nodes: FileNode[]; ts: number } | null
@@ -668,12 +679,16 @@ export default function App() {
       for (const node of nodes) {
         const destName = choice === 'replace' ? node.name : uniqueDestName(node.name, usedNames)
         usedNames.add(destName)
-        if (mode === 'copy') await window.droidwire.copyFile(node.path, dest + '/' + destName)
-        else await window.droidwire.renameFile(node.path, dest + '/' + destName)
+        if (mode === 'copy') await window.droidwire.copyFile(node.path, dest + '/' + destName, ctx)
+        else await window.droidwire.moveFile(node.path, dest + '/' + destName, ctx)
       }
       refresh()
       return true
-    } catch { return true }
+    } catch (e) {
+      setToast({ msg: `Move failed: ${e instanceof Error ? e.message : String(e)}`, kind: 'error' })
+      refresh()
+      return true
+    }
   }
 
   const [internalMoveState, setInternalMoveState] = useState<{
@@ -687,6 +702,8 @@ export default function App() {
 
   async function executeFinderUpload(localFiles: { name: string; localPath: string }[], moveAfter: boolean) {
     setUploadModeFiles(null)
+    const ctx = getDeviceContext()
+    if (!ctx) return
 
     const existingNames = new Set(files.map(f => f.name))
     const conflicting = localFiles.filter(f => existingNames.has(f.name))
@@ -704,7 +721,7 @@ export default function App() {
         destName = uniqueDestName(f.name, usedNames)
         usedNames.add(destName)
       }
-      const ok = await upload(f.localPath, currentPathRef.current, destName)
+      const ok = await upload(f.localPath, currentPathRef.current, destName, ctx)
       // Move = delete local only after the push actually succeeded
       if (ok && moveAfter) {
         window.droidwire.deleteLocalFile(f.localPath).catch(() => {})
@@ -752,8 +769,6 @@ export default function App() {
       }}
       onDrop={handleDrop}
     >
-      {betaGate === 'needed' && <BetaSignup onDone={() => setBetaGate('done')} />}
-
       {/* Combined title + nav bar (single row) */}
       <header style={{
         display: 'flex',
@@ -983,6 +998,7 @@ export default function App() {
             ) : !connectionPicked ? (
               <ConnectionTypePicker onSelect={type => {
                 setConnectionTypeState(type)
+                setDeviceContext(null)
                 window.droidwire.setConnectionType(type).catch(() => {})
                 if (type === 'wireless') setShowWireless(true)
                 else { setConnectionPicked(true); rescan() }

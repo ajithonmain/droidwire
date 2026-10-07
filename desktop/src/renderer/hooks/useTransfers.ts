@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { TransferProgress } from '@droidwire/shared'
+import type { DeviceContext, TransferProgress } from '@droidwire/shared'
+import { SettleRegistry } from '../lib/settle'
 
 export interface HistoryEntry {
   id: string
@@ -26,8 +27,9 @@ export function useTransfers() {
   // Queued work: id → thunk that actually runs the transfer. Re-registered
   // on pause so resume restarts the transfer from scratch (adb can't resume).
   const startersRef = useRef<Map<string, () => void>>(new Map())
-  // Upload callers await completion (move-after-upload) - deferred per id
-  const uploadResolversRef = useRef<Map<string, (ok: boolean) => void>>(new Map())
+  // Upload callers await completion (move-after-upload). Every upload id is
+  // settled on success, failure, cancellation or dismissal - see SettleRegistry.
+  const settlerRef = useRef(new SettleRegistry())
   // Batch counters for the completion notification
   const batchRef = useRef({ total: 0, done: 0, failed: 0 })
   const prevBusyRef = useRef(false)
@@ -76,7 +78,10 @@ export function useTransfers() {
         if (t.status === 'paused' || t.status === 'cancelled') return t
         const merged = { ...t, ...p }
         if (merged.status === 'done') recordDone(merged)
-        if (merged.status === 'error') recordFailed(merged.id)
+        if (merged.status === 'error') {
+          recordFailed(merged.id)
+          settlerRef.current.settle(merged.id, false)
+        }
         return merged
       }))
     })
@@ -117,6 +122,7 @@ export function useTransfers() {
 
   const markError = useCallback((id: string, error: string) => {
     recordFailed(id)
+    settlerRef.current.settle(id, false)
     setTransfers(prev => prev.map(t =>
       t.id === id && t.status !== 'paused' && t.status !== 'cancelled'
         ? { ...t, status: 'error', error }
@@ -124,10 +130,13 @@ export function useTransfers() {
     ))
   }, [recordFailed])
 
-  const makeDownloadStarter = useCallback((id: string, remotePath: string, fileName: string) => {
+  const makeDownloadStarter = useCallback((id: string, remotePath: string, fileName: string, ctx: DeviceContext, kind: 'file' | 'folder') => {
     return () => {
       setTransfers(prev => prev.map(t => t.id === id ? { ...t, status: 'active', transferredBytes: 0, speedBps: 0 } : t))
-      window.droidwire.pullFile(remotePath, fileName, id)
+      const run = kind === 'folder'
+        ? window.droidwire.zipAndPull(remotePath, fileName.replace(/\.zip$/i, ''), id, ctx)
+        : window.droidwire.pullFile(remotePath, fileName, id, ctx)
+      run
         .then(localPath => {
           setTransfers(prev => prev.map(t => {
             if (t.id !== id) return t
@@ -140,53 +149,52 @@ export function useTransfers() {
     }
   }, [recordDone, markError])
 
-  const makeUploadStarter = useCallback((id: string, localPath: string, remotePath: string) => {
+  const makeUploadStarter = useCallback((id: string, localPath: string, remotePath: string, ctx: DeviceContext) => {
     return () => {
       setTransfers(prev => prev.map(t => t.id === id ? { ...t, status: 'active', transferredBytes: 0, speedBps: 0 } : t))
-      window.droidwire.pushFile(localPath, remotePath, id)
-        .then(() => {
-          uploadResolversRef.current.get(id)?.(true)
-          uploadResolversRef.current.delete(id)
-        })
+      window.droidwire.pushFile(localPath, remotePath, id, ctx)
+        .then(() => settlerRef.current.settle(id, true))
         .catch(e => {
+          // markError also settles the upload as failed
           markError(id, e instanceof Error ? e.message : String(e))
         })
     }
   }, [markError])
 
-  const download = useCallback(async (remotePath: string, fileName: string) => {
+  // `ctx` is the device the user was looking at when they asked for this
+  // transfer. It is stored on the entry and reused for every (re)start.
+  const download = useCallback(async (remotePath: string, fileName: string, ctx: DeviceContext, kind: 'file' | 'folder' = 'file') => {
     const id = `dl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const entry: TransferProgress = {
       id, fileName, filePath: remotePath,
       direction: 'download', totalBytes: 0, transferredBytes: 0,
-      speedBps: 0, status: 'pending',
+      speedBps: 0, status: 'pending', device: ctx, kind,
     }
     batchRef.current.total++
-    startersRef.current.set(id, makeDownloadStarter(id, remotePath, fileName))
+    startersRef.current.set(id, makeDownloadStarter(id, remotePath, fileName, ctx, kind))
     setTransfers(prev => [entry, ...prev])
   }, [makeDownloadStarter])
 
-  const upload = useCallback(async (localPath: string, remoteDirPath: string, destName?: string) => {
+  const upload = useCallback(async (localPath: string, remoteDirPath: string, destName: string | undefined, ctx: DeviceContext) => {
     const fileName = destName ?? localPath.split('/').pop() ?? 'file'
     const remotePath = remoteDirPath.replace(/\/$/, '') + '/' + fileName
     const id = `ul-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const entry: TransferProgress = {
       id, fileName, filePath: remotePath,
       direction: 'upload', totalBytes: 0, transferredBytes: 0,
-      speedBps: 0, status: 'pending',
+      speedBps: 0, status: 'pending', device: ctx,
     }
     batchRef.current.total++
-    startersRef.current.set(id, makeUploadStarter(id, localPath, remotePath))
+    startersRef.current.set(id, makeUploadStarter(id, localPath, remotePath, ctx))
+    // Register the waiter before the entry becomes visible to the queue runner
+    const outcome = settlerRef.current.wait(id)
     setTransfers(prev => [entry, ...prev])
-    return new Promise<boolean>(resolve => {
-      uploadResolversRef.current.set(id, resolve)
-    })
+    return outcome
   }, [makeUploadStarter])
 
   const cancel = useCallback(async (id: string) => {
     startersRef.current.delete(id)
-    uploadResolversRef.current.get(id)?.(false)
-    uploadResolversRef.current.delete(id)
+    settlerRef.current.settle(id, false)
     setTransfers(prev => prev.map(t => t.id === id ? { ...t, status: 'cancelled' } : t))
     try {
       await window.droidwire.cancelTransfer(id)
@@ -199,9 +207,9 @@ export function useTransfers() {
     if (t.status === 'active') {
       // Active uploads can't be rebuilt from state (the local source path only
       // lives in the starter closure) - pausing them is not offered (canPause)
-      if (t.direction !== 'download') return
+      if (t.direction !== 'download' || !t.device) return
       // adb can't suspend a transfer - kill it and restart from scratch on resume
-      startersRef.current.set(id, makeDownloadStarter(id, t.filePath, t.fileName))
+      startersRef.current.set(id, makeDownloadStarter(id, t.filePath, t.fileName, t.device, t.kind ?? 'file'))
       setTransfers(prev => prev.map(x => x.id === id ? { ...x, status: 'paused', speedBps: 0 } : x))
       try { await window.droidwire.cancelTransfer(id) } catch { /* already dead */ }
     } else {
@@ -243,13 +251,14 @@ export function useTransfers() {
 
   const retry = useCallback((transfer: TransferProgress) => {
     setTransfers(prev => prev.filter(t => t.id !== transfer.id))
-    if (transfer.direction === 'download') {
-      download(transfer.filePath, transfer.fileName)
+    if (transfer.direction === 'download' && transfer.device) {
+      download(transfer.filePath, transfer.fileName, transfer.device, transfer.kind ?? 'file')
     }
   }, [download])
 
   const dismiss = useCallback((id: string) => {
     startersRef.current.delete(id)
+    settlerRef.current.settle(id, false)
     setTransfers(prev => prev.filter(t => t.id !== id))
   }, [])
 

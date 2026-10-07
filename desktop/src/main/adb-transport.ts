@@ -1,283 +1,312 @@
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import fs from 'fs'
-import path from 'path'
+import os from 'os'
 import type { FileNode, StorageInfo } from '@droidwire/shared'
-import type { Transport, TransportDevice } from './transport'
+import { cancelledError, throwIfAborted, type Transport, type TransportDevice, type TransferOptions } from './transport.ts'
+import { getActiveSerial } from './active-device.ts'
+import { findAdb } from './lib/adb-path.ts'
+import { parseAdbDevices, dedupeByHardware } from './lib/adb-devices.ts'
+import { parseLsLa } from './lib/ls-parse.ts'
+import { shQuote } from './lib/shell.ts'
+import { treeSize } from './lib/fsx.ts'
+import { posixBase, posixDir, isProtectedRemotePath } from './lib/paths.ts'
+import path from 'path'
 
-let _adbSlots = 0
-const _adbQueue: Array<() => void> = []
+// ---------------------------------------------------------------------------
+// adb binary + process helpers. Every function that talks to a phone takes
+// the serial explicitly; nothing here consults the UI's "active device".
+// ---------------------------------------------------------------------------
+
 const ADB_MAX = 6
+let adbSlots = 0
+const adbQueue: Array<() => void> = []
 
+// Short commands share a small pool so a huge folder listing cannot exhaust
+// process limits (EAGAIN). Long transfers deliberately bypass it: they would
+// otherwise hold slots for minutes and starve listings.
 function withAdbSlot<T>(fn: () => Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     const run = () => {
-      _adbSlots++
+      adbSlots++
       fn().then(resolve, reject).finally(() => {
-        _adbSlots--
-        _adbQueue.shift()?.()
+        adbSlots--
+        adbQueue.shift()?.()
       })
     }
-    if (_adbSlots < ADB_MAX) run()
-    else _adbQueue.push(run)
+    if (adbSlots < ADB_MAX) run()
+    else adbQueue.push(run)
   })
 }
 
-function adbBin(): string {
-  const bundled = path.join(process.resourcesPath ?? '', 'adb')
-  if (fs.existsSync(bundled)) return bundled
-  for (const p of ['/opt/homebrew/bin/adb', '/usr/local/bin/adb']) {
-    if (fs.existsSync(p)) return p
-  }
-  return 'adb'
+export function getAdbBinary(): string {
+  return findAdb({
+    resourcesDir: process.resourcesPath,
+    env: process.env,
+    homeDir: os.homedir(),
+    exists: fs.existsSync,
+  })
 }
 
-let _activeSerial: string | null = null
-const _modelCache = new Map<string, string>()
-const _hwSerialCache = new Map<string, string>()
-
-function isWirelessSerial(serial: string): boolean {
-  return serial.includes(':') || serial.startsWith('adb-') || serial.includes('_adb-tls-connect')
+function scoped(serial: string | null, args: string[]): string[] {
+  return serial ? ['-s', serial, ...args] : args
 }
 
-function transportRank(serial: string): number {
-  if (!isWirelessSerial(serial)) return 0
-  return serial.includes(':') && !serial.includes('_adb-tls-connect') ? 1 : 2
+export interface AdbExecOptions {
+  timeout?: number
+  maxBuffer?: number
+  signal?: AbortSignal
 }
 
-function adbArgs(args: string[]): string[] {
-  if (!_activeSerial || args[0] === 'devices' || args[0] === '-s') return args
-  return ['-s', _activeSerial, ...args]
-}
-
-function adb(args: string[]): Promise<string> {
-  return withAdbSlot(() => new Promise((resolve, reject) => {
-    const proc = execFile(adbBin(), adbArgs(args), { timeout: 15000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message))
-      else resolve(stdout)
-    })
-    proc.on('error', reject)
-  }))
-}
-
-function adbLong(args: string[], timeout = 120_000): Promise<string> {
-  return withAdbSlot(() => new Promise((resolve, reject) => {
-    const proc = execFile(adbBin(), adbArgs(args), { timeout, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message))
-      else resolve(stdout)
-    })
-    proc.on('error', reject)
-  }))
-}
-
-function sq(p: string): string {
-  return `'${p.replace(/'/g, "'\\''")}'`
-}
-
-function parseLsLa(output: string, dirPath: string): FileNode[] {
-  const nodes: FileNode[] = []
-  for (const line of output.split('\n')) {
-    const m = line.match(
-      /^([dlrwxst-]{10})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+(.+)$/
+/** Run adb against one device (or host-wide when serial is null) and return stdout. */
+export function adbExec(serial: string | null, args: string[], opts: AdbExecOptions = {}): Promise<string> {
+  return withAdbSlot(() => new Promise<string>((resolve, reject) => {
+    throwIfAborted(opts.signal)
+    const proc = execFile(
+      getAdbBinary(),
+      scoped(serial, args),
+      { timeout: opts.timeout ?? 15_000, maxBuffer: opts.maxBuffer ?? 8 * 1024 * 1024, signal: opts.signal },
+      (err, stdout, stderr) => {
+        if (err) {
+          if (opts.signal?.aborted) reject(cancelledError())
+          else reject(new Error(stderr.trim() || err.message))
+        } else resolve(stdout)
+      },
     )
-    if (!m) continue
-    const [, perms, sizeStr, date, time, rawName] = m
-    const name = rawName.trim()
-    if (name === '.' || name === '..') continue
-    const isDir = perms[0] === 'd'
-    const isLink = perms[0] === 'l'
-    const cleanName = isLink ? name.split(' -> ')[0].trim() : name
-    nodes.push({
-      name: cleanName,
-      path: dirPath.replace(/\/$/, '') + '/' + cleanName,
-      size: isDir ? 0 : parseInt(sizeStr, 10),
-      type: isDir ? 'dir' : 'file',
-      mimeType: isDir ? null : guessMime(cleanName),
-      modified: new Date(`${date}T${time}:00`).getTime(),
+    proc.on('error', reject)
+  }))
+}
+
+/** `adb -s <serial> shell <command>`; the command string MUST already be quoted. */
+export function adbShell(serial: string, command: string, opts?: AdbExecOptions): Promise<string> {
+  return adbExec(serial, ['shell', command], opts)
+}
+
+/** Host-wide command (devices, pair, connect, mdns). Returns stdout+stderr. */
+export function adbHost(args: string[], timeout: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = execFile(getAdbBinary(), args, { timeout }, (err, stdout, stderr) => {
+      if (err) reject(new Error(stderr.trim() || stdout.trim() || err.message))
+      else resolve(stdout + stderr)
     })
-  }
-  return nodes.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    proc.on('error', reject)
   })
 }
 
-function guessMime(name: string): string | null {
-  const ext = name.split('.').pop()?.toLowerCase()
-  const map: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-    gif: 'image/gif', webp: 'image/webp', heic: 'image/heic',
-    svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
-    tiff: 'image/tiff', tif: 'image/tiff',
-    mp4: 'video/mp4', mov: 'video/quicktime', mkv: 'video/x-matroska',
-    avi: 'video/x-msvideo', webm: 'video/webm', m4v: 'video/mp4', '3gp': 'video/3gpp',
-    mp3: 'audio/mpeg', aac: 'audio/aac', flac: 'audio/flac',
-    wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4', opus: 'audio/opus',
-    pdf: 'application/pdf',
-    zip: 'application/zip', rar: 'application/x-rar-compressed',
-    '7z': 'application/x-7z-compressed', tar: 'application/x-tar', gz: 'application/gzip',
-    apk: 'application/vnd.android.package-archive',
-    txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
-    html: 'text/html', htm: 'text/html',
-    css: 'text/css', js: 'text/javascript', ts: 'text/plain',
-    json: 'application/json', xml: 'text/xml', yaml: 'text/plain', yml: 'text/plain',
-    sh: 'application/x-sh', py: 'text/plain', rb: 'text/plain',
-    c: 'text/plain', cpp: 'text/plain', h: 'text/plain', kt: 'text/plain',
-  }
-  return ext ? (map[ext] ?? 'application/octet-stream') : null
+/**
+ * Run a long `adb` transfer command, optionally polling for progress.
+ * `probe` returns the bytes moved so far (or null while unknown).
+ * Aborting the signal kills the child and rejects with a cancellation error.
+ */
+function runTransfer(
+  serial: string,
+  args: string[],
+  opts: { signal?: AbortSignal; probe?: () => Promise<number | null>; pollMs: number; onProgress?: (n: number) => void },
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (opts.signal?.aborted) { reject(cancelledError()); return }
+    const proc = spawn(getAdbBinary(), scoped(serial, args))
+    let stderr = ''
+    let settled = false
+    let probing = false
+
+    const poll = opts.probe && opts.onProgress
+      ? setInterval(async () => {
+          if (probing || settled) return
+          probing = true
+          try {
+            const n = await opts.probe!()
+            if (n !== null && !settled) opts.onProgress!(n)
+          } catch { /* destination not created yet */ }
+          probing = false
+        }, opts.pollMs)
+      : null
+
+    const finish = (err: Error | null) => {
+      if (settled) return
+      settled = true
+      if (poll) clearInterval(poll)
+      opts.signal?.removeEventListener('abort', onAbort)
+      if (err) reject(err)
+      else resolve()
+    }
+    const onAbort = () => {
+      try { proc.kill() } catch { /* already dead */ }
+      finish(cancelledError())
+    }
+    opts.signal?.addEventListener('abort', onAbort, { once: true })
+
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.stdout.on('data', () => { /* progress text is not machine readable when not on a TTY */ })
+    proc.on('error', err => finish(err))
+    proc.on('close', code => {
+      if (code === 0) finish(null)
+      else finish(new Error(stderr.trim() || `adb ${args[0]} failed (exit ${code})`))
+    })
+  })
 }
 
-const _ejectedSerials = new Set<string>()
+/** Raw adb child for streaming callers (the video range server). Caller owns its lifetime. */
+export function adbSpawn(serial: string | null, args: string[]): ReturnType<typeof spawn> {
+  return spawn(getAdbBinary(), scoped(serial, args))
+}
+
+/**
+ * Pull a whole directory tree into `localParent/<basename>` and return that
+ * path. Progress is local bytes written versus the remote `du` size.
+ */
+export async function pullTree(
+  serial: string,
+  remoteDir: string,
+  localParent: string,
+  opts: TransferOptions = {},
+): Promise<string> {
+  throwIfAborted(opts.signal)
+  const target = path.join(localParent, posixBase(remoteDir))
+  let total = 0
+  try {
+    const kb = parseInt((await adbShell(serial, `du -sk ${shQuote(remoteDir)}`, { timeout: 60_000 })).trim().split(/\s+/)[0], 10)
+    if (!Number.isNaN(kb)) total = kb * 1024
+  } catch { /* unknown total: progress shows bytes only */ }
+  await runTransfer(serial, ['pull', remoteDir, localParent], {
+    signal: opts.signal,
+    pollMs: 500,
+    probe: () => treeSize(target),
+    onProgress: n => opts.onProgress?.(n, total),
+  })
+  return target
+}
+
+/** True if the device ships a `zip` executable (most stock Android builds do not). */
+export async function deviceHasZip(serial: string): Promise<boolean> {
+  try {
+    return (await adbShell(serial, 'command -v zip >/dev/null 2>&1 && echo yes || echo no')).trim() === 'yes'
+  } catch {
+    return false
+  }
+}
+
+// --- device enumeration --------------------------------------------------------
+
+const modelCache = new Map<string, string>()
+const hwSerialCache = new Map<string, string>()
+const ejected = new Set<string>()
+
+export function addEjectedSerial(serial: string): void { ejected.add(serial) }
+export function clearEjectedSerials(): void { ejected.clear() }
+export function forgetDeviceCaches(): void { modelCache.clear(); hwSerialCache.clear() }
+
+async function prop(serial: string, key: string): Promise<string> {
+  return (await adbShell(serial, `getprop ${key}`)).trim()
+}
+
+function parseBatteryLevel(dumpsys: string): number {
+  const m = dumpsys.match(/level:\s*(\d+)/)
+  return m ? parseInt(m[1], 10) : -1
+}
+
+async function remoteSize(serial: string, remotePath: string): Promise<number | null> {
+  try {
+    const n = parseInt((await adbShell(serial, `stat -c '%s' ${shQuote(remotePath)}`)).trim(), 10)
+    return Number.isNaN(n) ? null : n
+  } catch {
+    return null
+  }
+}
 
 export const AdbTransport: Transport = {
   type: 'adb',
 
   async getDevices(): Promise<TransportDevice[]> {
-    const out = await adb(['devices'])
-    const devices = out
-      .split('\n')
-      .slice(1)
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('*') && l.includes('\t'))
-      .map(l => {
-        const [serial, state] = l.split('\t')
-        return { serial: serial.trim(), state: state.trim(), model: '' }
-      })
-      .filter(d => !_ejectedSerials.has(d.serial))
-
-    const online = devices.filter(d => d.state === 'device')
-    if (!_activeSerial || !online.some(d => d.serial === _activeSerial)) {
-      _activeSerial = online[0]?.serial ?? null
-    }
+    const rows = parseAdbDevices(await adbExec(null, ['devices'])).filter(d => !ejected.has(d.serial))
+    const online = rows.filter(d => d.state === 'device')
 
     for (const d of online) {
-      if (!_modelCache.has(d.serial)) {
-        try {
-          const model = await adb(['-s', d.serial, 'shell', 'getprop', 'ro.product.model'])
-          _modelCache.set(d.serial, model.trim())
-        } catch { /* leave unnamed */ }
+      if (!modelCache.has(d.serial)) {
+        try { modelCache.set(d.serial, await prop(d.serial, 'ro.product.model')) } catch { /* leave unnamed */ }
       }
-      d.model = _modelCache.get(d.serial) ?? d.serial
-      if (!_hwSerialCache.has(d.serial)) {
+      if (!hwSerialCache.has(d.serial)) {
         try {
-          const hw = (await adb(['-s', d.serial, 'shell', 'getprop', 'ro.serialno'])).trim()
-          if (hw) _hwSerialCache.set(d.serial, hw)
+          const hw = await prop(d.serial, 'ro.serialno')
+          if (hw) hwSerialCache.set(d.serial, hw)
         } catch { /* identify by adb serial */ }
       }
     }
 
-    const byHw = new Map<string, (typeof online)[number]>()
-    for (const d of online) {
-      const hw = _hwSerialCache.get(d.serial) ?? d.serial
-      const existing = byHw.get(hw)
-      if (!existing) { byHw.set(hw, d); continue }
-      const keepNew = d.serial === _activeSerial
-        || (existing.serial !== _activeSerial && transportRank(d.serial) < transportRank(existing.serial))
-      if (keepNew) byHw.set(hw, d)
-    }
-    const deduped = online.filter(d => byHw.get(_hwSerialCache.get(d.serial) ?? d.serial) === d)
-
-    return [...deduped, ...devices.filter(d => d.state !== 'device')].map(d => ({
-      serial: d.serial,
-      name: d.model || d.serial,
-      type: 'adb' as const,
-    }))
+    const unique = dedupeByHardware(online, getActiveSerial('adb'), s => hwSerialCache.get(s) ?? s)
+    return unique.map(d => ({ serial: d.serial, name: modelCache.get(d.serial) || d.serial, type: 'adb' as const }))
   },
 
-  async getDeviceInfo(serial: string) {
-    _activeSerial = serial
-    const [model, batteryOut] = await Promise.all([
-      adb(['shell', 'getprop', 'ro.product.model']),
-      adb(['shell', 'dumpsys', 'battery']),
+  async getDeviceInfo(serial) {
+    const [model, battery] = await Promise.all([
+      prop(serial, 'ro.product.model'),
+      adbShell(serial, 'dumpsys battery'),
     ])
-    const levelMatch = batteryOut.match(/level:\s*(\d+)/)
-    return {
-      model: model.trim(),
-      androidVersion: '',
-      battery: levelMatch ? parseInt(levelMatch[1], 10) : -1,
-    }
+    return { model, androidVersion: '', battery: parseBatteryLevel(battery) }
   },
 
-  async listFiles(serial: string, dirPath: string): Promise<FileNode[]> {
-    _activeSerial = serial
-    const out = await adb(['shell', `ls -la --color=never ${sq(dirPath)}`])
+  async listFiles(serial, dirPath): Promise<FileNode[]> {
+    const out = await adbShell(serial, `ls -la --color=never ${shQuote(dirPath)}`)
     return parseLsLa(out, dirPath)
   },
 
-  async pullFile(serial: string, remotePath: string, localPath: string, onProgress?: (sent: number, total: number) => void): Promise<void> {
-    _activeSerial = serial
-    await adb(['pull', remotePath, localPath])
-    if (onProgress && fs.existsSync(localPath)) {
-      const size = fs.statSync(localPath).size
-      onProgress(size, size)
-    }
+  async pullFile(serial, remotePath, localPath, opts: TransferOptions = {}): Promise<void> {
+    throwIfAborted(opts.signal)
+    const total = (await remoteSize(serial, remotePath)) ?? 0
+    await runTransfer(serial, ['pull', remotePath, localPath], {
+      signal: opts.signal,
+      pollMs: 250,
+      probe: async () => fs.statSync(localPath).size,
+      onProgress: n => opts.onProgress?.(n, total),
+    })
   },
 
-  async pushFile(serial: string, localPath: string, remotePath: string, onProgress?: (sent: number, total: number) => void): Promise<void> {
-    _activeSerial = serial
+  async pushFile(serial, localPath, remotePath, opts: TransferOptions = {}): Promise<void> {
     if (!fs.existsSync(localPath)) throw new Error(`Local file not found: ${localPath}`)
-    const stats = fs.statSync(localPath)
-    await adb(['push', localPath, remotePath])
-    if (onProgress) onProgress(stats.size, stats.size)
+    throwIfAborted(opts.signal)
+    const total = fs.statSync(localPath).size
+    // adb prints [ XX%] only when attached to a TTY, so poll the remote size instead
+    await runTransfer(serial, ['push', localPath, remotePath], {
+      signal: opts.signal,
+      pollMs: 400,
+      probe: () => remoteSize(serial, remotePath),
+      onProgress: n => opts.onProgress?.(n, total),
+    })
   },
 
-  async deleteFile(serial: string, filePath: string): Promise<void> {
-    _activeSerial = serial
-    await adb(['shell', `rm ${sq(filePath)}`])
+  async deleteFile(serial, filePath): Promise<void> {
+    if (isProtectedRemotePath(filePath)) throw new Error('Refusing to delete a storage root')
+    await adbShell(serial, `rm -rf ${shQuote(filePath)}`)
   },
 
-  async renameFile(serial: string, oldPath: string, newName: string): Promise<void> {
-    _activeSerial = serial
-    const dir = oldPath.substring(0, oldPath.lastIndexOf('/'))
-    const newPath = dir + '/' + newName
-    await adb(['shell', `mv ${sq(oldPath)} ${sq(newPath)}`])
+  async renameFile(serial, oldPath, newName): Promise<void> {
+    if (newName.includes('/') || newName === '' || newName === '.' || newName === '..') throw new Error('Invalid name')
+    await adbShell(serial, `mv ${shQuote(oldPath)} ${shQuote(posixDir(oldPath).replace(/\/$/, '') + '/' + newName)}`)
   },
 
-  async makeDir(serial: string, dirPath: string): Promise<void> {
-    _activeSerial = serial
-    await adb(['shell', `mkdir -p ${sq(dirPath)}`])
+  async moveFile(serial, srcPath, destPath): Promise<void> {
+    if (isProtectedRemotePath(srcPath)) throw new Error('Refusing to move a storage root')
+    await adbShell(serial, `mv ${shQuote(srcPath)} ${shQuote(destPath)}`)
   },
 
-  async getStorage(serial: string): Promise<StorageInfo> {
-    _activeSerial = serial
-    const out = await adb(['shell', 'df', '-k', '/sdcard'])
+  async makeDir(serial, dirPath): Promise<void> {
+    await adbShell(serial, `mkdir -p ${shQuote(dirPath)}`)
+  },
+
+  async copy(serial, srcPath, dstPath): Promise<void> {
+    await adbShell(serial, `cp -r ${shQuote(srcPath)} ${shQuote(dstPath)}`, { timeout: 120_000 })
+  },
+
+  async getStorage(serial): Promise<StorageInfo> {
+    const out = await adbShell(serial, 'df -k /sdcard')
     const lines = out.split('\n').filter(l => l.trim() && !l.startsWith('Filesystem'))
     if (!lines.length) throw new Error('Could not read storage')
+    // df -k columns: Filesystem 1K-blocks Used Available Use% Mounted
     const parts = lines[0].trim().split(/\s+/)
-    const total = parseInt(parts[1], 10) * 1024
-    const used = parseInt(parts[2], 10) * 1024
-    const free = parseInt(parts[3], 10) * 1024
-    return { total, used, free }
+    return {
+      total: parseInt(parts[1], 10) * 1024,
+      used: parseInt(parts[2], 10) * 1024,
+      free: parseInt(parts[3], 10) * 1024,
+    }
   },
 }
 
-export function setActiveSerial(serial: string | null) {
-  _activeSerial = serial
-}
-
-export function getActiveSerial(): string | null {
-  return _activeSerial
-}
-
-export function addEjectedSerial(serial: string) {
-  _ejectedSerials.add(serial)
-}
-
-export function clearEjectedSerials() {
-  _ejectedSerials.clear()
-}
-
-export function getAdbBinary(): string {
-  return adbBin()
-}
-
-export function adbCommand(args: string[]): Promise<string> {
-  return adb(args)
-}
-
-export function adbLongCommand(args: string[], timeout?: number): Promise<string> {
-  return adbLong(args, timeout)
-}
-
-export function squote(p: string): string {
-  return sq(p)
-}

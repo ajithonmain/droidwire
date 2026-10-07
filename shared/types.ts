@@ -13,6 +13,19 @@ export interface StorageInfo {
   free: number
 }
 
+/** Which protocol reaches a device. Wireless ADB is still `adb`. */
+export type TransportKind = 'adb' | 'mtp'
+
+/**
+ * Identity of the device an operation belongs to. It is captured when the
+ * operation is queued and travels with it, so switching the active device or
+ * connection mode later cannot redirect queued work to a different phone.
+ */
+export interface DeviceContext {
+  transport: TransportKind
+  serial: string
+}
+
 export interface TransferProgress {
   id: string
   fileName: string
@@ -24,6 +37,32 @@ export interface TransferProgress {
   status: 'pending' | 'active' | 'paused' | 'done' | 'error' | 'cancelled'
   error?: string
   localPath?: string
+  /** Device the transfer was queued against (renderer-side bookkeeping). */
+  device?: DeviceContext
+  /** 'folder' downloads are zipped; everything else is a single file. */
+  kind?: 'file' | 'folder'
+}
+
+/**
+ * Result of `previewFile`. Images (including generated HEIC/PDF thumbnails)
+ * and audio come back as data URLs; text comes back as already-decoded text,
+ * so the renderer never needs filesystem access to display it.
+ * `null` means "no preview available".
+ */
+export type PreviewResult =
+  | { kind: 'image' | 'audio'; dataUrl: string }
+  | { kind: 'text'; text: string; truncated: boolean }
+
+export interface UpdateCheckResult {
+  currentVersion: string
+  latestTag: string
+  hasUpdate: boolean
+}
+
+export interface AppSettings {
+  downloadDir?: string
+  /** Check GitHub for a newer release on launch. Defaults to true. */
+  checkForUpdatesOnLaunch?: boolean
 }
 
 export interface BatteryDetail {
@@ -65,3 +104,5 @@ export interface DuEntry {
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
+
+export * from "./api"

@@ -1,19 +1,24 @@
 {
   "name": "droidwire",
-  "version": "1.1.0",
+  "version": "1.2.1",
   "private": true,
+  "description": "Android file management for macOS over USB ADB, wireless ADB and MTP",
   "workspaces": [
-    "android",
     "desktop",
     "shared"
   ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
-    "postinstall": "patch-package && npm run rebuild:mtp",
-    "rebuild:mtp": "cd node_modules/luck-node-mtp && LIBRARY_PATH=/opt/homebrew/lib CPATH=/opt/homebrew/include npx node-gyp rebuild",
-    "android": "cd android && npx react-native run-android",
-    "desktop:dev": "cd desktop && npm run dev",
-    "desktop:electron": "cd desktop && npm run electron",
-    "desktop:dist": "cd desktop && npm run dist"
+    "postinstall": "patch-package && node scripts/rebuild-mtp.mjs --soft",
+    "rebuild:mtp": "node scripts/rebuild-mtp.mjs",
+    "desktop:dev": "npm --prefix desktop run dev",
+    "desktop:build": "npm --prefix desktop run build",
+    "desktop:dist": "npm --prefix desktop run dist",
+    "typecheck": "npm --prefix desktop run typecheck",
+    "test": "npm --prefix desktop test",
+    "verify": "npm --prefix desktop run verify"
   },
   "allowScripts": {
     "luck-node-mtp@1.0.0": true

@@ -3,6 +3,7 @@ import type { FileNode } from '@droidwire/shared'
 import type { Theme } from '../lib/theme'
 import { useTheme } from '../lib/ThemeContext'
 import { formatSize, formatDate } from '../lib/format'
+import { getDeviceContext } from '../lib/deviceContext'
 
 type SortField = 'name' | 'size' | 'date' | 'type'
 type SortDir = 'asc' | 'desc'
@@ -248,12 +249,14 @@ function ThumbnailLg({ file, theme }: { file: FileNode; theme: Theme }) {
   useEffect(() => {
     let cancelled = false
     if (!eligible) return
+    // The device this listing belongs to - read now, not after the queue wait
+    const ctx = getDeviceContext() ?? undefined
     let acquired = false
     thumbAcquire().then(() => {
       acquired = true
       if (cancelled) { thumbRelease(); return }
-      return window.droidwire.previewFile(file.path, file.name)
-        .then(r => { if (!cancelled && r) setSrc(r) })
+      return window.droidwire.previewFile(file.path, file.name, ctx)
+        .then(r => { if (!cancelled && r?.kind === 'image') setSrc(r.dataUrl) })
         .catch(() => {})
         .finally(() => thumbRelease())
     })
@@ -282,7 +285,7 @@ export function clearFileGridCaches() {
 }
 
 function DirSizeCell({ file, hidden }: { file: FileNode; hidden?: boolean }) {
-  const key = `${file.path}:${file.modified}`
+  const key = `${getDeviceContext()?.serial ?? ''}:${file.path}:${file.modified}`
   const [size, setSize] = useState<number | null | undefined>(_dirSizeCache.get(key))
 
   useEffect(() => {
@@ -290,10 +293,11 @@ function DirSizeCell({ file, hidden }: { file: FileNode; hidden?: boolean }) {
     if (_dirSizeCache.has(key)) { setSize(_dirSizeCache.get(key)); return }
     let cancelled = false
     let acquired = false
+    const ctx = getDeviceContext() ?? undefined
     thumbAcquire().then(() => {
       acquired = true
       if (cancelled) { thumbRelease(); return }
-      return window.droidwire.dirSize(file.path)
+      return window.droidwire.dirSize(file.path, ctx)
         .then(s => { _dirSizeCache.set(key, s); if (!cancelled) setSize(s) })
         .catch(() => { if (!cancelled) setSize(null) })
         .finally(() => thumbRelease())
@@ -317,10 +321,11 @@ function VideoThumbLg({ file, theme }: { file: FileNode; theme: Theme }) {
   useEffect(() => {
     let cancelled = false
     let acquired = false
+    const ctx = getDeviceContext() ?? undefined
     thumbAcquire().then(() => {
       acquired = true
       if (cancelled) { thumbRelease(); return }
-      return window.droidwire.videoThumb(file.path, file.size)
+      return window.droidwire.videoThumb(file.path, file.size, ctx)
         .then(r => { if (!cancelled && r) setSrc(r) })
         .catch(() => {})
         .finally(() => thumbRelease())
@@ -549,7 +554,7 @@ export function FileGrid({
     onInternalDragStart?.(file)
     const dragFiles = nodes.filter(n => n.type === 'file').map(n => ({ remotePath: n.path, fileName: n.name }))
     // startDrag resolves when the OS drag session ends (drop or cancel)
-    window.droidwire.startDrag(dragFiles).catch(() => {}).finally(() => onInternalDragEnd?.())
+    window.droidwire.startDrag(dragFiles, getDeviceContext() ?? undefined).catch(() => {}).finally(() => onInternalDragEnd?.())
   }
 
   // ---------------------------------------------------------------------------

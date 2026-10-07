@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { FileNode } from '@droidwire/shared'
+import type { DeviceContext, FileNode } from '@droidwire/shared'
 import { useDevice } from '../hooks/useDevice'
 import { useTransfers } from '../hooks/useTransfers'
 import { formatSpeed, formatPercent } from '../lib/format'
@@ -37,17 +37,22 @@ export function MenubarApp() {
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragOver(false)
-    if (!connected) return
+    if (!connected || !device) return
+    // Resolve dropped files synchronously - DataTransfer is empty after an await
     const files = Array.from(e.dataTransfer.files)
       .map(f => window.droidwire.getPathForFile(f))
       .filter((p): p is string => !!p)
+    // The menu bar window has its own device poll; pin this drop to the device
+    // shown right now (the connection mode lives in the main process)
+    const mode = await window.droidwire.getConnectionType().catch(() => 'adb' as const)
+    const ctx: DeviceContext = { transport: mode === 'mtp' ? 'mtp' : 'adb', serial: device.serial }
     if (files.length === 0) return
 
     // Duplicate check against the phone's Download folder - same
     // Replace / Keep Both / Cancel prompt as the main window
     let existingNames = new Set<string>()
     try {
-      const listing = await window.droidwire.listFiles(DROP_DEST) as FileNode[]
+      const listing = await window.droidwire.listFiles(DROP_DEST, ctx) as FileNode[]
       existingNames = new Set(listing.map(f => f.name))
     } catch { /* folder unreadable - push with original names */ }
 
@@ -72,7 +77,7 @@ export function MenubarApp() {
         if (choice === 'keep-both') destName = uniqueDestName(destName, existingNames)
       }
       existingNames.add(destName)
-      void upload(files[i], DROP_DEST, destName)
+      void upload(files[i], DROP_DEST, destName, ctx)
     }
   }
 

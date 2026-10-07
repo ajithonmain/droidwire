@@ -1,56 +1,48 @@
-import type { Transport, TransportDevice } from './transport'
-import { AdbTransport } from './adb-transport'
-import { MtpTransport } from './mtp-transport'
+import type { TransportKind } from '@droidwire/shared'
+import type { Transport } from './transport.ts'
+import { AdbTransport, addEjectedSerial, clearEjectedSerials, forgetDeviceCaches } from './adb-transport.ts'
+import { MtpTransport } from './mtp-transport.ts'
+import { activeTransportKind, getActiveSerial, setActiveSerial } from './active-device.ts'
 
-export type ConnectionType = 'adb' | 'mtp' | 'wireless'
+export { resolveContext } from './active-device.ts'
 
-let _connectionType: ConnectionType = 'adb'
-let _activeDevice: TransportDevice | null = null
-
-export function setConnectionType(type: ConnectionType) {
-  _connectionType = type
+export function transportFor(kind: TransportKind): Transport {
+  return kind === 'mtp' ? MtpTransport : AdbTransport
 }
 
-export function getConnectionType(): ConnectionType {
-  return _connectionType
+export interface DeviceListEntry {
+  serial: string
+  state: 'device'
+  model: string
 }
 
-export function getActiveTransport(): Transport {
-  switch (_connectionType) {
-    case 'mtp':
-      return MtpTransport
-    case 'wireless':
-    case 'adb':
-    default:
-      return AdbTransport
+/** Enumerate devices for the current connection mode and keep the active one valid. */
+export async function enumerateDevices(): Promise<{ devices: DeviceListEntry[]; active: string | null }> {
+  const kind = activeTransportKind()
+  const found = await transportFor(kind).getDevices()
+  const current = getActiveSerial(kind)
+  if (!current || !found.some(d => d.serial === current)) {
+    setActiveSerial(kind, found[0]?.serial ?? null)
+  }
+  return {
+    devices: found.map(d => ({ serial: d.serial, state: 'device' as const, model: d.name })),
+    active: getActiveSerial(kind),
   }
 }
 
-export async function listDevices(): Promise<{ devices: TransportDevice[]; active: TransportDevice | null }> {
-  const transport = getActiveTransport()
-  const devices = await transport.getDevices()
-
-  if (devices.length === 0) {
-    _activeDevice = null
-    return { devices, active: null }
-  }
-
-  if (!_activeDevice || !devices.some(d => d.serial === _activeDevice?.serial)) {
-    _activeDevice = devices[0]
-  }
-
-  return { devices, active: _activeDevice }
+export function selectDevice(serial: string): void {
+  setActiveSerial(activeTransportKind(), serial)
 }
 
-export function setActiveDevice(serial: string | null) {
-  if (!serial) {
-    _activeDevice = null
-  } else {
-    // In real scenario would validate serial exists in current device list
-    _activeDevice = { serial, name: serial, type: _connectionType === 'mtp' ? 'mtp' : 'adb' }
-  }
+export function ejectDevice(serial: string): void {
+  addEjectedSerial(serial)
+  if (getActiveSerial('adb') === serial) setActiveSerial('adb', null)
 }
 
-export function getActiveDevice(): TransportDevice | null {
-  return _activeDevice
+export function uneject(): void {
+  clearEjectedSerials()
+}
+
+export function resetDeviceCaches(): void {
+  forgetDeviceCaches()
 }

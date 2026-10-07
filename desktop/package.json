@@ -7,6 +7,10 @@
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "electron-vite build",
     "electron": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-force-exit \"test/*.test.ts\"",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "smoke": "env -u ELECTRON_RUN_AS_NODE node driver.mjs",
     "dist": "electron-vite build && bash scripts/bundle-native.sh && electron-builder"
   },
   "build": {
@@ -50,9 +54,7 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.1.0",
     "luck-node-mtp": "^1.0.0",
-    "path-browserify": "^1.0.1",
     "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

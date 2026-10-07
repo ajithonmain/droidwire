@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { getDeviceContext } from '../lib/deviceContext'
 import type { BatteryDetail, DeviceDetail, MountInfo, InstalledApp, DuEntry } from '@droidwire/shared'
 import { formatSize } from '../lib/format'
 import { useTheme } from '../lib/ThemeContext'
@@ -33,10 +34,11 @@ function InfoTab() {
 
   useEffect(() => {
     let alive = true
+    const ctx = getDeviceContext() ?? undefined
     Promise.all([
-      window.droidwire.batteryDetail(),
-      window.droidwire.deviceDetail(),
-      window.droidwire.storageDetail(),
+      window.droidwire.batteryDetail(ctx),
+      window.droidwire.deviceDetail(ctx),
+      window.droidwire.storageDetail(ctx),
     ]).then(([b, d, m]) => {
       if (!alive) return
       setBattery(b)
@@ -104,7 +106,7 @@ function AppsTab({ onExportApk }: { onExportApk: (apkPath: string, fileName: str
   useEffect(() => {
     let alive = true
     setApps(null)
-    window.droidwire.listApps(includeSystem)
+    window.droidwire.listApps(includeSystem, getDeviceContext() ?? undefined)
       .then(a => { if (alive) setApps(a) })
       .catch(() => { if (alive) setApps([]) })
     return () => { alive = false }
@@ -283,7 +285,7 @@ function StorageTab() {
       return
     }
     setEntries(null)
-    window.droidwire.duChildren(p)
+    window.droidwire.duChildren(p, getDeviceContext() ?? undefined)
       .then(res => {
         cacheRef.current.set(p, res)
         setEntries(res.entries)

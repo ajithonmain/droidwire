@@ -12,12 +12,25 @@
 // node_modules lives inside app.asar where this forked worker can't reach
 // it, so scripts/bundle-native.sh stages the addon (dylibs rewritten to
 // @loader_path) next to this file in Resources/ and it's loaded directly.
-let mtp
+//
+// If the addon cannot be loaded (not built, libmtp missing) the worker still
+// starts and answers every call with that load error, so the app can show a
+// clear message and ADB keeps working.
+let mtp = null
+let mtpLoadError = null
 try {
   mtp = require('luck-node-mtp')
-} catch {
-  mtp = require(require('path').join(__dirname, 'luck-node-mtp.node'))
+} catch (devErr) {
+  try {
+    mtp = require(require('path').join(__dirname, 'luck-node-mtp.node'))
+  } catch (packagedErr) {
+    mtpLoadError = `MTP support is unavailable: ${packagedErr instanceof Error ? packagedErr.message : String(packagedErr)}`
+  }
 }
+
+// Exit with the parent. Without this an orphaned worker would keep running
+// (and keep the phone's USB interface claimed) if the app dies uncleanly.
+process.on('disconnect', () => process.exit(0))
 
 process.on('uncaughtException', (err) => {
   try { process.send({ type: 'fatal', error: err.message }) } catch { /* pipe already gone */ }
@@ -25,7 +38,6 @@ process.on('uncaughtException', (err) => {
 })
 
 function callWithProgress(fn, args, id) {
-  const cbIndex = args.length
   return fn(...args, (sent, total) => {
     try { process.send({ id, type: 'progress', sent, total }) } catch { /* parent gone */ }
   })
@@ -41,6 +53,7 @@ process.on('message', (msg) => {
   // behind a slow-but-healthy one (e.g. several large image downloads).
   try { process.send({ id, type: 'started' }) } catch { /* parent gone */ }
   try {
+    if (mtpLoadError) throw new Error(mtpLoadError)
     let result
     switch (method) {
       case 'connect':
