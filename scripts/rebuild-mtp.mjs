@@ -20,10 +20,11 @@
 // The addon is N-API, so it is ABI-stable across Node.js and Electron
 // versions: one build serves the Electron runtime and the host Node.
 
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildEnvFor, findLibmtpPrefix } from './lib/libmtp.mjs'
 
 const soft = process.argv.includes('--soft')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -32,33 +33,6 @@ const addonDir = path.join(root, 'node_modules', 'luck-node-mtp')
 function finish(code, message) {
   if (message) console[code === 0 ? 'warn' : 'error'](message)
   process.exit(soft ? 0 : code)
-}
-
-function run(cmd, args) {
-  try {
-    return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
-  } catch {
-    return ''
-  }
-}
-
-function hasLibmtp(prefix) {
-  return !!prefix
-    && fs.existsSync(path.join(prefix, 'include', 'libmtp.h'))
-    && (fs.existsSync(path.join(prefix, 'lib', 'libmtp.dylib')) || fs.existsSync(path.join(prefix, 'lib', 'libmtp.so')))
-}
-
-function findPrefix() {
-  const candidates = [
-    process.env.LIBMTP_PREFIX,
-    run('brew', ['--prefix', 'libmtp']),
-    run('pkg-config', ['--variable=prefix', 'libmtp']),
-    '/opt/homebrew/opt/libmtp',
-    '/usr/local/opt/libmtp',
-    '/opt/homebrew',
-    '/usr/local',
-  ]
-  return candidates.find(hasLibmtp) ?? null
 }
 
 if (process.env.DROIDWIRE_SKIP_MTP === '1') finish(0, 'DROIDWIRE_SKIP_MTP=1: skipping the MTP addon build.')
@@ -71,7 +45,7 @@ if (!fs.existsSync(addonDir)) {
   finish(1, 'luck-node-mtp is not installed. Run `npm install` at the repository root first.')
 }
 
-const prefix = findPrefix()
+const prefix = findLibmtpPrefix()
 if (!prefix) {
   finish(1, [
     'MTP support was not built: libmtp was not found.',
@@ -86,11 +60,7 @@ console.log(`Building luck-node-mtp for ${process.arch} against libmtp at ${pref
 const result = spawnSync('npx', ['node-gyp', 'rebuild'], {
   cwd: addonDir,
   stdio: 'inherit',
-  env: {
-    ...process.env,
-    LIBRARY_PATH: [path.join(prefix, 'lib'), process.env.LIBRARY_PATH].filter(Boolean).join(':'),
-    CPATH: [path.join(prefix, 'include'), process.env.CPATH].filter(Boolean).join(':'),
-  },
+  env: { ...process.env, ...buildEnvFor(prefix) },
 })
 
 if (result.status !== 0) {
