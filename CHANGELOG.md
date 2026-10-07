@@ -39,6 +39,7 @@ Compiled from the repository's git history and the changes made for the open-sou
 - Playwright smoke driver derives paths from its own location and runs against a throwaway profile.
 
 ### Added
+- MIT `LICENSE` and `license` fields in the package manifests.
 - Unit tests (`npm test`), `npm run typecheck`, `npm run verify`, GitHub Actions CI, issue and pull-request templates, CONTRIBUTING, SECURITY, hardware checklist, licensing inventory.
 
 ## 1.2.1 - 2026-07-12

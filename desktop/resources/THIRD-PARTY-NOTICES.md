@@ -1,7 +1,7 @@
 # Droidwire - Third-Party Notices
 
-Droidwire is (c) 2026 Ajith M Jose. The license that applies to Droidwire's own
-code is stated in the project repository.
+Droidwire is (c) 2026 Ajith M Jose and is released under the MIT License (see the
+LICENSE file in the project repository).
 
 Droidwire uses the following third-party and open-source software.
 

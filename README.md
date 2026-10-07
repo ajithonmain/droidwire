@@ -4,7 +4,7 @@ Browse, transfer and edit the files on an Android phone from a Mac. Droidwire is
 
 > **Status: beta.** Builds are unsigned, and the maintainer has verified behaviour on a small number of phones (see [Verified devices](#verified-devices)). Keep backups of anything irreplaceable before large transfers or deletes.
 >
-> **License:** not selected yet. Until a `LICENSE` file is added to this repository, all rights are reserved by the author. See [docs/LICENSING.md](docs/LICENSING.md).
+> **License:** [MIT](LICENSE). Release binaries also contain third-party components under their own licenses; see [docs/LICENSING.md](docs/LICENSING.md) and the in-app notices.
 
 ## Connection modes
 
@@ -91,7 +91,7 @@ The dev scripts run Electron with `env -u ELECTRON_RUN_AS_NODE`. That is require
 
 `npm run dist` copies the MTP addon, libmtp, libusb and `adb` into the app so it runs without Homebrew installed on the user's Mac. The staging script rewrites library paths to be relocatable, re-signs them ad-hoc, and fails if anything still points into `/opt/homebrew` or `/usr/local`. `ffmpeg` is **not** bundled: video thumbnails appear only when `ffmpeg` is installed (`brew install ffmpeg`); otherwise videos show a generic icon. The build targets the architecture of the Mac that runs it.
 
-**Redistribution caveat:** the `adb` staged from Google's platform-tools is covered by the Android SDK License Agreement, which restricts redistribution. Review [docs/LICENSING.md](docs/LICENSING.md) before publishing a binary release.
+**Redistribution caveat:** the MIT license covers Droidwire's source, not the binaries staged into a build. The `adb` taken from Google's platform-tools is covered by the Android SDK License Agreement, which restricts redistribution. Review [docs/LICENSING.md](docs/LICENSING.md) before publishing a binary release.
 
 ## Architecture
 
@@ -174,6 +174,6 @@ Realistic next steps, in rough priority order. None are promises.
 - [CONTRIBUTING.md](CONTRIBUTING.md) - setup, verification, conventions, hardware bug reports
 - [SECURITY.md](SECURITY.md) - reporting vulnerabilities privately
 - [CHANGELOG.md](CHANGELOG.md)
-- [docs/LICENSING.md](docs/LICENSING.md) - dependency and binary inventory; the license decision is pending
+- [LICENSE](LICENSE) (MIT) and [docs/LICENSING.md](docs/LICENSING.md) - dependency and binary inventory
 
 "Android" is a trademark of Google LLC. The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Droidwire is an independent project and is not affiliated with or endorsed by Google.

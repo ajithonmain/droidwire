@@ -57,4 +57,4 @@ Out of scope by design: Windows/Linux clients, cloud sync, iOS, an Android-side 
 
 ## Licensing of contributions
 
-The project license has not been chosen yet (see [docs/LICENSING.md](docs/LICENSING.md)). Do not contribute code you do not have the right to submit; the maintainer will state the contribution terms when the license is set.
+Droidwire is licensed under the [MIT License](LICENSE). By submitting a contribution you agree that it is licensed under the same terms, and that you have the right to submit it. Do not contribute code you do not have the right to relicense under MIT.

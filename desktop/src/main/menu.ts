@@ -31,7 +31,7 @@ export function setupAppMenu(): void {
     applicationName: 'Droidwire',
     applicationVersion: PRODUCT_VERSION,
     version: 'Beta',
-    copyright: '© 2026 Ajith M Jose',
+    copyright: '© 2026 Ajith M Jose. MIT License.',
     credits: 'Android file management for macOS over ADB, wireless ADB and MTP.\nNo app required on your phone.',
   })
 

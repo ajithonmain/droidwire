@@ -18,7 +18,7 @@ Branch `open_source_works`. Nothing has been pushed, published, released or chan
 **Unverified**: the CI workflow itself (never run on GitHub); the smoke job on a GitHub macOS runner; Intel Macs; the signed/notarized path; wireless QR pairing and MTP after the refactor; ffmpeg thumbnails after the stream-server change; whether Chromium honours `connect-src 'none'` for every renderer path (the smoke test saw no breakage, but only first-run UI was exercised); renderer behaviour of the queue/pause/retry code beyond type checking.
 
 ## Remaining release blockers
-1. **License not chosen** - no `LICENSE`; the repository is not open source yet (decision 1).
+1. ~~License not chosen~~ - resolved: MIT, `LICENSE` added and propagated.
 2. **Bundled `adb` redistribution**: Google's platform-tools binary is under the Android SDK License, which forbids redistribution. Do not publish a `.dmg` with it bundled until resolved (docs/LICENSING.md section 3).
 3. **luck-node-mtp has no copyright notice** to retain (ISC); obtain upstream's before distributing binaries.
 4. **No hardware re-verification** of the changed transfer/MTP/zip/device-switch paths.
@@ -26,7 +26,7 @@ Branch `open_source_works`. Nothing has been pushed, published, released or chan
 6. Git history contains the maintainer's author email (`git log --format=%ae` shows one address); git commit emails become public with the history.
 
 ## Decisions needed from the owner
-1. Project license: MIT, Apache-2.0 or GPL-3.0 (comparison in docs/LICENSING.md). Then add `LICENSE`, set `license` in the package.json files, update README, site, notices, About text.
+1. ~~Project license~~ - decided: MIT.
 2. Releases location: the app, site and menu use `ajithonmain/droidwire-releases`; the README clones `ajithonmain/droidwire` and electron-builder's `publish` points at `droidwire`. Choose one repo for releases and update `desktop/src/main/app-info.ts` (and `build.publish`).
 3. adb strategy (permission / build from AOSP / do not bundle).
 4. Whether background update checks should be on by default (currently on, with a menu toggle).
@@ -42,7 +42,7 @@ Not touched by this work. The old app wrote emails to Firestore collection `beta
 - The landing page and README no longer promise or describe email collection; the legacy `beta-signup.json` on testers' Macs is documented for self-removal.
 
 ## Pre-publication checklist
-- [ ] Choose a license; add `LICENSE`; sync package.json, README, site, notices, About text
+- [x] Choose a license (MIT); `LICENSE`, package.json, README, site, notices, About text synced
 - [ ] Resolve adb redistribution; add luck-node-mtp copyright; run a transitive license scan
 - [ ] Run `docs/HARDWARE-CHECKLIST.md` on at least one phone per mode
 - [ ] Decide the releases repository and update `app-info.ts` / `build.publish`
