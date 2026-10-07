@@ -4,6 +4,14 @@ Automated tests use fake devices; they cannot prove behaviour on a real phone. W
 
 **Test files to create on the phone** (in `/sdcard/DroidwireTest/`): `plain.txt`; `with space.txt`; `it's a "quote".txt`; `semi;colon & amp $(x) `backtick`.txt`; `unicode-éü-日本.txt`; a folder named `My 'Photos'; test` containing a few files and a subfolder; a ~1 GB file; an `.apk`; a `.heic` or `.pdf`; a short `.mp3` and `.mp4`; an empty file.
 
+## Clean-Mac install (do this first, on the packaged `.dmg`)
+
+- [ ] On a Mac without Homebrew or Android tools (or a fresh user account with `PATH` stripped), install from the `.dmg` and open the app (clearing quarantine if the build is unsigned). No installer, dependency prompt or sign-up appears.
+- [ ] Help > Copy Diagnostics reports `adb ... [bundled]`, `mtp: available`, and a native thumbnail helper.
+- [ ] A phone that has not authorized the Mac shows "Your phone has not authorized this Mac yet" with the tap-Allow instruction; after allowing, it connects without restarting the app.
+- [ ] Toggle View > Toggle Menu Bar Panel (or click the tray icon) and upload a file from the menu bar panel.
+- [ ] Video thumbnails appear for phone-camera MP4/MOV files with no ffmpeg installed.
+
 ## All modes
 
 - [ ] Fresh profile: app opens straight to the connection picker with no sign-up screen and no personal-data prompt.

@@ -2,6 +2,31 @@
 
 Compiled from the repository's git history and the changes made for the open-source beta. Dates are commit dates. Versions are those set in `desktop/package.json`; the repository does not record which versions were published as releases beyond the `v1.0.0-beta` tag.
 
+## 1.4.0 - unreleased (release candidate)
+
+The self-contained build. Download, open, connect a phone: no Homebrew, no separate adb, no ffmpeg.
+
+### Added
+- **Bundled adb, built from AOSP source** (platform-tools 37.0.0, Apache-2.0) instead of requiring a separate install, with pinned, checksum-verified sources and a reproducible build (`native/`). Google's prebuilt platform-tools are not redistributed (Android SDK License, section 3.4).
+- **Native video thumbnails** with macOS AVFoundation (a small bundled helper that reads the video over the same range-request path as before). ffmpeg is no longer needed; an installed ffmpeg is used only as a fallback for WebM/MKV/AVI.
+- **Setup guidance in the app**: mode-specific phone steps (USB debugging, Wireless debugging pairing, MTP "File transfer"); a phone that is connected but *unauthorized* or *offline* is now named with the exact next step; a clear message if the bundled adb or the MTP component cannot start (MTP is greyed out with the reason). Help > Copy Diagnostics for bug reports; diagnostics are also logged at startup.
+- View > Toggle Menu Bar Panel.
+- **Package checks** (`desktop/scripts/check-package.mjs`) that fail a build for missing components, wrong architecture, a macOS requirement above 12.0, unresolved or Homebrew library paths, embedded build-machine paths, an unpatched MTP addon, or an oversized `app.asar`.
+- **Signing and notarization pipeline** (hardened runtime, entitlements, `notarytool` via electron-builder, `--require-signed` gate, release workflow). It has not been run with real credentials: the app is still unsigned.
+- Packaged-app smoke test (`node desktop/driver.mjs --app ...`) run with a minimal environment, covering the bundled adb version, MTP worker loading its bundled addon, the thumbnail helper, the menu bar window and the failure messages.
+- Renderer queue logic extracted into `lib/transferQueue.ts` with tests for concurrency limits, device-bound restarts, pause/resume/retry, cancellation and upload promise settling.
+- `docs/RELEASING.md`, `native/README.md`, `docs/third-party-inventory.md`, shipped `THIRD-PARTY-LICENSES.txt`, `ELECTRON-LICENSE.txt` and `LICENSES.chromium.html`.
+
+### Fixed
+- **The advertised "macOS 12+" was not true for 1.3.0**: the bundled libmtp and libusb were Homebrew bottles built for macOS 26. All native code is now compiled for macOS 12.0 and verified.
+- A fresh `npm ci` failed on CI (node-gyp 9 cannot run under Python 3.12+); node-gyp is now a current dev dependency, and the MTP patch is applied on every addon build.
+- Electron's LICENSE and Chromium notices were not shipped in the app; they are now.
+- Setup guide showed ADB-only instructions in MTP and Wi-Fi modes.
+
+### Changed
+- Public release builds include adb (1.3.0 omitted it); `dist:release` and `BUNDLE_ADB` are gone.
+- Missing attribution for `luck-node-mtp` added to the shipped notices (upstream publishes no license file; see docs/LICENSING.md).
+
 ## 1.3.0 - 2026-10-07
 
 First open-source release (MIT). Public release builds no longer bundle `adb`; install it with `brew install android-platform-tools` for USB and Wi-Fi modes. Updates are announced from this repository's GitHub Releases.

@@ -4,7 +4,7 @@ Thanks for helping. Droidwire is a macOS Electron app that manages Android files
 
 ## Setup
 
-Requirements: macOS 12+, Node.js 22.18+ (24 LTS recommended), Xcode command line tools. For MTP work also `brew install libmtp libusb`; for packaging also an `adb` binary.
+Requirements: Apple Silicon Mac on macOS 12+, Node.js 22.18+ (24 LTS recommended), Xcode command line tools. To build the self-contained app (the bundled adb, libusb, libmtp and thumbnail helper) also `brew install cmake ninja pkgconf`, then `npm run native:build` (about 20 minutes, cached). For everyday development you can skip that: the app falls back to an `adb` on your PATH, and `brew install libmtp libusb` lets `bootstrap` build the MTP addon.
 
 ```bash
 git clone https://github.com/ajithonmain/droidwire.git

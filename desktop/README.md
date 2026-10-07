@@ -13,7 +13,10 @@ The Droidwire macOS app: Electron (electron-vite) + React 18 + TypeScript (stric
 | `resources/` | `mtp-worker.cjs`, `THIRD-PARTY-NOTICES.md`, icon. `adb`, `*.dylib` and `*.node` are staged here by `scripts/bundle-native.sh` and are git-ignored |
 | `test/` | Unit tests (`node --test`, TypeScript run directly by Node >= 22.18) |
 | `driver.mjs` | Headless smoke test of the built app (Playwright) |
-| `scripts/bundle-native.sh` | Stages and relocates native binaries for packaging |
+| `scripts/bundle-native.sh` | Stages the pinned native toolchain output (adb, libusb, libmtp, thumbnail helper) and the MTP addon into `resources/` |
+| `scripts/dist.mjs`, `after-pack.cjs` | Packaging with explicit signing mode; ad-hoc seal for unsigned builds |
+| `scripts/check-package.mjs` | Fails the build on missing/unrunnable bundled components |
+| `../native/` | Pinned-source build of adb, libusb, libmtp and the AVFoundation thumbnail helper |
 
 ## Commands
 
