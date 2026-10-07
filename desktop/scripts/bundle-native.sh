@@ -9,8 +9,14 @@
 #
 # Requirements on the BUILD machine:
 #   * the addon built:      npm run rebuild:mtp   (needs libmtp + libusb, see README)
-#   * an adb binary:        brew install android-platform-tools, the Android SDK
+#   * an adb binary, unless BUNDLE_ADB=0:
+#                           brew install android-platform-tools, the Android SDK
 #                           platform-tools, or ADB_BIN=/path/to/adb
+#
+# BUNDLE_ADB=0 stages no adb. Google's platform-tools binaries are distributed
+# under the Android SDK License, which restricts redistribution (see
+# docs/LICENSING.md), so public release builds omit it: the app then uses an
+# adb installed on the user's Mac (Homebrew, Android SDK, or DROIDWIRE_ADB).
 # Not bundled: ffmpeg (video thumbnails are an optional extra; the app looks for
 # an installed ffmpeg and falls back to a generic icon).
 set -euo pipefail
@@ -40,17 +46,20 @@ find_adb() {
     [ -n "$dir" ] && [ -x "$dir/platform-tools/adb" ] && { echo "$dir/platform-tools/adb"; return; }
   done
 }
-ADB_FOUND=$(find_adb || true)
-[ -n "$ADB_FOUND" ] || fail "adb not found - install it (brew install android-platform-tools), set ADB_BIN, or install the Android SDK platform-tools"
-ADB_SRC=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ADB_FOUND")
-[ -f "$ADB_SRC" ] || fail "adb resolved to '$ADB_SRC', which is not a file"
+BUNDLE_ADB=${BUNDLE_ADB:-1}
+if [ "$BUNDLE_ADB" = "1" ]; then
+  ADB_FOUND=$(find_adb || true)
+  [ -n "$ADB_FOUND" ] || fail "adb not found - install it (brew install android-platform-tools), set ADB_BIN, install the Android SDK platform-tools, or build with BUNDLE_ADB=0"
+  ADB_SRC=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ADB_FOUND")
+  [ -f "$ADB_SRC" ] || fail "adb resolved to '$ADB_SRC', which is not a file"
+fi
 
 cp -f "$NODE_SRC" "$RES/luck-node-mtp.node"
 cp -f "$LIBMTP_SRC" "$RES/libmtp.9.dylib"
 cp -f "$LIBUSB_SRC" "$RES/libusb-1.0.0.dylib"
-cp -f "$ADB_SRC" "$RES/adb"
+if [ "$BUNDLE_ADB" = "1" ]; then cp -f "$ADB_SRC" "$RES/adb"; else rm -f "$RES/adb"; fi
 chmod u+w "$RES"/luck-node-mtp.node "$RES"/*.dylib
-chmod +x "$RES/adb"
+[ "$BUNDLE_ADB" = "1" ] && chmod +x "$RES/adb"
 
 install_name_tool -change "$LIBMTP_SRC" @loader_path/libmtp.9.dylib "$RES/luck-node-mtp.node"
 install_name_tool -id @loader_path/libmtp.9.dylib "$RES/libmtp.9.dylib"
@@ -71,7 +80,9 @@ done
 
 # Architecture sanity: warn (do not fail) if anything does not match this Mac.
 # The .dmg is built for the host architecture, so a mismatch means a broken app.
-for f in "$RES/luck-node-mtp.node" "$RES/libmtp.9.dylib" "$RES/libusb-1.0.0.dylib" "$RES/adb"; do
+ARCH_FILES=("$RES/luck-node-mtp.node" "$RES/libmtp.9.dylib" "$RES/libusb-1.0.0.dylib")
+[ "$BUNDLE_ADB" = "1" ] && ARCH_FILES+=("$RES/adb")
+for f in "${ARCH_FILES[@]}"; do
   archs=$(lipo -archs "$f" 2>/dev/null || echo unknown)
   case " $archs " in
     *" $HOST_ARCH "*|*" arm64e "*) ;;
@@ -80,7 +91,7 @@ for f in "$RES/luck-node-mtp.node" "$RES/libmtp.9.dylib" "$RES/libusb-1.0.0.dyli
 done
 
 echo "staged into $RES/ (host arch: $HOST_ARCH):"
-for f in luck-node-mtp.node libmtp.9.dylib libusb-1.0.0.dylib adb; do
+for f in luck-node-mtp.node libmtp.9.dylib libusb-1.0.0.dylib; do
   printf '  %-24s %s\n' "$f" "$(lipo -archs "$RES/$f" 2>/dev/null || echo unknown)"
 done
-echo "adb source: $ADB_SRC"
+if [ "$BUNDLE_ADB" = "1" ]; then echo "adb source: $ADB_SRC"; else echo "adb: not bundled (BUNDLE_ADB=0)"; fi

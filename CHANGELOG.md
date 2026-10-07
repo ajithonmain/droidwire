@@ -2,7 +2,9 @@
 
 Compiled from the repository's git history and the changes made for the open-source beta. Dates are commit dates. Versions are those set in `desktop/package.json`; the repository does not record which versions were published as releases beyond the `v1.0.0-beta` tag.
 
-## Unreleased (branch `open_source_works`)
+## 1.3.0 - 2026-10-07
+
+First open-source release (MIT). Public release builds no longer bundle `adb`; install it with `brew install android-platform-tools` for USB and Wi-Fi modes. Updates are announced from this repository's GitHub Releases.
 
 ### Removed
 - First-launch **email registration** and everything behind it: the sign-up screen, the `beta:*` IPC channels, the Firestore requests, the startup retry, the embedded Firebase configuration, and the remote "in-app messages" feature. The app now opens straight into the normal UI and collects no personal information. Update information comes from GitHub releases only.

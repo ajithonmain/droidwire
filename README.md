@@ -42,9 +42,11 @@ Hardware testing is manual and limited. According to the maintainer's notes, USB
 
 ## Installing a release build
 
+**adb is not bundled** in release builds (Google's platform-tools license restricts redistribution). For USB and Wi-Fi modes install it once: `brew install android-platform-tools` (or install the Android SDK platform-tools). MTP mode does not need adb. Without adb, USB and Wi-Fi connections will simply never find a device.
+
 Release builds are **not signed or notarized** (that needs an Apple Developer account). macOS will refuse to open a downloaded copy, usually with *"Droidwire is damaged and can't be opened"* - that is Gatekeeper's response to any unsigned, quarantined app.
 
-1. Download the `.dmg` from the project's GitHub Releases page and drag **Droidwire** into **Applications**.
+1. Download the `.dmg` from the [GitHub Releases page](https://github.com/ajithonmain/droidwire/releases) and drag **Droidwire** into **Applications**.
 2. Open it once and click **Cancel** on the alert (do not choose "Move to Trash").
 3. In Terminal, remove the quarantine flag from this one app:
 
@@ -63,7 +65,7 @@ Prerequisites (macOS):
 - Node.js **22.18 or newer** (24 LTS recommended) and npm
 - Xcode command line tools (`xcode-select --install`)
 - For MTP support: `brew install libmtp libusb`
-- For `npm run dist`: an `adb` binary (`brew install android-platform-tools`, the Android SDK platform-tools, or `ADB_BIN=/path/to/adb`)
+- For `npm run dist`: an `adb` binary (`brew install android-platform-tools`, the Android SDK platform-tools, or `ADB_BIN=/path/to/adb`); not needed for `dist:release`
 
 ```bash
 git clone https://github.com/ajithonmain/droidwire.git
@@ -83,15 +85,16 @@ Other commands (from the repository root; each forwards to `desktop/`):
 | `npm test` | Unit tests (Node's built-in runner; no phone needed) |
 | `npm run verify` | typecheck, tests and the production build |
 | `npm --prefix desktop run smoke` | Launches the built app headless with a throwaway profile, offline, and checks the first-run UI and security boundary |
-| `npm --prefix desktop run dist` | Build, stage native binaries, and package an unsigned `.dmg` and `.zip` into `desktop/release/` |
+| `npm --prefix desktop run dist` | Build, stage native binaries (including adb) and package an unsigned `.dmg` and `.zip` into `desktop/release/` |
+| `npm --prefix desktop run dist:release` | Same, without bundling adb (what public releases use) |
 
 The dev scripts run Electron with `env -u ELECTRON_RUN_AS_NODE`. That is required: if the variable is set (some tools and terminals set it), Electron starts as plain Node and the app does not open. Do not remove it.
 
 ### Packaging notes
 
-`npm run dist` copies the MTP addon, libmtp, libusb and `adb` into the app so it runs without Homebrew installed on the user's Mac. The staging script rewrites library paths to be relocatable, re-signs them ad-hoc, and fails if anything still points into `/opt/homebrew` or `/usr/local`. `ffmpeg` is **not** bundled: video thumbnails appear only when `ffmpeg` is installed (`brew install ffmpeg`); otherwise videos show a generic icon. The build targets the architecture of the Mac that runs it.
+`npm run dist` copies the MTP addon, libmtp, libusb and (unless `BUNDLE_ADB=0`) `adb` into the app so it runs without Homebrew installed on the user's Mac. `npm --prefix desktop run dist:release` is the public-release variant: it omits `adb`. The staging script rewrites library paths to be relocatable, re-signs them ad-hoc, and fails if anything still points into `/opt/homebrew` or `/usr/local`. `ffmpeg` is **not** bundled: video thumbnails appear only when `ffmpeg` is installed (`brew install ffmpeg`); otherwise videos show a generic icon. The build targets the architecture of the Mac that runs it.
 
-**Redistribution caveat:** the MIT license covers Droidwire's source, not the binaries staged into a build. The `adb` taken from Google's platform-tools is covered by the Android SDK License Agreement, which restricts redistribution. Review [docs/LICENSING.md](docs/LICENSING.md) before publishing a binary release.
+**Redistribution caveat:** the MIT license covers Droidwire's source, not the binaries staged into a build. The `adb` taken from Google's platform-tools is covered by the Android SDK License Agreement, which restricts redistribution. Public release builds therefore omit it (`dist:release`); see [docs/LICENSING.md](docs/LICENSING.md).
 
 ## Architecture
 
@@ -149,6 +152,7 @@ Earlier beta builds (up to 1.2.1) asked for an email address and sent it, with t
 
 ## Known limitations
 
+- Release builds need adb installed separately for USB/Wi-Fi modes; there is no in-app hint yet when it is missing.
 - Unsigned builds; Intel Macs and most phone models unverified.
 - MTP: one device at a time, no storage capacity, folder sizes, battery or APK tools; moving between folders relies on the phone supporting `MoveObject` and fails with an explanation otherwise; cancelling a transfer restarts the MTP worker; large folder listings are slow (libmtp lists object by object).
 - Wireless ADB needs Android 11+ and a network that allows device-to-device traffic.
@@ -166,7 +170,7 @@ Realistic next steps, in rough priority order. None are promises.
 2. Signed and notarized builds (needs an Apple Developer account), then in-app update installation.
 3. Resumable downloads where the transport allows it; richer queue controls.
 4. A tested Intel build.
-5. Optionally bundling or building `adb` and `ffmpeg` in a redistributable way (see the licensing notes).
+5. A redistributable `adb` (built from AOSP source or with permission) so release builds work with no extra install, and a first-run hint when adb is missing.
 6. UI-level automated tests for the renderer.
 
 ## Contributing, security, license

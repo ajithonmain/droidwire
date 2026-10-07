@@ -24,7 +24,7 @@ None. The Playwright driver launched the app and printed the page text; it asser
 ## Network requests (before)
 1. `POST firestore.googleapis.com/.../beta_signups?key=...` - email, timestamp, app version (on registration; retried on every launch until it succeeded).
 2. `GET firestore.googleapis.com/.../messages?key=...` - remote announcements, every launch.
-3. `GET api.github.com/repos/ajithonmain/droidwire-releases/releases/latest` - every launch and on demand.
+3. `GET api.github.com/repos/ajithonmain/droidwire/releases/latest` - every launch and on demand.
 4. Loopback `127.0.0.1:<random>` HTTP range server (video thumbnails).
 5. Wireless ADB traffic to the phone (user-initiated).
 

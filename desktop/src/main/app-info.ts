@@ -9,7 +9,7 @@ export const PRODUCT_VERSION: string =
 
 // GitHub repository that publishes release builds. Update checks, the Help
 // menu and the "download" action all derive from these two constants.
-export const RELEASES_REPO = 'ajithonmain/droidwire-releases'
+export const RELEASES_REPO = 'ajithonmain/droidwire'
 export const ISSUES_URL = `https://github.com/${RELEASES_REPO}/issues`
 export const RELEASES_LATEST_URL = `https://github.com/${RELEASES_REPO}/releases/latest`
 export const REPO_URL = `https://github.com/${RELEASES_REPO}`

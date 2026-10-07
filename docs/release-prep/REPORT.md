@@ -19,7 +19,7 @@ Branch `open_source_works`. Nothing has been pushed, published, released or chan
 
 ## Remaining release blockers
 1. ~~License not chosen~~ - resolved: MIT, `LICENSE` added and propagated.
-2. **Bundled `adb` redistribution**: Google's platform-tools binary is under the Android SDK License, which forbids redistribution. Do not publish a `.dmg` with it bundled until resolved (docs/LICENSING.md section 3).
+2. **Bundled `adb` redistribution**: Google's platform-tools binary is under the Android SDK License, which forbids redistribution. Mitigated: release builds omit it (`dist:release`); resolve properly before bundling it again.
 3. **luck-node-mtp has no copyright notice** to retain (ISC); obtain upstream's before distributing binaries.
 4. **No hardware re-verification** of the changed transfer/MTP/zip/device-switch paths.
 5. **Retire the Firebase collection** and decide what to do with collected emails (owner task below).
