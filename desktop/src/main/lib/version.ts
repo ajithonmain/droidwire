@@ -60,3 +60,20 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   const c = compareVersions(candidate, current)
   return c !== null && c > 0
 }
+
+/**
+ * The newest release tag in a GitHub "list releases" response. Drafts are ignored; prereleases count, because
+ * GitHub's /releases/latest endpoint skips them and Droidwire's betas are published as prereleases. Entries
+ * without a parseable tag are skipped. Returns null when nothing usable is listed.
+ */
+export function pickNewestReleaseTag(releases: unknown): string | null {
+  if (!Array.isArray(releases)) return null
+  let best: string | null = null
+  for (const r of releases) {
+    if (typeof r !== 'object' || r === null) continue
+    const { tag_name: tag, draft } = r as { tag_name?: unknown; draft?: unknown }
+    if (draft === true || typeof tag !== 'string' || !parseVersion(tag)) continue
+    if (best === null || isNewerVersion(tag, best)) best = tag
+  }
+  return best
+}

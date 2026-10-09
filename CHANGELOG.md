@@ -2,6 +2,11 @@
 
 Compiled from the repository's git history and the changes made for the open-source beta. Dates are commit dates. Versions are those set in `desktop/package.json`; the repository does not record which versions were published as releases beyond the `v1.0.0-beta` tag.
 
+## Unreleased
+
+### Fixed
+- The update check now lists releases and takes the newest tag, prereleases included. It used GitHub's `/releases/latest`, which never returns prereleases, so a beta published as a prerelease (such as 1.4.0) was invisible to every installed copy. Builds up to and including 1.4.0 still use `/releases/latest`; to learn about a newer prerelease they must watch the releases page. "Open Download Page" now opens the releases list.
+
 ## 1.4.0 - 2026-10-09 (beta prerelease, unsigned)
 
 The self-contained build. Download, open, connect a phone: no Homebrew, no separate adb, no ffmpeg. **USB (ADB) and Wi-Fi (wireless ADB) are the supported modes. MTP is deferred and is not part of this release**: the MTP addon (`luck-node-mtp`), its worker and libmtp are not in the app or the archives.

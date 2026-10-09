@@ -11,5 +11,5 @@ export const PRODUCT_VERSION: string =
 // menu and the "download" action all derive from these two constants.
 export const RELEASES_REPO = 'ajithonmain/droidwire'
 export const ISSUES_URL = `https://github.com/${RELEASES_REPO}/issues`
-export const RELEASES_LATEST_URL = `https://github.com/${RELEASES_REPO}/releases/latest`
+export const RELEASES_URL = `https://github.com/${RELEASES_REPO}/releases`
 export const REPO_URL = `https://github.com/${RELEASES_REPO}`

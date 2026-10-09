@@ -1,14 +1,15 @@
 import { dialog, shell } from 'electron'
 import https from 'https'
 import type { UpdateCheckResult } from '@droidwire/shared'
-import { PRODUCT_VERSION, RELEASES_REPO, RELEASES_LATEST_URL } from './app-info.ts'
-import { isNewerVersion, parseVersion } from './lib/version.ts'
+import { PRODUCT_VERSION, RELEASES_REPO, RELEASES_URL } from './app-info.ts'
+import { isNewerVersion, pickNewestReleaseTag } from './lib/version.ts'
 import { readSettings } from './settings.ts'
 import { updatesEnabled } from './lib/settings-schema.ts'
 
 // The only outbound network request Droidwire makes on its own: an
-// unauthenticated GET of GitHub's "latest release" endpoint for the releases
-// repository. It sends no identifiers (just a generic User-Agent) and never
+// unauthenticated GET of GitHub's "list releases" endpoint for the releases
+// repository (not /releases/latest, which never returns prereleases, and the
+// betas are published as prereleases). It sends no identifiers (just a generic User-Agent) and never
 // downloads or installs anything - a newer version is only announced, and the
 // user is sent to the GitHub release page. Background checks can be turned
 // off in the Droidwire menu; the manual check is always available.
@@ -20,7 +21,7 @@ export function fetchLatestReleaseTag(): Promise<string | null> {
   if (process.env.DROIDWIRE_OFFLINE === '1') return Promise.resolve(null)
   return new Promise(resolve => {
     const req = https.get(
-      `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`,
+      `https://api.github.com/repos/${RELEASES_REPO}/releases?per_page=30`,
       { headers: { 'User-Agent': 'Droidwire', Accept: 'application/vnd.github+json' }, timeout: 8000 },
       res => {
         if (res.statusCode !== 200) { res.resume(); resolve(null); return }
@@ -32,8 +33,7 @@ export function fetchLatestReleaseTag(): Promise<string | null> {
         })
         res.on('end', () => {
           try {
-            const tag = JSON.parse(body)?.tag_name
-            resolve(typeof tag === 'string' && parseVersion(tag) ? tag : null)
+            resolve(pickNewestReleaseTag(JSON.parse(body)))
           } catch {
             resolve(null)
           }
@@ -79,5 +79,5 @@ export async function checkForUpdatesInteractive(): Promise<void> {
     buttons: ['Open Download Page', 'Later'],
     defaultId: 0,
   })
-  if (response === 0) void shell.openExternal(RELEASES_LATEST_URL)
+  if (response === 0) void shell.openExternal(RELEASES_URL)
 }
