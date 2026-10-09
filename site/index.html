@@ -3,516 +3,435 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Droidwire - Android file transfer for Mac (USB, no app on phone)</title>
-<meta name="description" content="Browse, transfer, and edit Android files on your Mac over USB via ADB. Full transfer speed, no app to install on your phone, free during beta.">
+<title>Droidwire - Free, open-source Android file transfer for Mac</title>
+<meta name="description" content="Free, open-source Android file transfer for Mac. Browse, transfer and edit phone files over USB or Wi-Fi. No account, no sign-up, no data collected, nothing to install on your phone.">
 <link rel="canonical" href="https://droidwire.vercel.app/">
 <meta name="robots" content="index, follow">
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
-<meta name="theme-color" content="#00913F">
-
+<meta name="theme-color" content="#fafaf8">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Droidwire">
-<meta property="og:title" content="Droidwire - Android file transfer for Mac">
-<meta property="og:description" content="Browse, transfer, and edit Android files on your Mac over USB via ADB. Full transfer speed, no app to install on your phone, free during beta.">
+<meta property="og:title" content="Droidwire - Free, open-source Android file transfer for Mac">
+<meta property="og:description" content="Free, open-source Android file transfer for Mac. Browse, transfer and edit phone files over USB or Wi-Fi. No account, no sign-up, no data collected, nothing to install on your phone.">
 <meta property="og:url" content="https://droidwire.vercel.app/">
 <meta property="og:image" content="https://droidwire.vercel.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Droidwire - Android file transfer for Mac">
-<meta name="twitter:description" content="Browse, transfer, and edit Android files on your Mac over USB via ADB. Full transfer speed, no app to install on your phone, free during beta.">
+<meta name="twitter:title" content="Droidwire - Free, open-source Android file transfer for Mac">
+<meta name="twitter:description" content="Free, open-source Android file transfer for Mac. Browse, transfer and edit phone files over USB or Wi-Fi. No account, no sign-up, no data collected, nothing to install on your phone.">
 <meta name="twitter:image" content="https://droidwire.vercel.app/og-image.png">
-
+<link rel="preload" href="fonts/Geist-0.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="demo.css">
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "Droidwire",
-  "operatingSystem": "macOS 12+",
-  "applicationCategory": "UtilitiesApplication",
-  "description": "Android to Mac file transfer over USB via ADB. No app required on the phone.",
-  "url": "https://droidwire.vercel.app/",
-  "downloadUrl": "https://github.com/ajithonmain/droidwire/releases/latest",
-  "softwareVersion": "1.4.0",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD",
-    "description": "Free during public beta"
-  },
-  "author": {
-    "@type": "Person",
-    "name": "Ajith M Jose",
-    "url": "https://ajithmjose.com"
-  }
-}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Droidwire","operatingSystem":"macOS 12+","applicationCategory":"UtilitiesApplication","description":"Free, open-source Android to Mac file transfer over USB or Wi-Fi. No account, no sign-up, no data collected.","url":"https://droidwire.vercel.app/","downloadUrl":"https://github.com/ajithonmain/droidwire/releases/tag/v1.4.1","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Ajith M Jose","url":"https://ajithmjose.com"}}
 </script>
-<style>
-  :root {
-    --bg: #FFFFFF;
-    --surface: #F6F7F8;
-    --border: #E4E4E7;
-    --accent: #00913F;
-    --accent-bright: #00D84A;
-    --accent-bg: #E7FAEE;
-    --accent-border: #B9ECC9;
-    --text: #111113;
-    --muted: #6B6B72;
-    --warning: #A85A00;
-    --warning-bg: #FFF4E6;
-    --warning-border: #F5D9A8;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
-  }
-  img, svg { max-width: 100%; }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-
-  nav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 0; flex-wrap: wrap; gap: 12px;
-    position: relative;
-  }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
-  .logo img { display: block; flex-shrink: 0; }
-  nav .links { display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
-  nav .links a { color: var(--muted); text-decoration: none; transition: color .15s; }
-  nav .links a:hover { color: var(--text); }
-  .nav-toggle {
-    display: none; align-items: center; justify-content: center;
-    width: 36px; height: 36px; border-radius: 8px;
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--text); cursor: pointer; flex-shrink: 0;
-  }
-
-  .hero { text-align: center; padding: 88px 0 72px; }
-  .beta-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: var(--accent-bg); color: var(--accent);
-    border: 1px solid var(--accent-border);
-    font-size: 13px; font-weight: 600;
-    padding: 5px 14px; border-radius: 100px; margin-bottom: 28px;
-  }
-  .beta-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-  h1 {
-    font-size: clamp(30px, 6.5vw, 58px); font-weight: 800;
-    letter-spacing: -0.03em; line-height: 1.12; margin-bottom: 20px;
-    word-wrap: break-word;
-  }
-  h1 .accent { color: var(--accent); }
-  .sub { color: var(--muted); font-size: clamp(15px, 2.6vw, 19px); max-width: 620px; margin: 0 auto 40px; }
-  .sub strong { color: var(--text); font-weight: 600; }
-
-  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-    padding: 14px 28px; border-radius: 8px;
-    font-size: 16px; font-weight: 600; text-decoration: none;
-    transition: transform .12s, background .15s, border-color .15s;
-  }
-  .btn-primary { background: var(--accent-bright); color: #04240F; }
-  .btn-primary:hover { transform: translateY(-1px); background: #00C243; }
-  .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost:hover { border-color: #C8C8CE; }
-  .cta-note { color: var(--muted); font-size: 13px; margin-top: 16px; }
-
-  section { padding: 56px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: clamp(22px, 4vw, 28px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
-  .section-sub { color: var(--muted); margin-bottom: 32px; }
-
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 24px;
-  }
-  .card svg { margin-bottom: 14px; }
-  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-  .card p { color: var(--muted); font-size: 14px; }
-
-  .steps { counter-reset: step; display: flex; flex-direction: column; gap: 0; }
-  .step { display: flex; gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--border); }
-  .step:last-child { border-bottom: none; }
-  .step-num {
-    counter-increment: step; flex-shrink: 0;
-    width: 34px; height: 34px; border-radius: 50%;
-    background: var(--accent-bg); color: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px;
-  }
-  .step-num::before { content: counter(step); }
-  .step > div { min-width: 0; }
-  .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-  .step p { color: var(--muted); font-size: 14.5px; overflow-wrap: break-word; }
-  .step p + p { margin-top: 6px; }
-  code {
-    font-family: "SF Mono", ui-monospace, Menlo, monospace;
-    font-size: 13px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 4px;
-    padding: 2px 7px; color: var(--text);
-    display: inline-block; max-width: 100%;
-    overflow-x: auto; white-space: pre; vertical-align: bottom;
-  }
-  .cmd-box {
-    display: flex; align-items: stretch; gap: 8px;
-    margin: 8px 0; max-width: 100%;
-  }
-  .cmd-box code { flex: 1; min-width: 0; padding: 8px 12px; }
-  .copy-btn {
-    flex-shrink: 0; font-family: inherit;
-    font-size: 12.5px; font-weight: 600; color: var(--text);
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 4px; padding: 0 14px; cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .copy-btn:hover { border-color: var(--accent); }
-  .callout {
-    background: var(--warning-bg); border: 1px solid var(--warning-border);
-    border-left: 3px solid var(--warning);
-    border-radius: 8px; padding: 18px 20px; margin-top: 28px;
-    font-size: 14.5px; color: #6B4300;
-  }
-  .callout strong { color: var(--text); }
-  .callout a { color: var(--accent); font-weight: 600; }
-
-  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 8px; }
-  .mode { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
-  .mode .tag {
-    display: inline-block; font-size: 12px; font-weight: 700;
-    letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--accent); margin-bottom: 12px;
-  }
-  .mode h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .mode-sub { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
-  .mode-limited .tag { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); padding: 1px 8px; border-radius: 4px; }
-  .mode ul { list-style: none; }
-  .mode li { color: var(--muted); font-size: 14.5px; padding: 5px 0 5px 24px; position: relative; }
-  .mode li::before {
-    content: ""; position: absolute; left: 0; top: 11px;
-    width: 12px; height: 7px;
-    border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
-    transform: rotate(-45deg);
-  }
-
-  .req-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
-  .req-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .req-table td:first-child { color: var(--muted); width: 40%; }
-
-  footer { border-top: 1px solid var(--border); padding: 36px 0; margin-top: 32px; }
-  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-  footer p, footer a { color: var(--muted); font-size: 13.5px; }
-  footer a { text-decoration: none; }
-  footer a:hover { color: var(--accent); }
-  footer .made a { color: var(--text); font-weight: 600; }
-  footer .made a:hover { color: var(--accent); }
-
-  /* Tablet */
-  @media (max-width: 720px) {
-    .wrap { padding: 0 20px; }
-    .hero { padding: 56px 0 48px; }
-    section { padding: 44px 0; }
-    .btn { width: 100%; }
-    .cta-row { flex-direction: column; }
-    .req-table td { display: block; width: 100% !important; }
-    .req-table tr { display: block; padding: 13px 0; border-bottom: 1px solid var(--border); }
-    .req-table td { border-bottom: none; padding: 2px 0; }
-    .req-table td:first-child { font-weight: 600; color: var(--text); }
-  }
-
-  /* Phone */
-  @media (max-width: 460px) {
-    .wrap { padding: 0 16px; }
-    .nav-toggle { display: flex; }
-    nav .links {
-      display: none; flex-direction: column; gap: 2px;
-      position: absolute; left: 0; right: 0; top: 100%; margin-top: 8px;
-      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-      padding: 8px; font-size: 15px; box-shadow: 0 8px 24px rgba(0,0,0,.08);
-      z-index: 20;
-    }
-    nav .links.open { display: flex; }
-    nav .links a { padding: 10px 10px; border-radius: 8px; }
-    nav .links a:hover { background: var(--surface); }
-    .beta-badge { font-size: 12px; text-align: left; }
-    .step { gap: 14px; }
-    .step-num { width: 28px; height: 28px; font-size: 13px; }
-    footer .wrap { flex-direction: column; align-items: flex-start; }
-  }
-</style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav id="nav" aria-label="Main navigation">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><img src="logo.png" alt="" width="26" height="26">Droidwire</a>
+    <div class="nav-links">
+      <a href="#connect">Connect</a>
+      <a href="#features">Features</a>
+      <a href="#open-source">Open source</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a class="gh" href="https://github.com/ajithonmain/droidwire"><svg class="gh-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+      <a class="pill" href="https://github.com/ajithonmain/droidwire/releases/tag/v1.4.1">Download</a>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="chip"><i></i>Free &amp; open source &middot; MIT &middot; No sign-up</span>
+    <h1>Android files, <span>on your Mac.</span></h1>
+    <p class="lede">Plug in your phone, browse it like a folder and move what you need at full USB speed. Free, with no account, no sign-up and no data collected.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/ajithonmain/droidwire/releases/tag/v1.4.1">Download for Mac <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v9M4 7.5 8 11.5 12 7.5M3 14h10"/></svg></a>
+      <a class="btn ghost" href="https://github.com/ajithonmain/droidwire"><svg class="gh-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>View source</a>
+    </div>
+    <p class="fine">Apple Silicon &middot; macOS 12+ &middot; Unsigned build, <a href="#install">see the install guide</a></p>
+
+    <div class="stage">
+      <div class="demo-wrap" id="demo-wrap">
+        <div class="demo" id="demo" data-theme="light" tabindex="0" role="application" aria-label="Interactive demo of the Droidwire app with sample files">
+          <div class="d-title">
+            <div class="d-lights"><i></i><i></i><i></i></div>
+            <button class="d-ic" id="d-back" disabled aria-label="Back"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>
+            <button class="d-ic" id="d-fwd" disabled aria-label="Forward"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>
+            <span class="d-sep"></span>
+            <span class="d-name" id="d-name">Weekend trip</span>
+            <span class="d-grow"></span>
+            <button class="d-ic" id="d-tabs" aria-label="Tabs"><svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="9" rx="1.5"/><path d="M2 6.5h12"/></svg></button>
+            <button class="d-ic" id="d-tools" aria-label="Device tools"><svg viewBox="0 0 16 16"><path d="M10.5 2.5a3 3 0 0 0-2.7 4L2.5 11.8a1.3 1.3 0 0 0 1.8 1.8L9.6 8.3a3 3 0 0 0 4-2.7l-2 2-1.8-.3-.3-1.8z"/></svg></button>
+            <button class="d-ic" id="d-mark" aria-label="Bookmark"><svg viewBox="0 0 16 16"><path d="M4 2.5h8v11L8 10.5 4 13.5z"/></svg></button>
+            <button class="d-ic" id="d-theme" aria-label="Toggle dark mode"></button>
+            <span class="d-dev" id="d-dev"><b>Pixel 4a</b> 88%</span>
+            <button class="d-add" id="d-add" aria-label="Add device">+</button>
+            <span class="d-conn" id="d-conn"><span>Connected</span></span>
+            <button class="d-eject" id="d-eject">Eject</button>
+          </div>
+          <div class="d-body">
+            <aside class="d-side" id="d-side" aria-label="Locations"></aside>
+            <div class="d-main">
+              <div class="d-bar">
+                <div class="d-seg"><button id="d-vlist" class="on" aria-label="List view"><svg viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h10"/></svg></button><button id="d-vgrid" aria-label="Grid view"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg></button></div>
+                <span class="d-vsep"></span>
+                <select class="d-sel" id="d-type" aria-label="Filter by type"><option value="all">All</option><option value="dir">Folders</option><option value="img">Images</option><option value="vid">Video</option><option value="doc">Documents</option><option value="mp3">Audio</option><option value="zip">Archives</option></select>
+                <select class="d-sel" id="d-sort" aria-label="Sort by"><option value="name">Name</option><option value="size">Size</option><option value="date">Date</option></select>
+                <button class="d-btn" id="d-dir" aria-label="Reverse order"><svg viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+                <span class="d-vsep"></span>
+                <button class="d-btn" id="d-newfolder" aria-label="New folder"><svg viewBox="0 0 16 16"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></svg></button>
+                <span class="d-btn" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>Droidwire</span>
+                <span class="d-grow"></span>
+                <label class="d-search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input id="d-q" type="text" placeholder="Search" aria-label="Search this folder" autocomplete="off" spellcheck="false"></label>
+              </div>
+              <div class="d-content" id="d-content">
+                <div class="d-head" id="d-head"><span data-s="name">Name</span><span class="r" data-s="size">Size</span><span data-s="date">Date Modified</span><span>Kind</span></div>
+                <div class="d-files" id="d-files"></div>
+              </div>
+            </div>
+            <aside class="d-prev" id="d-prev" aria-label="Preview"></aside>
+            <div class="d-off" id="d-off"><svg viewBox="0 0 48 48"><rect x="14" y="4" width="20" height="40" rx="4"/><path d="M21 38h6"/></svg><h3>No phone connected</h3><p>Plug in your Android phone with a USB cable, or pair over Wi-Fi.</p><button id="d-reconnect">Connect</button></div>
+          </div>
+          <div class="d-tr" id="d-tr" aria-live="polite"></div>
+          <div class="d-crumb" id="d-crumb"></div>
+          <div class="d-status"><span id="d-count"></span><span class="d-grow"></span><span class="d-x" id="d-xfer"></span><i class="d-store"></i><span>45 GB free of 110 GB</span></div>
+          <div class="d-menu" id="d-menu"></div>
+          <div class="d-modal" id="d-modal"></div>
+          <div class="d-toast" id="d-toast" role="status"></div>
+          <div class="d-cap" id="d-cap" aria-hidden="true"></div>
+          <div class="d-key" id="d-key" aria-hidden="true"></div>
+          <div class="d-edit" id="d-edit"><div class="d-etitle"><div class="d-lights"><i></i><i></i><i></i></div><span id="d-edit-title">Notes.txt</span><span class="d-grow"></span><em>Opened in your Mac app</em><button id="d-edit-close" aria-label="Close editor">&times;</button></div><textarea id="d-edit-text" spellcheck="false" aria-label="File editor"></textarea><div class="d-efoot"><span>Save with <kbd>⌘</kbd> <kbd>S</kbd> and it goes back to the phone</span><button id="d-edit-save">Save</button></div></div>
+          <div class="d-cursor" id="d-cursor" aria-hidden="true"><svg viewBox="0 0 22 22"><path d="M3 2 3 17 7.2 13.2 10 19.5 12.6 18.4 9.9 12.2 15.5 12Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg><div class="d-ghost" id="d-ghost"></div></div>
+        </div>
+      </div>
+      <div class="demo-ctl">
+        <div class="demo-chips" id="demo-chips" role="group" aria-label="Tour chapters"></div>
+        <button class="demo-btn" id="demo-tour" type="button">Replay from start</button>
+      </div>
+      <p class="demo-state" id="demo-state" aria-live="polite"></p>
+      <p class="demo-note">A working replica of the app with sample files and stock photos, playing on a loop. Click to take over. Nothing here touches a real phone.</p>
+    </div>
+
+    <div class="promises">
+      <div><b>Free</b>No paid tier, no ads</div>
+      <div><b>No sign-up</b>No account, no email</div>
+      <div><b>No data collected</b>No analytics, no telemetry</div>
+      <div><b>Open source</b>MIT licensed</div>
+    </div>
+  </div>
+</header>
+
+<section id="connect">
+  <div class="wrap">
+    <div class="sec-head center rv">
+      <span class="label">Three ways to connect</span>
+      <h2>One app. <span>Three connections.</span></h2>
+      <p>Pick USB for everything, Wi-Fi to cut the cable, and note that MTP is deferred and not part of this beta.</p>
+    </div>
+
+    <div class="xp rv" id="xp">
+      <div class="xp-tabs" role="tablist" aria-label="Connection mode">
+        <button class="xp-tab on" role="tab" aria-selected="true" data-m="usb"><span class="k">01 &middot; Recommended</span><b>USB</b><span class="s">ADB over the cable</span><i class="pg"></i></button>
+        <button class="xp-tab" role="tab" aria-selected="false" data-m="wifi"><span class="k">02 &middot; Android 11+</span><b>Wi-Fi</b><span class="s">Wireless debugging</span><i class="pg"></i></button>
+        <button class="xp-tab" role="tab" aria-selected="false" data-m="mtp"><span class="k">03 &middot; Deferred</span><b>MTP</b><span class="s">Not in this release</span><i class="pg"></i></button>
+      </div>
+      <div class="xp-stage">
+        <svg viewBox="0 0 900 280" role="img" aria-label="Animated diagram of the phone connected to the Mac" id="xp-svg">
+          <g>
+            <rect class="dev-line" x="40" y="60" width="84" height="164" rx="14"/>
+            <rect class="dev-scr" x="48" y="76" width="68" height="124" rx="6"/>
+            <circle cx="82" cy="66" r="2.5" fill="#c9ccc5"/>
+            <text id="phone-lbl" x="82" y="252" text-anchor="middle">USB debugging</text>
+            <g transform="translate(740 70)">
+              <rect class="dev-line" x="0" y="0" width="136" height="96" rx="8"/>
+              <rect class="dev-scr" x="7" y="7" width="122" height="82" rx="3"/>
+              <circle cx="20" cy="19" r="3.5" fill="#00c443"/>
+              <rect x="30" y="16" width="52" height="6" rx="3" fill="#d9d9d2"/>
+              <rect x="16" y="36" width="96" height="6" rx="3" fill="#e8e8e3"/><rect x="16" y="50" width="80" height="6" rx="3" fill="#e8e8e3"/><rect x="16" y="64" width="88" height="6" rx="3" fill="#e8e8e3"/>
+              <path d="M-14 104h164l-10 14H-4z" class="dev-line"/>
+            </g>
+            <text x="808" y="252" text-anchor="middle">Mac</text>
+          </g>
+          <g class="g-mode on" data-m="usb">
+            <path class="base" d="M124 142H740"/>
+            <rect x="124" y="136" width="16" height="12" rx="3" fill="#d9d9d2"/><rect x="724" y="136" width="16" height="12" rx="3" fill="#d9d9d2"/>
+            <circle r="5" fill="#00c443"><animateMotion dur="1.8s" repeatCount="indefinite" path="M140 142H724"/></circle>
+            <circle r="5" fill="#00c443"><animateMotion dur="1.8s" begin="0.6s" repeatCount="indefinite" path="M140 142H724"/></circle>
+            <circle r="5" fill="#00c443"><animateMotion dur="1.8s" begin="1.2s" repeatCount="indefinite" path="M140 142H724"/></circle>
+            <circle r="4" fill="#7be8a1"><animateMotion dur="2.4s" begin="0.3s" repeatCount="indefinite" path="M724 142H140"/></circle>
+            <circle r="4" fill="#7be8a1"><animateMotion dur="2.4s" begin="1.5s" repeatCount="indefinite" path="M724 142H140"/></circle>
+            <text class="lbl" x="432" y="120" text-anchor="middle">USB cable &middot; adb pull and adb push</text>
+            <text x="432" y="172" text-anchor="middle">full USB bandwidth</text>
+          </g>
+          <g class="g-mode" data-m="wifi">
+            <path class="base dash-flow" d="M124 150C300 20 580 20 740 150"/>
+            <circle class="wv" cx="450" cy="92" r="46"/><circle class="wv" cx="450" cy="92" r="46"/><circle class="wv" cx="450" cy="92" r="46"/>
+            <circle cx="450" cy="92" r="7" fill="#fff" stroke="#00c443" stroke-width="2"/>
+            <circle r="5" fill="#00c443"><animateMotion dur="2.6s" repeatCount="indefinite" path="M124 150C300 20 580 20 740 150"/></circle>
+            <circle r="5" fill="#00c443"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" path="M124 150C300 20 580 20 740 150"/></circle>
+            <circle r="4" fill="#7be8a1"><animateMotion dur="3.2s" begin="0.7s" repeatCount="indefinite" path="M740 150C580 20 300 20 124 150"/></circle>
+            <text class="lbl" x="450" y="196" text-anchor="middle">same Wi-Fi network &middot; pair once with a QR code</text>
+          </g>
+          <g class="g-mode" data-m="mtp">
+            <path class="base" d="M124 142H740" stroke-dasharray="4 8"/>
+            <g transform="translate(180 106)"><rect x="0" y="0" width="176" height="28" rx="14" fill="#fff" stroke="#d9d9d2"/><text x="16" y="18" font-size="11">File transfer</text><rect class="sw-bg" x="128" y="7" width="34" height="14" rx="7" fill="#d9d9d2"/><circle class="sw-knob" cx="135" cy="14" r="5" fill="#fff"/></g>
+            <circle r="5" fill="#00c443"><animateMotion dur="3s" repeatCount="indefinite" path="M124 142H740"/></circle>
+            <circle r="5" fill="#00c443"><animateMotion dur="3s" begin="1.5s" repeatCount="indefinite" path="M740 142H124"/></circle>
+            <text class="lbl" x="432" y="196" text-anchor="middle">MTP &middot; deferred, not in this release</text>
+          </g>
+        </svg>
+      </div>
+      <div class="xp-info">
+        <div class="xp-steps" id="xp-steps"></div>
+        <div class="xp-meta" id="xp-meta"></div>
+      </div>
+    </div>
+
+    <div class="caps-h rv">
+      <div><span class="label">Everything you can do</span><h3>All the things Droidwire does.</h3></div>
+      <div class="caps-count" id="caps-count" aria-live="polite"></div>
+    </div>
+    <div class="caps rv" id="caps">
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><b>Browse and search</b><span>Breadcrumbs, list and grid, sorting, filters and recursive search.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M3 9V6a1 1 0 0 1 1-1h6l2 4M3 9v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></svg><div><b>Tabs and bookmarks</b><span>Pin folders and keep several locations open at once.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-4-4 4 4 4-4M5 20h14"/></svg><div><b>Download queue</b><span>Per-file progress and speed. Pause, resume, reorder, cancel.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5m-4 4 4-4 4 4M5 20h14"/></svg><div><b>Upload</b><span>Drag from Finder or the menu bar, or use the file picker.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg><div><b>Drag out</b><span>Drag files from Droidwire straight into Finder or another app.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><div><b>Rename, delete, new folder</b><span>Every delete asks for confirmation first.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v11H9zM5 15V4h10"/></svg><div><b>Copy, cut, paste</b><span>Move things between folders on the phone.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg><div><b>Open and edit</b><span>Edit in a Mac app. Saves go back to the phone automatically.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg><div><b>Previews</b><span>Images including HEIC, PDF, audio, text and video poster frames.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v4H3zM7 13h10v6H7z"/></svg><div><b>Menu bar drop target</b><span>Quick uploads to the phone's Download folder.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM12 4v7m-2 0h4"/></svg><div><b>Folder as .zip</b><span>Download a whole folder as one archive.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2"/></svg><div><b>Folder sizes</b><span>See what each folder weighs before you move it.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM7 12h.01M11 12h6"/></svg><div><b>Storage details</b><span>Used and free space on the phone.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><div><b>Storage analyzer</b><span>Find what is taking up the space.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v8H3zM21 11v2M6 11v2"/></svg><div><b>Battery and device info</b><span>Model, Android version, battery health.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><div><b>Installed apps and APK export</b><span>Browse installed apps and export their APKs.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8M5 10h14a7 7 0 0 0-14 0zM9 6L7.5 4M15 6l1.5-2"/></svg><div><b>Install APKs</b><span>Install an APK straight from the file browser.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+<div class="cap" data-g="b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"/></svg><div><b>Multiple phones</b><span>Device switcher and per-device eject.</span><em>Needs USB or Wi-Fi mode</em></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="tight">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="label">The app</span>
+      <h2>Feels like it belongs <span>on your Mac.</span></h2>
+      <p>Real screens from the real app. Nothing mocked up.</p>
+    </div>
+    <div class="bento">
+      <article class="tile s3 rv"><div class="crop browse"><img src="screens/app-camera.jpg" width="2400" height="1520" alt="Photo thumbnails in the Droidwire grid view." loading="lazy"></div><div class="tx"><h3>Browse like Finder.</h3><p>List or grid, with real thumbnails for images, PDFs and video. Tabs, bookmarks, sorting, filters and search.</p></div></article>
+      <article class="tile s3 rv"><div class="crop prev"><img src="screens/app-preview.png" width="2400" height="1520" alt="Image preview with file details in the side panel." loading="lazy"></div><div class="tx"><h3>Preview before you pull.</h3><p>See a photo, PDF page or text file and its details without downloading it first.</p></div></article>
+      <article class="tile s6 rv"><div class="crop xfer"><img src="screens/app-transfer.png" width="2400" height="1520" alt="Transfer bar showing a download with progress, speed and time left." loading="lazy"></div><div class="tx"><h3>Transfers you can see.</h3><p>Per-file progress, live speed and time left. Pause, resume, reorder or cancel from the queue, and get a notification when it is done.</p></div></article>
+      <article class="tile s2 rv"><div class="crop menu"><img src="screens/app-menu.png" width="2400" height="1520" alt="Right-click menu with Open and Edit, Download, Copy, Cut, Rename and Delete." loading="lazy"></div><div class="tx"><h3>Everything on right-click.</h3><p>Download, rename, copy, cut and delete. Deletes always ask first.</p></div></article>
+      <article class="tile s2 rv"><div class="flow" aria-hidden="true"><span class="node">phone</span><span class="wire"></span><span class="node">Mac app</span><span class="wire r"></span><span class="node">phone</span></div><div class="tx"><h3>Open. Edit. Save.</h3><p>Open a phone file in its Mac app. Save, and Droidwire sends the change back.</p></div></article>
+      <article class="tile s2 rv"><div class="flow" aria-hidden="true"><span class="node">Pixel 4a</span><span class="wire"></span><span class="node">Droidwire</span><span class="wire r"></span><span class="node">Menu bar</span></div><div class="tx"><h3>Within reach.</h3><p>Drop a file on the menu bar to send it to the phone's Download folder. Switch phones from the titlebar.</p></div></article>
+    </div>
+  </div>
+</section>
+
+<section id="privacy-sec" class="tight">
+  <div class="wrap privacy">
+    <div class="rv">
+      <span class="label">Privacy</span>
+      <h2>Free. No sign-up. <span>No data.</span></h2>
+      <p class="p">Droidwire never asks who you are. Your files travel directly over USB or your local Wi-Fi, and nothing about you or your phone is collected, stored or sent anywhere. This website sets no cookies and loads nothing from third parties.</p>
+      <a class="link" href="#privacy" data-open="privacy">Read the privacy details &rarr;</a>
+    </div>
+    <div class="term rv" id="term" aria-label="What Droidwire sends over the network">
+      <div class="tb"><i></i><i></i><i></i></div>
+      <div class="tl">
+        <div class="ln"><span class="k">price</span><span class="ok">free</span></div>
+        <div class="ln"><span class="k">accounts</span><span>none, no sign-up</span></div>
+        <div class="ln"><span class="k">personal data</span><span>none collected</span></div>
+        <div class="ln"><span class="k">analytics</span><span>none</span></div>
+        <div class="ln"><span class="k">file data</span><span class="ok">phone &harr; mac, direct</span></div>
+        <div class="ln"><span class="k">github api</span><span>1 optional update check</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="open-source" class="tight">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="label">Open source</span>
+      <h2>Read the code. <span>Build it yourself.</span></h2>
+      <p>Droidwire is MIT licensed and developed in the open. Audit it, fork it, send a fix.</p>
+    </div>
+    <div class="oss">
+      <div class="rv">
+        <div class="repo">
+          <div class="repo-h"><a href="https://github.com/ajithonmain/droidwire"><svg class="gh-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>ajithonmain/droidwire</a><span class="tag">MIT</span></div>
+          <div class="repo-stats"><div><b>MIT</b><span>License</span></div><div><b>TypeScript</b><span>Strict mode</span></div><div><b>Electron</b><span>+ React</span></div></div>
+          <div class="repo-links">
+            <a href="https://github.com/ajithonmain/droidwire">Source code <span>&rarr;</span></a>
+            <a href="https://github.com/ajithonmain/droidwire/blob/main/CONTRIBUTING.md">Contributing <span>&rarr;</span></a>
+            <a href="https://github.com/ajithonmain/droidwire/issues">Issues <span>&rarr;</span></a>
+            <a href="https://github.com/ajithonmain/droidwire/blob/main/SECURITY.md">Security policy <span>&rarr;</span></a>
+            <a href="https://github.com/ajithonmain/droidwire/blob/main/CHANGELOG.md">Changelog <span>&rarr;</span></a>
+            <a href="https://github.com/ajithonmain/droidwire/blob/main/docs/LICENSING.md">Licensing <span>&rarr;</span></a>
+          </div>
+        </div>
+        <div class="build">
+          <div class="bh"><span>Build from source</span><button class="copy" data-copy="build-cmd" aria-label="Copy build commands">Copy</button></div>
+<pre id="build-cmd">git clone https://github.com/ajithonmain/droidwire.git
+cd droidwire
+node scripts/bootstrap.mjs
+npm run verify
+npm run desktop:dev</pre>
+        </div>
+      </div>
+      <div class="rv">
+        <ul class="facts-l">
+          <li><b>Own the toolchain</b><span>adb is built from AOSP source (Apache-2.0) with pinned, checksum-verified sources. Google's prebuilt platform-tools are not redistributed.</span></li>
+          <li><b>Hardened renderer</b><span>The UI never touches Node, adb or your files directly. Context isolation on, sandboxed, one typed bridge.</span></li>
+          <li><b>Hostile paths handled</b><span>Remote file names are quoted and validated, so odd names cannot run commands on the phone.</span></li>
+          <li><b>Tested</b><span>Unit tests, package checks and a packaged-app smoke test run before every build.</span></li>
+          <li><b>No lock-in</b><span>Plain files on your phone, plain files on your Mac. Nothing to export.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sec-head rv releases-h"><span class="label">Release notes</span></div>
+    <div class="rel rv">
+      <div class="rel-row"><div class="v">1.4.1<small>Beta prerelease</small></div><ul>
+        <li><strong>Beta releases can now be discovered by the update check.</strong> It reads the release list, so a prerelease newer than your version is announced, and Download opens that release.</li>
+        <li><strong>Same app as 1.4.0:</strong> USB and Wi-Fi, bundled adb, no MTP, Apple Silicon only, unsigned. Copies of 1.4.0 and 1.3.0 do not get this fix; use the download button.</li>
+      </ul></div>
+      <div class="rel-row"><div class="v">1.4.0<small>Self-contained build</small></div><ul>
+        <li><strong>Nothing else to install.</strong> adb and the video-thumbnail helper are bundled. MTP is deferred and not included.</li>
+        <li><strong>Setup guidance in the app</strong> for USB and Wi-Fi, including unauthorized and offline phones.</li>
+        <li><strong>Really macOS 12+.</strong> All native code is compiled for macOS 12.0 and verified at packaging time.</li>
+      </ul></div>
+      <div class="rel-row"><div class="v">1.3.0<small>7 Oct 2026</small></div><ul>
+        <li><strong>First open-source release</strong> under the MIT License.</li>
+        <li><strong>Sign-up removed.</strong> The email prompt and remote messages are gone; the app collects no personal information.</li>
+        <li><strong>Safer folder downloads.</strong> Remote folder names are now quoted when zipping on the phone.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="tight">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="label">Install</span>
+      <h2>Five steps. <span>About two minutes.</span></h2>
+      <p>Steps 3 to 5 are needed once, because these builds are not signed or notarized with an Apple certificate yet.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv"><div><h3>Download the .dmg</h3><p>Grab <code>Droidwire-1.4.1-arm64.dmg</code> from the download button (a beta prerelease; the unsigned app needs the quarantine step below). By installing, you accept the <a href="#terms" data-open="terms">terms of use</a>. Short version: it is free, provided as-is, and you should keep backups of anything irreplaceable.</p></div></div>
+      <div class="step rv"><div><h3>Drag Droidwire into Applications</h3><p>Open the downloaded .dmg and drag the Droidwire icon onto the Applications folder. You can then eject the .dmg.</p></div></div>
+      <div class="step rv"><div><h3>Open the app once. macOS will block it. Click Cancel.</h3><p>Open Droidwire from Applications. macOS shows an alert, usually <em>"Droidwire is damaged and can't be opened"</em>. The app is not damaged; macOS says this about any app that isn't signed with an Apple certificate. <strong>Click Cancel</strong> (do not click "Move to Trash") and go to the next step.</p></div></div>
+      <div class="step rv"><div><h3>Run one command in Terminal</h3><p>Open <strong>Terminal</strong> (press <code>Cmd + Space</code>, type "Terminal", press Enter). Paste this command and press Enter:</p>
+        <div class="cmd"><code id="xattr-cmd">xattr -dr com.apple.quarantine /Applications/Droidwire.app</code><button class="copy" data-copy="xattr-cmd" aria-label="Copy command">Copy</button></div>
+        <p>What it does: macOS tags every downloaded file with a "quarantine" flag, and that flag is what triggers the "damaged" alert on unsigned apps. This command removes the flag from the Droidwire app only. It changes nothing else on your Mac and prints nothing when it succeeds.</p></div></div>
+      <div class="step rv"><div><h3>Reopen Droidwire</h3><p>Open Droidwire again from <strong>Applications</strong> (or Launchpad or Spotlight). It now opens normally and stays that way. You never repeat steps 3 to 5.</p><p>Plug in your phone (or use Wi-Fi) and the built-in setup walks you through connecting it. There is nothing to sign up for.</p></div></div>
+    </div>
+    <div class="note rv"><strong>Found a bug?</strong> Grab the log via <strong>Droidwire menu &gt; Show Logs in Finder</strong> and open an issue on <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a> with the log attached. Every report makes the app better.</div>
+  </div>
+</section>
+
+<section id="faq" class="tight">
+  <div class="wrap">
+    <div class="sec-head center rv"><span class="label">FAQ</span><h2>Questions, <span>answered.</span></h2></div>
+    <div class="faq rv">
+      <details><summary>Is Droidwire really free?</summary><p>Yes. It is free to download and use, with no paid tier, no ads and no account. The source code is released under the MIT License.</p></details>
+      <details><summary>Do I need to sign up or give any data?</summary><p>No. There is no account, no sign-up and no email prompt. The app collects no personal data, no analytics and no crash reports. The only request it makes on its own is an optional check of GitHub for a newer version, which you can switch off.</p></details>
+      <details><summary>Do I need to install anything on my phone?</summary><p>No. Droidwire uses Android's own built-in protocols: USB debugging or Wireless debugging. Nothing is installed on the phone, ever.</p></details>
+      <details><summary>Why does macOS say the app is damaged?</summary><p>Builds are not signed and notarized with an Apple Developer certificate yet, and macOS reacts that way to any unsigned downloaded app. <a href="#install">The install guide</a> shows the one-time fix. Prefer not to run an unsigned app? Build it from source and read the code first.</p></details>
+      <details><summary>How do I know it is safe?</summary><p>The code is public and MIT licensed, so you can read it or build it yourself. Files only move between your devices, and nothing is sent to a server. Note that USB debugging gives your Mac access to the phone, so turn it off when you do not need it.</p></details>
+      <details><summary>Which Macs and phones work?</summary><p>Apple Silicon Macs on macOS 12 Monterey or later. Intel Macs are not supported. Android 8.0 or later for USB mode, Android 11 or later for Wi-Fi mode. Hardware testing is limited to one phone and one Mac (see the compatibility table below), so <a href="https://github.com/ajithonmain/droidwire/issues">reports of what works are welcome</a>.</p></details>
+      <details><summary>What is the difference between USB and Wi-Fi? Where is MTP?</summary><p>USB and Wi-Fi both use ADB and unlock every feature, including device tools and APK handling. USB needs a cable; Wi-Fi needs Android 11 or later and a one-time pairing. MTP, a simpler mode that needs no USB debugging, is deferred: it is not part of this beta and is not in the app.</p></details>
+      <details><summary>Is there a Windows, Linux or iOS version?</summary><p>No, and none is planned. Droidwire is a Mac app for Android phones.</p></details>
+      <details><summary>How do I report a bug or contribute?</summary><p>Open an issue on <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a>, or read <a href="https://github.com/ajithonmain/droidwire/blob/main/CONTRIBUTING.md">the contributing guide</a> to send a fix.</p></details>
+    </div>
+
+    <div class="refs rv">
+      <details id="requirements"><summary>Requirements</summary><div class="body">
+        <p class="intro">What you need on each side of the cable.</p>
+        <table class="tbl">
+          <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later. Intel Macs are not supported</td></tr>
+          <tr><td>Android</td><td>Android 8.0+. USB mode needs USB Debugging, Wi-Fi mode needs Wireless debugging (Android 11+). Droidwire walks you through each</td></tr>
+          <tr><td>Nothing else to install</td><td>From version 1.4.0, adb and video thumbnails are built into the app. No Homebrew, Android SDK or extra downloads. Earlier builds needed adb installed separately</td></tr>
+          <tr><td>Phone-side app</td><td>None. Nothing to install on the phone, ever</td></tr>
+          <tr><td>Cable</td><td>Any USB data cable (or Wi-Fi with wireless ADB on Android 11+)</td></tr>
+          <tr><td>Tested phones</td><td>Verified by the maintainer on one setup only: a Pixel 4a running Android 13, with an Apple Silicon Mac on macOS 26. Other phones, other Android versions, older macOS versions and Intel Macs are untested, and the app is unsigned and not notarized. The screenshots on this page were taken on the Pixel 4a. <a href="https://github.com/ajithonmain/droidwire/issues">Reports of what works are welcome</a></td></tr>
+          <tr><td>Price</td><td>Free. No paid tier, no ads, no account</td></tr>
+        </table>
+      </div></details>
+      <details id="privacy"><summary>Privacy &amp; security</summary><div class="body">
+        <p class="intro">Files move directly between your devices. No account is needed and no personal data is collected.</p>
+        <table class="tbl">
+          <tr><td>Where files go</td><td>Directly between your Mac and your phone over USB or your local Wi-Fi network. No server, no cloud, no third party ever sees them</td></tr>
+          <tr><td>Accounts and sign-up</td><td>None. No account, login, password or email, and the app never asks for any personal information. (Earlier beta builds up to 1.2.1 asked for an email address once; that was removed in 1.3.0.)</td></tr>
+          <tr><td>Data collected</td><td>None. No analytics, no tracking, no telemetry, no crash reporting</td></tr>
+          <tr><td>Network use</td><td>No file data ever leaves the cable or Wi-Fi link to your phone. The app makes exactly one request on its own: on launch it asks GitHub's public API for the list of releases (first page, prereleases included) so it can tell you when a newer version exists. It sends no identifiers (GitHub sees your IP address, like any web request) and installs nothing. Turn it off under <strong>Droidwire menu &gt; Check for Updates Automatically</strong>, or check by hand with <strong>Check for Updates</strong>. That is the full list</td></tr>
+          <tr><td>This website</td><td>No cookies, no analytics, no tracking scripts, no third-party requests. Fonts and images are served from the site itself</td></tr>
+          <tr><td>Your phone</td><td>Nothing is installed on it. Droidwire talks over Android's own built-in protocol (ADB). Revoke access anytime: turn off USB Debugging or unplug the cable</td></tr>
+          <tr><td>Deleting files</td><td>Every delete asks for confirmation first. Nothing is removed silently</td></tr>
+          <tr><td>Logs</td><td>Kept only on your Mac, for debugging. Shared only if you attach them to a bug report yourself</td></tr>
+          <tr><td>Why the macOS warning?</td><td>Builds are not signed and notarized with an Apple Developer certificate yet. The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one. Droidwire never removes the flag for you</td></tr>
+        </table>
+      </div></details>
+      <details id="terms"><summary>Terms of use</summary><div class="body"><div class="terms">
+        <p>Last updated 7 October 2026. These terms replace the earlier beta terms.</p>
+        <h4>1. Free to use</h4><p>Droidwire is free to download and use, for personal and commercial purposes. There is no fee, no paid tier, no advertising, and no account, registration or personal information is required.</p>
+        <h4>2. License</h4><p>Droidwire's source code is released under the <a href="https://github.com/ajithonmain/droidwire/blob/main/LICENSE">MIT License</a>, which lets you use, copy, modify, merge, publish, distribute and sell copies, provided the copyright and license notice are kept. Bundled third-party components keep their own licenses, listed in the open-source licenses section below and shipped inside the app.</p>
+        <h4>3. No warranty</h4><p>Droidwire is provided <strong>"as is", without warranty of any kind</strong>, express or implied, including fitness for a particular purpose and non-infringement. You use it at your own risk. Keep backups of anything irreplaceable before large transfers or deletes.</p>
+        <h4>4. Limitation of liability</h4><p>To the fullest extent permitted by law, the author and contributors are not liable for any claim, damages or loss, including loss or corruption of data, arising from the use of Droidwire or from this website.</p>
+        <h4>5. Your data</h4><p>Droidwire collects no personal data and sends none to the author or to any third party. Files move only between your Mac and your phone. See the privacy section for the full list of network requests.</p>
+        <h4>6. Your responsibility</h4><p>Only connect devices you own or are authorized to access, and follow the laws that apply to you. USB debugging and Wireless debugging give your Mac access to the phone, so turn them off when you do not need them.</p>
+        <h4>7. Unsigned builds</h4><p>Release builds are not yet signed or notarized by Apple. Opening one means you choose to clear macOS's quarantine flag yourself. If you prefer not to, build from source.</p>
+        <h4>8. Trademarks</h4><p>Android is a trademark of Google LLC. Apple, Mac and macOS are trademarks of Apple Inc. Droidwire is an independent project and is not affiliated with, endorsed by or sponsored by Google or Apple. Photos in the screenshots on this page are stock photos from Unsplash.</p>
+        <h4>9. Changes</h4><p>These terms may change as Droidwire changes. The current version is always on this page, and past versions are in the repository history. Continuing to use Droidwire after a change means you accept the updated terms.</p>
+        <h4>10. Contact</h4><p>Questions or concerns: open an issue on <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a>.</p>
+      </div></div></details>
+      <details id="licenses"><summary>Open-source licenses</summary><div class="body">
+        <p class="intro">What is inside Droidwire, and under which licenses.</p>
+        <table class="tbl">
+          <tr><td>Droidwire</td><td>&copy; 2026 Ajith M Jose. MIT License</td></tr>
+          <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, built from AOSP source), libusb (LGPL-2.1), React (MIT), qrcode (MIT). Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
+          <tr><td>LGPL note</td><td>libusb is dynamically linked; you may substitute your own build of this library per the LGPL-2.1</td></tr>
+          <tr><td>Android robot</td><td>Reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License</td></tr>
+          <tr><td>This website</td><td>Set in Geist and Geist Mono (SIL Open Font License 1.1). Stock photos in the screenshots are from Unsplash</td></tr>
+        </table>
+      </div></details>
+    </div>
+  </div>
+</section>
+
+<div class="closing">
+  <div class="wrap">
+    <h2 class="rv">Your Android files, <span>ready for a bigger screen.</span></h2>
+    <div class="cta rv"><a class="btn" href="https://github.com/ajithonmain/droidwire/releases/tag/v1.4.1">Get Droidwire for Mac <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v9M4 7.5 8 11.5 12 7.5M3 14h10"/></svg></a><a class="btn ghost" href="https://github.com/ajithonmain/droidwire"><svg class="gh-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>Star on GitHub</a></div>
+    <p class="fine">Free. No sign-up. No data collected.</p>
+  </div>
+</div>
+</main>
 
 <div class="wrap">
-  <nav>
-    <div class="logo">
-      <img src="logo.png" width="24" height="24" alt="Droidwire logo">
-      Droidwire
-    </div>
-    <div class="links" id="nav-links">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="#requirements">Requirements</a>
-      <a href="#privacy">Privacy</a>
-      <a href="#licenses">Licenses</a>
-    </div>
-    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Toggle menu">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
-    </button>
-  </nav>
-
-  <header class="hero">
-    <div class="beta-badge"><span class="dot"></span>Free during beta - no account, no payment</div>
-    <h1>Android files on your Mac.<br><span class="accent">Over a cable.</span></h1>
-    <p class="sub">
-      Browse, transfer, and edit files on your Android phone from a native Mac app.
-      Full USB speed. <strong>Nothing to install on the phone.</strong>
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/ajithonmain/droidwire/releases/latest">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/>
-        </svg>
-        Download for Mac
-      </a>
-      <a class="btn btn-ghost" href="#install">Install guide</a>
-    </div>
-    <p class="cta-note">.dmg, Apple Silicon, macOS 12+ - beta build, unsigned (see install guide)</p>
-  </header>
-
-  <section id="modes">
-    <h2>Three ways to connect</h2>
-    <p class="section-sub">Pick per session - this is exactly what you'll see on first launch.</p>
-    <div class="modes">
-      <div class="mode">
-        <span class="tag">Recommended</span>
-        <h3>Connect via ADB</h3>
-        <p class="mode-sub">Wired, fast - requires USB Debugging</p>
-        <ul>
-          <li>Full USB bandwidth transfers</li>
-          <li>Device tools: screenshots, app list, APK export</li>
-          <li>One-time setup: enable USB Debugging, accept the phone prompt</li>
-        </ul>
-      </div>
-      <div class="mode">
-        <span class="tag">Android 11+</span>
-        <h3>Connect via Wi-Fi</h3>
-        <p class="mode-sub">Wireless debugging - same network required</p>
-        <ul>
-          <li>Same features as ADB, no cable - speed depends on your Wi-Fi</li>
-          <li>Pair once with a QR code, reconnects automatically</li>
-          <li>Phone and Mac must be on the same Wi-Fi network</li>
-        </ul>
-      </div>
-      <div class="mode mode-limited">
-        <span class="tag">Limited</span>
-        <h3>Connect via MTP</h3>
-        <p class="mode-sub">Fallback option - no APK install, no device tools</p>
-        <ul>
-          <li>Zero setup - no Developer Options needed</li>
-          <li>Browse, transfer, rename, delete, edit</li>
-          <li>No APK install, device tools, or storage stats</li>
-          <li>Use when USB Debugging isn't an option</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section id="features">
-    <h2>Features</h2>
-    <p class="section-sub">Everything in the beta, free.</p>
-    <div class="grid">
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17l-5-5 5-5"/><path d="M16 7l5 5-5 5"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-        <h3>Two-way transfer</h3>
-        <p>Drag files onto the window to upload. Drag out of the grid, or download to a folder you pick. Per-file progress with live MB/s.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v6h6"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M9 15l2 2 4-4"/></svg>
-        <h3>Open &amp; edit round-trip</h3>
-        <p>Open a phone file in its Mac app. Save it - Droidwire pushes it back to the phone automatically.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="9" height="16" rx="2"/><rect x="13" y="3" width="9" height="16" rx="2"/></svg>
-        <h3>Multiple devices</h3>
-        <p>Two phones plugged in? Switch between them from the titlebar. USB and wireless at the same time.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
-        <h3>Wireless ADB</h3>
-        <p>Pair over Wi-Fi with a QR code (Android 11+). Transfer without a cable once paired.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-        <h3>Menu bar mode</h3>
-        <p>Droidwire lives in your menu bar too. Click the icon for a mini drop-zone - files you drop land straight in the phone's Download folder, no need to open the full window.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="12" rx="1"/><rect x="12" y="3" width="9" height="7" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/><rect x="3" y="17" width="7" height="4" rx="1"/></svg>
-        <h3>Storage analyzer</h3>
-        <p>Treemap of what's eating your phone storage. Drill into folders, clean up from the Mac.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-        <h3>Transfer queue</h3>
-        <p>Pause, resume, reorder. Notification when the batch completes. Cancel mid-flight cleanly.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/></svg>
-        <h3>Previews &amp; thumbnails</h3>
-        <p>Image previews and grid thumbnails, including HEIC. Tabs, search, bookmarks for fast navigation.</p>
-      </div>
-      <div class="card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00913F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-        <h3>Device tools</h3>
-        <p>Screenshot capture, battery and storage detail, installed app list with APK export (ADB mode).</p>
-      </div>
-    </div>
-  </section>
-
-  <section id="install">
-    <h2>Install</h2>
-    <p class="section-sub">Five steps, about two minutes. Steps 3–5 are needed once because these builds aren't signed or notarized with an Apple certificate yet.</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num"></div>
-        <div>
-          <h3>Download the .dmg</h3>
-          <p>Grab the latest <code>Droidwire-x.x.x-arm64.dmg</code> from the download button above. By installing, you accept the <a href="#licenses">beta terms</a> - short version: beta software, provided as-is, keep backups of anything irreplaceable.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div>
-          <h3>Drag Droidwire into Applications</h3>
-          <p>Open the downloaded .dmg and drag the Droidwire icon onto the Applications folder. You can then eject the .dmg.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div>
-          <h3>Open the app once - macOS will block it. Click Cancel</h3>
-          <p>Open Droidwire from Applications. macOS shows an alert - usually <em>"Droidwire is damaged and can't be opened"</em>. The app is not damaged; macOS says this about any app that isn't signed with an Apple certificate. <strong>Click Cancel</strong> (don't click "Move to Trash") and go to the next step.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div>
-          <h3>Run one command in Terminal</h3>
-          <p>Open <strong>Terminal</strong> (press <code>Cmd + Space</code>, type "Terminal", press Enter). Paste this command and press Enter:</p>
-          <div class="cmd-box">
-            <code id="xattr-cmd">xattr -dr com.apple.quarantine /Applications/Droidwire.app</code>
-            <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy command">Copy</button>
-          </div>
-          <p>What it does: macOS tags every downloaded file with a "quarantine" flag, and that flag is what triggers the "damaged" alert on unsigned apps. This command removes the flag from the Droidwire app only. It changes nothing else on your Mac. It prints nothing when it succeeds.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div>
-          <h3>Reopen Droidwire</h3>
-          <p>Open Droidwire again from <strong>Applications</strong> (or Launchpad / Spotlight). It now opens normally, and it stays that way - you never repeat steps 3–5.</p>
-          <p>Plug in your phone (or use Wi-Fi) and the built-in setup walks you through connecting it. There is nothing to sign up for.</p>
-        </div>
-      </div>
-    </div>
-    <div class="callout">
-      <strong>Found a bug?</strong> This is a beta - that's the point. Grab the log via
-      <strong>Droidwire menu &gt; Show Logs in Finder</strong> and open an issue on
-      <a href="https://github.com/ajithonmain/droidwire/issues">GitHub</a>
-      with the log attached. Every report makes the app better.
-    </div>
-  </section>
-
-  <section id="requirements">
-    <h2>Requirements</h2>
-    <p class="section-sub">What you need on each side of the cable.</p>
-    <table class="req-table">
-      <tr><td>Mac</td><td>Apple Silicon (M1 or newer), macOS 12 Monterey or later. Intel Macs are not supported</td></tr>
-      <tr><td>Android</td><td>Android 8.0+ · USB mode needs USB Debugging, Wi-Fi mode needs Wireless debugging (Android 11+), MTP mode needs "File transfer" selected. Droidwire walks you through each</td></tr>
-      <tr><td>Nothing else to install</td><td>adb, the MTP libraries and video thumbnails are built into the app. No Homebrew, Android SDK or extra downloads</td></tr>
-      <tr><td>Phone-side app</td><td>None. Nothing to install on the phone, ever</td></tr>
-      <tr><td>Cable</td><td>Any USB data cable (or Wi-Fi with wireless ADB on Android 11+)</td></tr>
-      <tr><td>Tested phones</td><td>Earlier builds were tried by the maintainer on a Pixel 10 Pro and a Pixel 4a. This build has not yet been re-tested on a phone and other models are untested - <a href="https://github.com/ajithonmain/droidwire/issues">reports of what works are welcome</a></td></tr>
-      <tr><td>Price</td><td>Free during beta</td></tr>
-    </table>
-  </section>
-
-  <section id="privacy">
-    <h2>Privacy &amp; security</h2>
-    <p class="section-sub">Your files never leave the cable. Here is exactly what the app does and doesn't do.</p>
-    <table class="req-table">
-      <tr><td>Where files go</td><td>Directly between your Mac and your phone over USB or your local Wi-Fi network. No server, no cloud, no third party ever sees them</td></tr>
-      <tr><td>Accounts</td><td>No account, no login, no password, and the app never asks for your email or any personal information. (Earlier beta builds up to 1.2.1 asked for an email address once; that has been removed.)</td></tr>
-      <tr><td>Telemetry</td><td>None. No analytics, no tracking, no crash reporting</td></tr>
-      <tr><td>Network use</td><td>No file data ever leaves the cable/Wi-Fi link to your phone. The app makes exactly one request on its own: on launch it asks GitHub's public API for the latest release number so it can tell you when a newer version exists. It sends no identifiers (GitHub sees your IP address, like any web request) and installs nothing. You can turn it off under <strong>Droidwire menu &gt; Check for Updates Automatically</strong>, or check by hand with <strong>Check for Updates</strong>. That's the full list</td></tr>
-      <tr><td>Your phone</td><td>Nothing is installed on it, ever. Droidwire talks over Android's own built-in protocols (ADB / MTP). Revoke access anytime: turn off USB Debugging or unplug the cable</td></tr>
-      <tr><td>Deleting files</td><td>Every delete asks for confirmation first. Nothing is removed silently</td></tr>
-      <tr><td>Logs</td><td>Kept only on your Mac, for debugging. Shared only if you attach them to a bug report yourself</td></tr>
-      <tr><td>Why the macOS warning?</td><td>Builds aren't signed and notarized with an Apple Developer certificate yet. The "damaged" alert is macOS's blanket response to any unsigned app, not a judgment about this one. Droidwire never removes the flag for you</td></tr>
-    </table>
-  </section>
-
-  <section id="licenses">
-    <h2>Beta terms &amp; licenses</h2>
-    <p class="section-sub">The short, honest version.</p>
-    <table class="req-table">
-      <tr><td>Beta status</td><td>Droidwire is in public beta. It's stable in daily use, but bugs are expected - that's what a beta is for. Keep backups of anything irreplaceable before large transfers or deletes</td></tr>
-      <tr><td>Terms of use</td><td>By installing, you accept that the beta is provided <strong>as-is, without warranty</strong>. The developer is not liable for data loss - same terms as any beta software. If that's not acceptable, wait for the signed release</td></tr>
-      <tr><td>License</td><td>© 2026 Ajith M Jose. Droidwire's source code is released under the MIT License; the bundled components listed below keep their own licenses</td></tr>
-      <tr><td>Open source inside</td><td>Electron (MIT), Android Debug Bridge / adb (Apache-2.0, built from AOSP source), libmtp (LGPL-2.1), libusb (LGPL-2.1), luck-node-mtp (ISC), React (MIT), qrcode (MIT). The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the Creative Commons 3.0 Attribution License. Android is a trademark of Google LLC; Droidwire is not affiliated with Google. Full notices ship in the app: <strong>Droidwire menu &gt; Licenses</strong></td></tr>
-      <tr><td>LGPL note</td><td>libmtp and libusb are dynamically linked; you may substitute your own builds of these libraries per the LGPL-2.1</td></tr>
-    </table>
-  </section>
+  <footer class="foot">
+    <div><a class="brand" href="#top"><img src="logo.png" alt="" width="26" height="26">Droidwire</a><p class="about">Free, open-source Android file transfer for Mac. No account, no sign-up, no data collected.</p></div>
+    <div><h4>Product</h4><ul><li><a href="https://github.com/ajithonmain/droidwire/releases/tag/v1.4.1">Download</a></li><li><a href="#connect">Connect</a></li><li><a href="#features">Features</a></li><li><a href="#install">Install</a></li><li><a href="#faq">FAQ</a></li></ul></div>
+    <div><h4>Open source</h4><ul><li><a href="https://github.com/ajithonmain/droidwire">Source code</a></li><li><a href="https://github.com/ajithonmain/droidwire/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/ajithonmain/droidwire/blob/main/SECURITY.md">Security</a></li><li><a href="https://github.com/ajithonmain/droidwire/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/ajithonmain/droidwire/issues">Report a bug</a></li></ul></div>
+    <div><h4>Legal</h4><ul><li><a href="#terms" data-open="terms">Terms of use</a></li><li><a href="#privacy" data-open="privacy">Privacy</a></li><li><a href="#licenses" data-open="licenses">Licenses</a></li></ul></div>
+  </footer>
+  <div class="legal"><span>Made by <a href="https://ajithmjose.com">Ajith M Jose</a> &middot; &copy; 2026 &middot; MIT License</span><span>Android is a trademark of Google LLC. Not affiliated with Google or Apple.</span></div>
 </div>
-
-<footer>
-  <div class="wrap">
-    <p class="made">Built by <a href="https://ajithmjose.com">Ajith M Jose</a></p>
-    <p>
-      <a href="https://github.com/ajithonmain/droidwire/releases/latest">Download</a>
-      &nbsp;·&nbsp;
-      <a href="https://github.com/ajithonmain/droidwire/issues">Report a bug</a>
-      &nbsp;·&nbsp;
-      <a href="#privacy">Privacy</a>
-      &nbsp;·&nbsp;
-      <a href="#licenses">Beta terms &amp; licenses</a>
-      &nbsp;·&nbsp;
-      <a href="https://ajithmjose.com">ajithmjose.com</a>
-    </p>
-    <p>© 2026 Ajith M Jose. Droidwire is in public beta - free during the beta period.</p>
-  </div>
-</footer>
-
-<script>
-function copyCmd(btn) {
-  var cmd = document.getElementById('xattr-cmd').textContent;
-  navigator.clipboard.writeText(cmd).then(function () {
-    btn.textContent = 'Copied';
-    setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
-  });
-}
-
-var navToggle = document.getElementById('nav-toggle');
-var navLinks = document.getElementById('nav-links');
-navToggle.addEventListener('click', function () {
-  var open = navLinks.classList.toggle('open');
-  navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-});
-navLinks.addEventListener('click', function (e) {
-  if (e.target.tagName === 'A') {
-    navLinks.classList.remove('open');
-    navToggle.setAttribute('aria-expanded', 'false');
-  }
-});
-</script>
-
+<script src="app.js" defer></script>
+<script src="demo.js" defer></script>
 </body>
 </html>
