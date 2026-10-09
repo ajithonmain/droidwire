@@ -1,6 +1,6 @@
 {
   "name": "@droidwire/desktop",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "license": "MIT",
   "main": "out/main/index.js",
@@ -13,7 +13,7 @@
     "verify": "npm run typecheck && npm test && npm run build",
     "smoke": "env -u ELECTRON_RUN_AS_NODE node driver.mjs",
     "native:build": "bash ../native/build.sh",
-    "dist": "electron-vite build && bash scripts/bundle-native.sh && node scripts/dist.mjs",
+    "dist": "node scripts/clean-out.mjs && electron-vite build && bash scripts/bundle-native.sh && node scripts/dist.mjs",
     "dist:with-mtp": "DROIDWIRE_BUNDLE_MTP=1 npm run dist",
     "check:archives": "node scripts/check-archives.mjs",
     "check:package": "node scripts/check-package.mjs"

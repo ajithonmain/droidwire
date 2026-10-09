@@ -4,8 +4,7 @@ import path from 'path'
 import type { FileNode } from '@droidwire/shared'
 import { handle } from './common.ts'
 import { downloadsDir, persistRead, persistWrite, updateSettings } from '../settings.ts'
-import { checkForUpdatesInBackground } from '../updates.ts'
-import { RELEASES_URL } from '../app-info.ts'
+import { checkForUpdatesInBackground, releasePageUrl } from '../updates.ts'
 import { collectDiagnostics } from '../diagnostics.ts'
 import { ensureMainWindow, hideMenubarWindow } from '../windows.ts'
 import { assertLocalPath } from '../lib/paths.ts'
@@ -89,7 +88,7 @@ export function registerAppHandlers(): void {
 
   handle('app:diagnostics', () => collectDiagnostics())
   handle('update:check-silent', () => checkForUpdatesInBackground())
-  handle('open-release-page', () => { void shell.openExternal(RELEASES_URL) })
+  handle('open-release-page', () => { void shell.openExternal(releasePageUrl()) })
 
   handle('drag:store', (_e, payload) => { pendingDrag = parseDragPayload(payload) })
   handle('drag:retrieve', () => {

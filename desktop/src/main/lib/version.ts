@@ -77,3 +77,11 @@ export function pickNewestReleaseTag(releases: unknown): string | null {
   }
   return best
 }
+
+/**
+ * The page of one specific release. Built from the tag rather than taken from the API's html_url so the
+ * address that gets opened is always on the configured releases repository.
+ */
+export function releaseUrlForTag(releasesUrl: string, tag: string): string {
+  return `${releasesUrl}/tag/${encodeURIComponent(tag)}`
+}

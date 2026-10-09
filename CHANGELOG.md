@@ -2,10 +2,16 @@
 
 Compiled from the repository's git history and the changes made for the open-source beta. Dates are commit dates. Versions are those set in `desktop/package.json`; the repository does not record which versions were published as releases beyond the `v1.0.0-beta` tag.
 
-## Unreleased
+## 1.4.1 - 2026-10-09 (beta prerelease, unsigned)
+
+Same app as 1.4.0 (USB/ADB and Wi-Fi, bundled AOSP-built adb, no MTP, Apple Silicon only, unsigned) with one fix and one packaging safeguard.
 
 ### Fixed
-- The update check now lists releases and takes the newest tag, prereleases included. It used GitHub's `/releases/latest`, which never returns prereleases, so a beta published as a prerelease (such as 1.4.0) was invisible to every installed copy. Builds up to and including 1.4.0 still use `/releases/latest`; to learn about a newer prerelease they must watch the releases page. "Open Download Page" now opens the releases list.
+- Beta releases can now be discovered by the update checker. The check used GitHub's `/releases/latest`, which never returns prereleases, so a beta published as a prerelease was invisible. It now reads the release list (first page, 30 releases), ignores drafts and tags that are not valid semver, picks the highest version (not the most recently created release), and offers it only if it is strictly newer than the running version. "Download" opens the page of the selected release instead of the generic releases page.
+- Copies of 1.4.0 and 1.3.0 are not changed by this: they keep asking `/releases/latest`, which still resolves to v1.3.0. Their users need the direct link to the 1.4.1 release.
+
+### Build
+- `npm run dist` now deletes `desktop/out` before building, and `check-package.mjs` fails if `app.asar` contains anything under `out/` other than the built main, preload and renderer files.
 
 ## 1.4.0 - 2026-10-09 (beta prerelease, unsigned)
 

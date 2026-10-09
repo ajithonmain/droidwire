@@ -181,6 +181,8 @@ if (fs.existsSync(asarFile)) {
     for (const e of entries) {
       if (/luck-node-mtp|\/native\/|\.node$/.test(e) && !e.includes('@node-usb')) fail(`app.asar contains ${e}; native code must be loaded from Resources/`)
       if (/^\/(release|dist|\.git)\//.test(e)) fail(`app.asar contains ${e}`)
+      // Only the build output may be packed from out/: a leftover file there (debug script, old bundle) would ship
+      if (/^\/out\/.+\.[A-Za-z0-9]+$/.test(e) && !/^\/out\/(main\/index\.js|preload\/index\.js|renderer\/.+)$/.test(e)) fail(`app.asar contains unexpected build output ${e}`)
     }
     notes.push(`app.asar: ${(size / 1024).toFixed(0)} KB, ${entries.length} entries`)
   } catch (e) {

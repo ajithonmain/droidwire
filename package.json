@@ -1,6 +1,6 @@
 {
   "name": "droidwire",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "license": "MIT",
   "description": "Android file management for macOS over USB ADB, wireless ADB and MTP",

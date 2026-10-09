@@ -2,7 +2,7 @@ import { dialog, shell } from 'electron'
 import https from 'https'
 import type { UpdateCheckResult } from '@droidwire/shared'
 import { PRODUCT_VERSION, RELEASES_REPO, RELEASES_URL } from './app-info.ts'
-import { isNewerVersion, pickNewestReleaseTag } from './lib/version.ts'
+import { isNewerVersion, pickNewestReleaseTag, releaseUrlForTag } from './lib/version.ts'
 import { readSettings } from './settings.ts'
 import { updatesEnabled } from './lib/settings-schema.ts'
 
@@ -13,6 +13,11 @@ import { updatesEnabled } from './lib/settings-schema.ts'
 // downloads or installs anything - a newer version is only announced, and the
 // user is sent to the GitHub release page. Background checks can be turned
 // off in the Droidwire menu; the manual check is always available.
+//
+// Only the first page of the listing (the 30 most recently created releases) is read. GitHub orders by
+// creation date, not by version, so the newest version is chosen by comparing every tag on that page. This
+// project has a handful of releases; if it ever has more than 30, older tags fall off the page, which can
+// only hide old releases, never offer one.
 
 const MAX_BODY_BYTES = 1024 * 1024
 
@@ -45,9 +50,17 @@ export function fetchLatestReleaseTag(): Promise<string | null> {
   })
 }
 
+// The release the last successful check selected; "Download" opens exactly this page
+let selectedReleaseUrl: string | null = null
+
+export function releasePageUrl(): string {
+  return selectedReleaseUrl ?? RELEASES_URL
+}
+
 export async function checkForUpdates(): Promise<UpdateCheckResult | null> {
   const tag = await fetchLatestReleaseTag()
   if (!tag) return null
+  selectedReleaseUrl = releaseUrlForTag(RELEASES_URL, tag)
   return { currentVersion: PRODUCT_VERSION, latestTag: tag, hasUpdate: isNewerVersion(tag, PRODUCT_VERSION) }
 }
 
@@ -63,7 +76,7 @@ export async function checkForUpdatesInteractive(): Promise<void> {
     void dialog.showMessageBox({
       type: 'warning',
       message: 'Update check failed',
-      detail: 'Could not reach GitHub - check your connection and try again.',
+      detail: 'Could not get the release list from GitHub (no connection, or GitHub is limiting requests). Try again later.',
     })
     return
   }
@@ -79,5 +92,5 @@ export async function checkForUpdatesInteractive(): Promise<void> {
     buttons: ['Open Download Page', 'Later'],
     defaultId: 0,
   })
-  if (response === 0) void shell.openExternal(RELEASES_URL)
+  if (response === 0) void shell.openExternal(releasePageUrl())
 }

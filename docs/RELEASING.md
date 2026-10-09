@@ -14,7 +14,7 @@ node desktop/driver.mjs --app desktop/release/mac-arm64/Droidwire.app    # packa
 
 `dist` prints which signing mode it is using. Without credentials it produces an **unsigned** build (ad-hoc sealed so macOS will run it, but Gatekeeper still blocks a downloaded copy until the user clears the quarantine flag). `scripts/check-package.mjs` runs automatically and fails the build if a required component is missing or would not run on another Mac.
 
-The same steps run in GitHub Actions: `.github/workflows/release-build.yml` (manual or on a `v*` tag). It uploads the artifacts and, for tags, creates a **draft** release only.
+The same steps run in GitHub Actions: `.github/workflows/release-build.yml` (manual dispatch only). It uploads the artifacts and never creates a tag or a release.
 
 ## Signing and notarization (owner action)
 
