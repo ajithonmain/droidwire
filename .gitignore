@@ -71,3 +71,4 @@ native/.cache/
 desktop/resources/THIRD-PARTY-LICENSES.txt
 desktop/resources/droidwire-thumb
 !desktop/build/*.plist
+desktop/.builder-config.generated.json

@@ -42,7 +42,7 @@ if (process.platform !== 'darwin') {
 }
 
 if (!fs.existsSync(addonDir)) {
-  finish(1, 'luck-node-mtp is not installed. Run `npm install` at the repository root first.')
+  finish(1, 'luck-node-mtp is not installed. Run: node scripts/bootstrap.mjs --with-mtp')
 }
 
 const prefix = findLibmtpPrefix()

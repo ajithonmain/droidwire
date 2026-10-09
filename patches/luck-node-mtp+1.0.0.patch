@@ -1,8 +1,24 @@
 diff --git a/node_modules/luck-node-mtp/src/luck_mtp.cc b/node_modules/luck-node-mtp/src/luck_mtp.cc
-index b5c4c65..00be90c 100644
+index b5c4c65..0396269 100644
 --- a/node_modules/luck-node-mtp/src/luck_mtp.cc
 +++ b/node_modules/luck-node-mtp/src/luck_mtp.cc
-@@ -345,6 +345,22 @@ Napi::Boolean connectDevice(const Napi::CallbackInfo &info)
+@@ -122,7 +122,14 @@ int progress(const uint64_t sent, const uint64_t total, void const *const data)
+ 
+     if (processCallback)
+     {
+-      processCallback.Call(env.Global(), {Napi::Number::New(env, sent), Napi::Number::New(env, total)});
++      Napi::Value verdict = processCallback.Call(env.Global(), {Napi::Number::New(env, sent), Napi::Number::New(env, total)});
++      // A truthy return value cancels the transfer: libmtp then aborts the PTP transaction itself
++      // (droidwire-clean-cancel). Killing the process mid-transfer instead leaves the phone's MTP
++      // responder wedged until the cable is replugged.
++      if (verdict.IsNumber() && verdict.As<Napi::Number>().Int32Value() != 0)
++        return 1;
++      if (verdict.IsBoolean() && verdict.As<Napi::Boolean>().Value())
++        return 1;
+     }
+   }
+   return 0;
+@@ -345,6 +352,22 @@ Napi::Boolean connectDevice(const Napi::CallbackInfo &info)
  
    __device = LIBMTP_Open_Raw_Device_Uncached(rawdev);
  
@@ -25,7 +41,7 @@ index b5c4c65..00be90c 100644
    __storageId = __device->storage->id;
  
    return Napi::Boolean::New(env, true);
-@@ -466,18 +482,26 @@ Napi::Boolean upload(const Napi::CallbackInfo &info)
+@@ -466,18 +489,26 @@ Napi::Boolean upload(const Napi::CallbackInfo &info)
    filesize = sb.st_size;
    filename = sourceFilePath.substr(sourceFilePath.find_last_of("/\\") + 1);
  
@@ -57,7 +73,7 @@ index b5c4c65..00be90c 100644
    genfile->storage_id = __storageId;
  
    if (LIBMTP_Send_File_From_File(__device, sourceFilePath.c_str(), genfile, progress, &info) != 0)
-@@ -706,14 +730,19 @@ Napi::Boolean copyObject(const Napi::CallbackInfo &info)
+@@ -706,14 +737,19 @@ Napi::Boolean copyObject(const Napi::CallbackInfo &info)
      throw Napi::Error::New(env, "Can not find the source file to copy.");
    }
  
@@ -82,7 +98,7 @@ index b5c4c65..00be90c 100644
    {
      throw Napi::Error::New(env, "Error to copy file");
    }
-@@ -771,14 +800,19 @@ Napi::Boolean moveObject(const Napi::CallbackInfo &info)
+@@ -771,14 +807,19 @@ Napi::Boolean moveObject(const Napi::CallbackInfo &info)
      throw Napi::Error::New(env, "Can not find the source file to move.");
    }
  
@@ -107,7 +123,7 @@ index b5c4c65..00be90c 100644
    {
      throw Napi::Error::New(env, "Error to move file");
    }
-@@ -926,19 +960,24 @@ Napi::Number createFolder(const Napi::CallbackInfo &info)
+@@ -926,19 +967,24 @@ Napi::Number createFolder(const Napi::CallbackInfo &info)
      throw Napi::Error::New(env, "Device not connected.");
    }
  

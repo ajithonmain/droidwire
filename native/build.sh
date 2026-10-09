@@ -2,7 +2,8 @@
 # Builds Droidwire's native toolchain from pinned, checksum-verified sources:
 #
 #   adb             from AOSP source (Apache-2.0) via the android-tools CMake build
-#   libusb, libmtp  LGPL-2.1+, shared libraries (so users can substitute them)
+#   libusb          LGPL-2.1+, shared library (so users can substitute it)
+#   libmtp          LGPL-2.1+, only with DROIDWIRE_BUILD_LIBMTP=1 (MTP builds; not part of the release)
 #   zstd lz4 brotli pcre2 abseil protobuf   static, linked into adb only
 #
 # Everything is compiled here with an explicit macOS deployment target and
@@ -92,13 +93,18 @@ if ! stamp libusb "$LIBUSB_VERSION"; then
   done_stamp libusb "$LIBUSB_VERSION"
 fi
 
-# --- libmtp (LGPL-2.1+, shared) ---------------------------------------------------------
-fetch libmtp "$LIBMTP_URL" "$LIBMTP_SHA256"
-if ! stamp libmtp "$LIBMTP_VERSION"; then
-  log "building libmtp $LIBMTP_VERSION"
-  ( cd "$SRC/libmtp" && ./configure --prefix="$PREFIX" --enable-shared --disable-static --disable-mtpz \
-      --disable-doxygen --disable-rpath >/dev/null && make -j "$JOBS" >/dev/null && make install >/dev/null )
-  done_stamp libmtp "$LIBMTP_VERSION"
+# --- libmtp (LGPL-2.1+, shared): MTP development builds only --------------------------------
+# The release configuration ships no MTP, so the default build does not fetch or compile libmtp.
+# DROIDWIRE_BUILD_LIBMTP=1 builds it for `npm --prefix desktop run dist:with-mtp`.
+BUILD_LIBMTP="${DROIDWIRE_BUILD_LIBMTP:-0}"
+if [ "$BUILD_LIBMTP" = "1" ]; then
+  fetch libmtp "$LIBMTP_URL" "$LIBMTP_SHA256"
+  if ! stamp libmtp "$LIBMTP_VERSION"; then
+    log "building libmtp $LIBMTP_VERSION"
+    ( cd "$SRC/libmtp" && ./configure --prefix="$PREFIX" --enable-shared --disable-static --disable-mtpz \
+        --disable-doxygen --disable-rpath >/dev/null && make -j "$JOBS" >/dev/null && make install >/dev/null )
+    done_stamp libmtp "$LIBMTP_VERSION"
+  fi
 fi
 
 # --- static libraries linked into adb ----------------------------------------------------
@@ -164,7 +170,9 @@ license_files() {
     *)             echo "LICENSE" ;;
   esac
 }
-for p in libusb libmtp zstd lz4 brotli pcre2 abseil protobuf googletest; do
+LICENSE_PKGS="libusb zstd lz4 brotli pcre2 abseil protobuf googletest"
+[ "$BUILD_LIBMTP" = "1" ] && LICENSE_PKGS="libusb libmtp zstd lz4 brotli pcre2 abseil protobuf googletest"
+for p in $LICENSE_PKGS; do
   for f in $(license_files "$p"); do
     [ -f "$SRC/$p/$f" ] || fail "license file $p/$f not found in the source tree"
     cp -f "$SRC/$p/$f" "$PREFIX/licenses/$p-$f.txt"

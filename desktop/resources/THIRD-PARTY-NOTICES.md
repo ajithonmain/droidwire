@@ -15,17 +15,20 @@ first; the full license texts of everything bundled follow it below.
   Brotli, PCRE2, Abseil and Protocol Buffers (licenses below).
   https://source.android.com - https://github.com/nmeum/android-tools
 - **libusb** 1.0.29 - LGPL-2.1 or later - https://github.com/libusb/libusb
-- **libmtp** 1.1.22 - LGPL-2.1 or later - https://github.com/libmtp/libmtp
-- **luck-node-mtp** 1.0.0 (MTP addon, with a small local patch) - declared ISC
-  License - https://github.com/lucksoft-yungui/luck-node-mtp
 - **Electron** 42.5.0 and Chromium - MIT and many other licenses; Chromium's
   notices ship inside the app as LICENSES.chromium.html (in its Resources folder),
   with Electron's own license as ELECTRON-LICENSE.txt.
 
-libusb and libmtp are shipped as separate shared libraries (Resources folder).
-Per the LGPL you may replace them with your own build of the same libraries;
-their source and the exact build recipe (native/build.sh, pinned in
-native/versions.env) are in the Droidwire repository.
+libusb is shipped as a separate shared library (Resources folder). Per the LGPL
+you may replace it with your own build of the same library; its source and the
+exact build recipe (native/build.sh, pinned in native/versions.env) are in the
+Droidwire repository.
+
+MTP support is not part of this release: the MTP addon and libmtp are not
+included in the app. (A build made with DROIDWIRE_BUNDLE_MTP=1 would also contain
+libmtp 1.1.22, LGPL-2.1 or later, and the luck-node-mtp addon, whose licence
+notice must then be added here - the package check refuses such a build until
+this file lists them.)
 
 ## JavaScript packages in the app
 

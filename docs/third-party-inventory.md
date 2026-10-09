@@ -12,7 +12,6 @@ Development-only tooling is not shipped and is covered by `npm run license:scan`
 | BoringSSL (inside adb) | vendored with android-tools | OpenSSL / ISC / SSLeay-style (see text) | statically linked into adb |
 | {fmt} (inside adb) | vendored with android-tools | MIT | statically linked into adb |
 | libusb | 1.0.29 | LGPL-2.1-or-later (shared library: you may replace it) | separate shared library (replaceable) |
-| libmtp | 1.1.22 | LGPL-2.1-or-later (shared library: you may replace it) | separate shared library (replaceable) |
 | zstd (inside adb) | 1.5.7 | BSD-3-Clause (dual-licensed; BSD option used) | statically linked into adb |
 | LZ4 (inside adb) | 1.10.0 | BSD-2-Clause (library) | statically linked into adb |
 | Brotli (inside adb) | 1.1.0 | MIT | statically linked into adb |
@@ -67,6 +66,6 @@ Development-only tooling is not shipped and is covered by `npm run license:scan`
 
 ## Other
 
-- **luck-node-mtp** 1.0.0 (MTP addon, patched): declared ISC; upstream ships no license file (see `docs/LICENSING.md`).
+- **MTP is not shipped in this release.** Neither the luck-node-mtp addon nor libmtp is in the app or the archives (see `docs/LICENSING.md`).
 - **Android robot artwork**: CC BY 3.0 (Google); attribution is in the README, the app notices and the site.
 - **Fonts**: none are bundled or downloaded.

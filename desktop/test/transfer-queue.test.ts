@@ -108,18 +108,51 @@ test('folder downloads run as a zip and retry as a zip', async () => {
   assert.equal(h.calls[1].kind, 'zip')
 })
 
-test('cancel stops a running transfer, ignores its late failure, and frees the slot', async () => {
+test('cancelling a running transfer shows "cancelling" until the native work has stopped, and holds its slot until then', async () => {
   const h = harness({ maxActive: 1 })
   const first = h.queue.download('/sdcard/a', 'a', A)
   h.queue.download('/sdcard/b', 'b', A)
   assert.equal(h.calls.length, 1)
   await h.queue.cancel(first)
   assert.deepEqual(h.cancelled, [first])
-  assert.equal(h.status(first), 'cancelled')
+  assert.equal(h.status(first), 'cancelling', 'must not claim the cancellation is complete while the transfer is still running')
+  assert.ok(h.queue.getSnapshot().find(t => t.id === first)?.cancelRequestedAt)
+  h.queue.handleProgress({ id: first, status: 'active', transferredBytes: 5 })
+  assert.equal(h.status(first), 'cancelling', 'late progress does not revive it')
+  assert.equal(h.calls.length, 1, 'the next transfer waits: the phone is still busy stopping the first')
   h.calls[0].settle.fail('Transfer cancelled')
   await h.flush()
   assert.equal(h.status(first), 'cancelled')
-  assert.equal(h.calls.length, 2, 'the queued transfer starts once the cancelled one stops counting as active')
+  assert.equal(h.calls.length, 2, 'the queued transfer starts once the cancelled one has really stopped')
+})
+
+test('a transfer that finishes before the cancel took effect is reported as done, not cancelled', async () => {
+  const h = harness()
+  const id = h.queue.download('/sdcard/a', 'a', A)
+  await h.queue.cancel(id)
+  h.queue.handleProgress({ id, status: 'done' })
+  h.calls[0].settle.ok()
+  await h.flush()
+  assert.equal(h.status(id), 'done')
+})
+
+test('the main process reporting the cancel as an error ends the cancelling state as cancelled', async () => {
+  const h = harness()
+  const id = h.queue.download('/sdcard/a', 'a', A)
+  await h.queue.cancel(id)
+  h.queue.handleProgress({ id, status: 'error', error: 'Transfer cancelled' })
+  assert.equal(h.status(id), 'cancelled')
+  assert.equal(h.queue.getSnapshot()[0].error, undefined)
+})
+
+test('the batch is not complete while a cancelled transfer is still being stopped', async () => {
+  const h = harness()
+  const id = h.queue.download('/sdcard/a', 'a', A)
+  await h.queue.cancel(id)
+  assert.equal(h.batches.length, 0)
+  h.calls[0].settle.fail('Transfer cancelled')
+  await h.flush()
+  assert.equal(h.batches.length, 1)
 })
 
 test('cancelling a queued transfer means it never starts', async () => {
@@ -153,7 +186,7 @@ test('an upload promise settles false when the push fails, so a batch cannot han
   assert.deepEqual(outcome, [false, true])
 })
 
-test('an upload settles false when cancelled while running, queued, or dismissed', async () => {
+test('an upload settles false when cancelled while running, queued, or dismissed - the running one only once it has stopped', async () => {
   const h = harness({ maxActive: 1 })
   const running = h.queue.upload('/Users/me/a.txt', '/sdcard', undefined, A)
   const queued = h.queue.upload('/Users/me/b.txt', '/sdcard', undefined, A)
@@ -162,6 +195,9 @@ test('an upload settles false when cancelled while running, queued, or dismissed
   await h.queue.cancel(h.calls[0].id)
   await h.queue.cancel(h.queue.getSnapshot()[1].id)
   h.queue.dismiss(cEntry.id)
+  const early = await Promise.race([running, new Promise<'pending'>(r => setTimeout(() => r('pending'), 50))])
+  assert.equal(early, 'pending', 'a running upload must not settle until the native push has actually stopped')
+  h.calls[0].settle.fail('Transfer cancelled')
   const outcome = await Promise.race([
     Promise.all([running, queued, dismissed]),
     new Promise<'hung'>(r => setTimeout(() => r('hung'), 500)),

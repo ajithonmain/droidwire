@@ -12,8 +12,8 @@ The machine-generated, exact-to-the-build tables are in [third-party-inventory.m
 |---|---|---|
 | **adb** (AOSP platform-tools 37.0.0, built from source) | Apache-2.0 | Keep the license and notices: `android-tools` LICENSE and AOSP NOTICE files are in `THIRD-PARTY-LICENSES.txt`. Changes: Droidwire modifies none of the AOSP source itself; the source is as provided in the android-tools tarball, whose own build-compatibility patches are published at https://github.com/nmeum/android-tools/tree/master/patches (Apache-2.0 section 4(b)). |
 | BoringSSL, {fmt}, zstd, LZ4, Brotli, PCRE2, Abseil, Protocol Buffers (statically linked **inside adb**) | OpenSSL/ISC-style, MIT, BSD-3 (zstd: BSD option of its dual license), BSD-2, MIT, BSD-3 + PCRE2 exception, Apache-2.0, BSD-3 | Each license text is included in `THIRD-PARTY-LICENSES.txt`. None is copyleft. |
-| **libusb** 1.0.29, **libmtp** 1.1.22 | LGPL-2.1-or-later | Shipped as **separate shared libraries** (`libusb-1.0.0.dylib`, `libmtp.9.dylib`), so users can replace them. License text, source locations and the exact build recipe (`native/build.sh`) are provided. `adb` and the MTP addon link libusb/libmtp dynamically. |
-| **luck-node-mtp** 1.0.0 (MTP addon, patched) | ISC (declared) | See section 3. |
+| **libusb** 1.0.29 | LGPL-2.1-or-later | Shipped as a **separate shared library** (`libusb-1.0.0.dylib`), so users can replace it. License text, source location and the exact build recipe (`native/build.sh`) are provided. `adb` links it dynamically. **libmtp is not shipped in this release.** |
+| ~~luck-node-mtp~~ | - | **Not distributed in 1.4.0.** The release configuration contains neither the addon nor libmtp (enforced by `check-package.mjs` and `check-archives.mjs`). See section 3. |
 | `droidwire-thumb` (AVFoundation poster frames) | MIT (Droidwire's own code) | Uses only macOS system frameworks. |
 | **Electron** 42.5.0 and Chromium | MIT, plus Chromium's many third-party licenses | `ELECTRON-LICENSE.txt` and `LICENSES.chromium.html` (about 20 MB; required to accompany every Electron app) are shipped in the app's Resources. |
 | JavaScript in the app: `usb`, `react`, `react-dom`, `qrcode` and their dependencies (37 packages) | MIT, ISC | Texts in `THIRD-PARTY-LICENSES.txt`. |
@@ -38,12 +38,15 @@ TypeScript and Playwright (Apache-2.0); Vite, electron-vite, electron-builder, T
 - **UI icons**: inline SVG written for this project.
 - No tracked image contains personal information (checked visually).
 
-## 3. luck-node-mtp: attribution gap
+## 3. luck-node-mtp: not distributed (licence unresolved)
+
+**Release 1.4.0 does not contain this component** - not the addon, not its worker script, not libmtp - so the question below does not affect what is distributed. It must be answered before any release ships MTP again.
 
 `luck-node-mtp` (author field: "lucksoft") declares `"license": "ISC"` in its `package.json`, but its repository (https://github.com/lucksoft-yungui/luck-node-mtp, last commit 2023-08-18) has **no LICENSE file and no copyright holder or year**. ISC requires the copyright notice and permission text to be kept; with no upstream notice that cannot be done verbatim. What Droidwire does about it:
 
-- `THIRD-PARTY-LICENSES.txt` includes the standard ISC text with the copyright line "Copyright (c) lucksoft" - the author named in the package metadata - and says in terms that upstream publishes no license file or year and that no year is claimed.
+- (Only in a build made with `DROIDWIRE_BUNDLE_MTP=1`; the release does not ship the addon.) `THIRD-PARTY-LICENSES.txt` includes the standard ISC text with the copyright line "Copyright (c) lucksoft" - the author named in the package metadata - and says in terms that upstream publishes no license file or year and that no year is claimed.
 - Residual risk, stated plainly: without a license file in the upstream repository, the ISC grant rests on a one-line metadata field. Droidwire also modifies the code (the patch in `patches/`).
+- Exact unresolved issue (inspected 2026-10-08, `luck-node-mtp` 1.0.0 as installed and as on npm, last modified 2023-01-11): the package contains no LICENSE or COPYING file anywhere; the only licence statement is the single `package.json` field `"license": "ISC"` plus `"author": "lucksoft"`; there is no copyright year or holder line. The package also vendors a copy of `libmtp.h` (LGPL upstream) in `src/` and ships prebuilt darwin-x64 and win32-x64 binaries, none of which Droidwire uses (the addon is rebuilt from source for arm64 against Droidwire's own libmtp). A metadata field is not a licence grant by a named rights holder, and Droidwire modifies the code. A clean dependency scan reports "ISC" only because it reads that field; it does not establish permission to redistribute. Status: **unresolved; it blocks shipping this addon (an owner decision), not the rest of the release - MTP can be disabled by shipping without the addon, and USB/Wi-Fi do not use it. Labelling MTP "experimental" does not change the distribution obligations.** The owner must accept the risk knowingly or remove it (get a LICENSE file from upstream, or replace the addon with an in-house libmtp binding).
 - Recommended follow-up (owner): ask the upstream author to add a LICENSE file (suggested text: `docs/release-prep/upstream-luck-node-mtp-issue.md`; **not posted anywhere**), and consider replacing the addon with an in-house binding to libmtp if that does not arrive.
 
 ## 4. Source offers (LGPL and Apache)

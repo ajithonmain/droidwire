@@ -28,7 +28,7 @@ export function guideTitle(mode: ConnectionMode): string {
 
 export function guideSubtitle(mode: ConnectionMode): string {
   return mode === 'mtp'
-    ? 'Follow these steps to share your files over USB'
+    ? 'Experimental mode. Follow these steps to share your files over USB'
     : mode === 'wireless'
       ? 'Wireless debugging needs a one-time pairing on the phone (Android 11 or later)'
       : 'Follow these steps to access your device files over USB'
@@ -41,6 +41,7 @@ export function guideSteps(mode: ConnectionMode): GuideStep[] {
       { title: 'Plug in with a data cable', body: 'Use a USB cable that carries data, not a charge-only cable.' },
       { title: 'Choose File Transfer', body: 'Swipe down on the phone, tap "Charging this device via USB" (or "USB for ..."), and select "File transfer" (also called "Android Auto" or "MTP").' },
       { title: 'Close other file-transfer apps', body: 'Quit Android File Transfer, OpenMTP or similar: only one app can use the phone at a time.' },
+      { title: 'Know the limitation', body: 'MTP is experimental. Cancelling a transfer can leave the phone unresponsive until you unplug the cable and plug it back in (then choose File transfer again). USB debugging (ADB) or Wi-Fi do not have this problem.' },
     ]
   }
   if (mode === 'wireless') {
@@ -61,7 +62,9 @@ export function guideNotices(mode: ConnectionMode, issues: DeviceIssue[], diag: 
   const notices: GuideNotice[] = []
 
   if (mode === 'mtp') {
-    if (diag && !diag.mtp.available) {
+    if (diag?.mtp.excluded) {
+      notices.push({ tone: 'error', title: 'MTP is not included in this release', body: 'MTP support is deferred. Use USB debugging (ADB) or Wi-Fi (wireless debugging) instead - both are verified and fully featured.' })
+    } else if (diag && !diag.mtp.available) {
       notices.push({
         tone: 'error',
         title: 'MTP is not available in this install',

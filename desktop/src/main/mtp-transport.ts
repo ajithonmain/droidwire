@@ -1,5 +1,5 @@
 import { execFile } from 'child_process'
-import { callMtp, onMtpWorkerExit, stopMtpWorker } from './mtp-worker-client.ts'
+import { callMtp, cancelMtpTransfer, onMtpForcedStop, onMtpWorkerExit, stopMtpWorker } from './mtp-worker-client.ts'
 import { createMtpTransport } from './mtp-transport-core.ts'
 
 // macOS's ptpcamerad (feeds Image Capture/Photos) claims every attached MTP
@@ -15,7 +15,9 @@ function evictPtpcamerad(): Promise<void> {
 
 export const MtpTransport = createMtpTransport({
   call: callMtp,
+  cancelTransfer: cancelMtpTransfer,
   stopWorker: stopMtpWorker,
   onWorkerExit: onMtpWorkerExit,
+  onForcedStop: onMtpForcedStop,
   evictPtpcamerad,
 })

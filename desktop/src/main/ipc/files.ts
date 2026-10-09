@@ -1,5 +1,6 @@
 import type { DuEntry, FileNode, StorageInfo } from '@droidwire/shared'
 import { handle } from './common.ts'
+import { assertMtpIncluded } from '../mtp-availability.ts'
 import {
   activeTransportKind, getActiveContext, getConnectionType, setConnectionType, type ConnectionType,
 } from '../active-device.ts'
@@ -59,6 +60,7 @@ export function registerFileHandlers(): void {
 
   handle('set-connection-type', (_e, type) => {
     if (type !== 'adb' && type !== 'mtp' && type !== 'wireless') throw new Error(`Invalid connection type: ${String(type)}`)
+    if (type === 'mtp') assertMtpIncluded()
     setConnectionType(type as ConnectionType)
     resetDeviceCaches()
   })

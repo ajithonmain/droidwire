@@ -13,7 +13,6 @@
   },
   "scripts": {
     "bootstrap": "node scripts/bootstrap.mjs",
-    "postinstall": "node scripts/postinstall.mjs",
     "rebuild:mtp": "node scripts/rebuild-mtp.mjs",
     "desktop:dev": "npm --prefix desktop run dev",
     "desktop:build": "npm --prefix desktop run build",
@@ -24,9 +23,6 @@
     "native:build": "bash native/build.sh",
     "license:inventory": "node scripts/license-inventory.mjs",
     "license:scan": "license-checker-rseidelsohn --summary"
-  },
-  "allowScripts": {
-    "luck-node-mtp@1.0.0": true
   },
   "devDependencies": {
     "license-checker-rseidelsohn": "5.0.1",

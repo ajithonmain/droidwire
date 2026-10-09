@@ -15,7 +15,7 @@ The old repo (`ajithonmain/droidwire-releases`, latest release `v1.2.1-beta`) is
 > This repository is no longer updated. Please download the latest build from the link above.
 >
 > What changed for you:
-> - Nothing to install first: adb, the MTP libraries and video thumbnails are now built into the app.
+> - Nothing to install first: adb and video thumbnails are now built into the app.
 > - No sign-up: the email prompt and all background announcements are gone. Droidwire no longer contacts anything except GitHub's release API, and that check can be turned off in the Droidwire menu.
 > - Issues and source: https://github.com/ajithonmain/droidwire
 >

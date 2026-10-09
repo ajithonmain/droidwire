@@ -12,6 +12,8 @@
 //     are actually present next to them (@loader_path), never Homebrew paths
 //   * no developer-machine paths are embedded in the staged binaries
 //   * app.asar contains no native addon / node_modules copy and stays small
+//   * the release configuration contains NO MTP component (addon, libmtp, worker) and its notices do not list
+//     any; with --with-mtp the opposite is required (an MTP build must carry the notices for what it ships)
 //   * Info.plist's minimum macOS matches the floor
 //   * code-signature state is reported; --require-signed demands a Developer ID
 //     signature, hardened runtime and a stapled notarization ticket
@@ -26,6 +28,7 @@ const desktop = path.resolve(here, '..')
 const repo = path.resolve(desktop, '..')
 const args = process.argv.slice(2)
 const requireSigned = args.includes('--require-signed')
+const withMtp = args.includes('--with-mtp') // default: the release configuration, which ships no MTP
 const appPath = path.resolve(args.find(a => !a.startsWith('--')) ?? path.join(desktop, 'release', `mac-${process.arch === 'arm64' ? 'arm64' : 'x64'}`, 'Droidwire.app'))
 
 const versions = Object.fromEntries(
@@ -63,12 +66,11 @@ const resources = path.join(appPath, 'Contents', 'Resources')
 console.log(`Checking ${appPath}\n  floor macOS ${FLOOR}, arch ${EXPECT_ARCH}\n`)
 
 // --- required files -------------------------------------------------------------------------
+const MTP_FILES = [['libmtp.9.dylib', 'libmtp (MTP mode)'], ['luck-node-mtp.node', 'MTP native addon'], ['mtp-worker.cjs', 'MTP worker']]
 const REQUIRED = [
   ['adb', 'bundled adb (USB and wireless modes)'],
-  ['libusb-1.0.0.dylib', 'libusb (adb and libmtp)'],
-  ['libmtp.9.dylib', 'libmtp (MTP mode)'],
-  ['luck-node-mtp.node', 'MTP native addon'],
-  ['mtp-worker.cjs', 'MTP worker'],
+  ['libusb-1.0.0.dylib', 'libusb (used by adb)'],
+  ...(withMtp ? MTP_FILES : [['MTP-NOT-INCLUDED.txt', 'marker telling the app that MTP is deliberately not in this release']]),
   ['droidwire-thumb', 'native video thumbnails'],
   ['THIRD-PARTY-NOTICES.md', 'notices shown in the app'],
   ['THIRD-PARTY-LICENSES.txt', 'full license texts for bundled components'],
@@ -78,6 +80,12 @@ const REQUIRED = [
 ]
 for (const [file, why] of REQUIRED) {
   if (!fs.existsSync(path.join(resources, file))) fail(`missing Resources/${file} (${why})`)
+}
+if (!withMtp) {
+  // Nothing MTP-related may be in the bundle, by name, in any folder
+  for (const f of walk(path.join(appPath, 'Contents'))) {
+    if (/luck-node-mtp|libmtp|mtp-worker/i.test(path.basename(f))) fail(`${path.relative(appPath, f)} is an MTP component and must not ship in the release configuration`)
+  }
 }
 for (const exe of ['adb', 'droidwire-thumb']) {
   const p = path.join(resources, exe)
@@ -144,6 +152,23 @@ const addon = path.join(resources, 'luck-node-mtp.node')
 if (fs.existsSync(addon) && !fs.readFileSync(addon).includes('its USB interface is held by another process')) {
   fail('Resources/luck-node-mtp.node was built without patches/luck-node-mtp+1.0.0.patch')
 }
+
+// --- notices must describe exactly what ships ------------------------------------------------------------
+const noticeText = f => fs.existsSync(path.join(resources, f)) ? fs.readFileSync(path.join(resources, f), 'utf8') : ''
+const licenses = noticeText('THIRD-PARTY-LICENSES.txt')
+const notices = noticeText('THIRD-PARTY-NOTICES.md')
+if (!withMtp) {
+  for (const [name, text] of [['THIRD-PARTY-LICENSES.txt', licenses], ['THIRD-PARTY-NOTICES.md', notices]]) {
+    if (/Copyright \(c\) lucksoft|--- libmtp|\*\*libmtp\*\*|\*\*luck-node-mtp\*\*|luck-node-mtp 1\.0\.0 \(MTP native addon/.test(text)) fail(`${name} lists an MTP component, but the release configuration does not ship one`)
+  }
+  for (const f of machos) {
+    if (fs.readFileSync(f).includes('libmtp')) fail(`${path.relative(appPath, f)} references libmtp`)
+  }
+} else {
+  if (!/luck-node-mtp/.test(licenses) || !/Copyright \(c\) lucksoft/.test(licenses)) fail('an MTP build must list luck-node-mtp in THIRD-PARTY-LICENSES.txt')
+  if (!/libmtp/.test(notices) || !/luck-node-mtp/.test(notices)) fail('an MTP build must list libmtp and luck-node-mtp in THIRD-PARTY-NOTICES.md (edit resources/THIRD-PARTY-NOTICES.md)')
+}
+notes.push(withMtp ? 'configuration: WITH MTP (not the release configuration)' : 'configuration: release, no MTP component anywhere in the bundle; notices list none')
 
 // --- app.asar ----------------------------------------------------------------------------------------
 const asarFile = path.join(resources, 'app.asar')

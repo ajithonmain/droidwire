@@ -1,0 +1,5 @@
+This build of Droidwire does not include MTP support.
+
+USB (ADB) and Wi-Fi (wireless ADB) are the supported connection modes. The MTP code is kept in the source
+repository for future development, but the MTP native addon (luck-node-mtp), its worker script and libmtp are
+deliberately not shipped in this release. The presence of this file is what tells the app so.

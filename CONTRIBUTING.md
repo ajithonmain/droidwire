@@ -1,20 +1,20 @@
 # Contributing to Droidwire
 
-Thanks for helping. Droidwire is a macOS Electron app that manages Android files over USB ADB, wireless ADB and MTP. Read the [README](README.md) architecture section first.
+Thanks for helping. Droidwire is a macOS Electron app that manages Android files over USB ADB and wireless ADB (MTP code exists in the repository but is not shipped in the current release). Read the [README](README.md) architecture section first.
 
 ## Setup
 
-Requirements: Apple Silicon Mac on macOS 12+, Node.js 22.18+ (24 LTS recommended), Xcode command line tools. To build the self-contained app (the bundled adb, libusb, libmtp and thumbnail helper) also `brew install cmake ninja pkgconf`, then `npm run native:build` (about 20 minutes, cached). For everyday development you can skip that: the app falls back to an `adb` on your PATH, and `brew install libmtp libusb` lets `bootstrap` build the MTP addon.
+Requirements: Apple Silicon Mac on macOS 12+, Node.js 22.18+ (24 LTS recommended), Xcode command line tools. To build the self-contained app (the bundled adb, libusb, libmtp and thumbnail helper) also `brew install cmake ninja pkgconf`, then `npm run native:build` (about 20 minutes, cached; it builds adb, libusb and the thumbnail helper, and no libmtp). For everyday development you can skip that: the app falls back to an `adb` on your PATH.
 
 ```bash
 git clone https://github.com/ajithonmain/droidwire.git
 cd droidwire
-node scripts/bootstrap.mjs   # see README for why this replaces plain `npm install`
+npm ci
 npm run verify
 npm run desktop:dev
 ```
 
-If you are developing without libmtp, the app still runs; MTP reports itself unavailable. Always launch Electron through the npm scripts - they unset `ELECTRON_RUN_AS_NODE`, which breaks the app when set.
+The release configuration contains no MTP and needs no MTP setup: `npm ci` installs no addon and compiles nothing native, and the app reports MTP as not included. To work on MTP, run `brew install libmtp libusb`, then `node scripts/bootstrap.mjs --with-mtp` (installs `luck-node-mtp` unsaved, applies the patch and builds it). For a package that includes MTP, build libmtp with `DROIDWIRE_BUILD_LIBMTP=1 npm run native:build`, then `npm --prefix desktop run dist:with-mtp`. Always launch Electron through the npm scripts - they unset `ELECTRON_RUN_AS_NODE`, which breaks the app when set.
 
 ## Verifying a change
 

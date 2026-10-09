@@ -170,3 +170,100 @@ test('worker errors are propagated as rejections', async () => {
   children[0].emit('message', { id: children[0].sent[0].id, type: 'result', ok: false, error: 'boom' })
   await assert.rejects(p, /boom/)
 })
+
+// Clean cancel: killing the worker mid-transfer wedged a real Pixel 4a's MTP responder until the cable
+// was replugged, so a transfer is first asked to stop through libmtp's progress callback.
+function cancelHarness(graceMs: number) {
+  const children: FakeChild[] = []
+  const raised: FakeChild[] = []
+  const host = new MtpWorkerHost(() => { const c = new FakeChild(); children.push(c); return c }, {
+    startupTimeoutMs: 1000, quietTimeoutMs: () => 1000, cancelGraceMs: graceMs,
+    requestCancel: child => { raised.push(child as FakeChild) },
+  })
+  return { host, children, raised }
+}
+
+test('cancelling a running transfer raises the cancel flag and does not kill the worker', async () => {
+  const { host, children, raised } = cancelHarness(500)
+  const p = host.call('download', ['/f', '/tmp/x'])
+  children[0].ready(); await tick()
+  const id = children[0].sent[0].id
+  children[0].start(id)
+  host.cancelTransfer()
+  assert.equal(raised.length, 1)
+  assert.equal(children[0].killed, false)
+  // libmtp aborts, the worker answers with an error, the call settles
+  children[0].emit('message', { id, type: 'result', ok: false, error: 'download cancelled' })
+  await assert.rejects(p, /cancelled/)
+  assert.equal(children[0].killed, false)
+  assert.equal(host.isRunning(), true)
+})
+
+test('a transfer that ignores the cancel request is killed after the grace period', async () => {
+  const { host, children, raised } = cancelHarness(30)
+  const p = host.call('upload', ['/tmp/x', '/'])
+  p.catch(() => {})
+  children[0].ready(); await tick()
+  children[0].start(children[0].sent[0].id)
+  host.cancelTransfer()
+  assert.equal(raised.length, 1)
+  await new Promise(r => setTimeout(r, 80))
+  assert.equal(children[0].killed, true)
+  await assert.rejects(p, /cancelled/)
+})
+
+test('cancelling when no transfer is running does nothing', async () => {
+  const { host, children, raised } = cancelHarness(30)
+  const p = host.call('getList', ['/'])
+  children[0].ready(); await tick()
+  host.cancelTransfer()
+  assert.equal(raised.length, 0)
+  assert.equal(children[0].killed, false)
+  children[0].reply(children[0].sent[0].id, [])
+  await p
+})
+
+test('a cancelled transfer is not killed by the quiet timer while libmtp winds it down', async () => {
+  const children: FakeChild[] = []
+  const host = new MtpWorkerHost(() => { const c = new FakeChild(); children.push(c); return c }, {
+    startupTimeoutMs: 1000, quietTimeoutMs: () => 30, cancelGraceMs: 400, requestCancel: () => {},
+  })
+  const p = host.call('download', ['/f', '/tmp/x']); p.catch(() => {})
+  children[0].ready(); await tick()
+  const id = children[0].sent[0].id
+  children[0].start(id)
+  host.cancelTransfer()
+  await new Promise(r => setTimeout(r, 150)) // five times the quiet timeout, no progress from the worker
+  assert.equal(children[0].killed, false, 'the quiet timer must not kill a transfer that is being cancelled')
+  children[0].emit('message', { id, type: 'result', ok: false, error: 'cancelled' })
+  await assert.rejects(p, /cancelled/)
+  assert.equal(children[0].killed, false)
+})
+
+test('only a forced kill is reported as a forced stop; a clean cancel is not', async () => {
+  const forced: string[] = []
+  const mk = (graceMs: number) => {
+    const children: FakeChild[] = []
+    const host = new MtpWorkerHost(() => { const c = new FakeChild(); children.push(c); return c }, {
+      startupTimeoutMs: 1000, quietTimeoutMs: () => 1000, cancelGraceMs: graceMs, requestCancel: () => {},
+    })
+    host.onForcedStop(r => forced.push(r))
+    return { host, children }
+  }
+  // clean: the worker answers within the grace period
+  const a = mk(200)
+  const pa = a.host.call('upload', ['/tmp/x', '/']); pa.catch(() => {})
+  a.children[0].ready(); await tick(); const ida = a.children[0].sent[0].id; a.children[0].start(ida)
+  a.host.cancelTransfer()
+  a.children[0].emit('message', { id: ida, type: 'result', ok: false, error: 'cancelled' })
+  await new Promise(r => setTimeout(r, 250))
+  assert.deepEqual(forced, [])
+  // forced: it does not
+  const b = mk(30)
+  const pb = b.host.call('download', ['/f', '/tmp/y']); pb.catch(() => {})
+  b.children[0].ready(); await tick(); b.children[0].start(b.children[0].sent[0].id)
+  b.host.cancelTransfer()
+  await new Promise(r => setTimeout(r, 80))
+  assert.equal(forced.length, 1)
+  assert.equal(b.children[0].killed, true)
+})

@@ -15,7 +15,8 @@
 //   * Electron (and a pointer to Chromium's own notices, which ship with Electron).
 //   * The native components built by native/build.sh, from the license files collected
 //     into <native-licenses>, plus their pinned versions.
-//   * luck-node-mtp (MTP addon) and the artwork attribution.
+//   * the artwork attribution; and luck-node-mtp + libmtp only when the build includes MTP
+//     (DROIDWIRE_BUNDLE_MTP=1). The release configuration does not ship them, so they are not listed.
 // Development tooling is not shipped and is not listed here; see
 // `npm run license:scan` for a scan of the whole dependency tree.
 import fs from 'node:fs'
@@ -27,6 +28,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const desktopDir = path.join(root, 'desktop')
 const req = createRequire(path.join(desktopDir, 'package.json'))
 const args = process.argv.slice(2)
+const bundleMtp = process.env.DROIDWIRE_BUNDLE_MTP === '1'
 const nativeDir = args.includes('--native-licenses') ? path.resolve(args[args.indexOf('--native-licenses') + 1]) : null
 
 // --- JavaScript dependencies ----------------------------------------------------------------------
@@ -83,7 +85,7 @@ const versions = Object.fromEntries(
   fs.readFileSync(versionsFile, 'utf8').split('\n').map(l => l.replace(/\s+#.*$/, '').trim()).filter(l => l && !l.startsWith('#'))
     .map(l => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1)] }),
 )
-const NATIVE = [
+const NATIVE_ALL = [
   { name: 'adb (Android Debug Bridge)', version: `platform-tools ${versions.ANDROID_TOOLS_VERSION}, built from AOSP source with android-tools`, license: 'Apache-2.0 (plus the third-party code below, statically linked)', files: ['android-tools-LICENSE.txt', 'aosp-adb-NOTICE.txt', 'aosp-libbase-NOTICE.txt'], source: versions.ANDROID_TOOLS_URL },
   { name: 'BoringSSL (inside adb)', version: 'vendored with android-tools', license: 'OpenSSL / ISC / SSLeay-style (see text)', files: ['aosp-boringssl-LICENSE.txt'], source: 'https://boringssl.googlesource.com/boringssl' },
   { name: '{fmt} (inside adb)', version: 'vendored with android-tools', license: 'MIT', files: ['aosp-fmtlib-LICENSE.txt'], source: 'https://github.com/fmtlib/fmt' },
@@ -98,6 +100,9 @@ const NATIVE = [
   { name: 'googletest header gtest_prod.h (compile-time only, nothing linked)', version: versions.GOOGLETEST_VERSION, license: 'BSD-3-Clause', files: ['googletest-LICENSE.txt'], source: versions.GOOGLETEST_URL },
   { name: 'droidwire-thumb (video poster frames)', version: 'part of Droidwire', license: 'MIT (Droidwire); uses only macOS system frameworks', files: [], source: 'native/thumb/droidwire-thumb.swift in the Droidwire repository' },
 ]
+
+// libmtp ships only in an MTP build; the release configuration does not contain it
+const NATIVE = NATIVE_ALL.filter(n => bundleMtp || n.name !== 'libmtp')
 
 const LUCK_NODE_MTP = `luck-node-mtp 1.0.0 (MTP native addon, with a small local patch)
 Declared license: ISC (package.json "license"). Author: lucksoft. Source: https://github.com/lucksoft-yungui/luck-node-mtp
@@ -151,11 +156,13 @@ for (const n of NATIVE) {
   }
 }
 if (nativeDir && missingNative > 0) console.warn(`warning: ${missingNative} native license file(s) were not found in ${nativeDir}`)
-out.push('LGPL notice: libusb and libmtp are shipped as separate shared libraries (libusb-1.0.0.dylib, libmtp.9.dylib in the app\'s',
-  'Resources folder). You may replace them with your own build of the same libraries. Their complete source is at the URLs above;',
+out.push(bundleMtp
+  ? 'LGPL notice: libusb and libmtp are shipped as separate shared libraries (libusb-1.0.0.dylib, libmtp.9.dylib in the app\'s'
+  : 'LGPL notice: libusb is shipped as a separate shared library (libusb-1.0.0.dylib in the app\'s',
+  'Resources folder). You may replace it with your own build of the same library. Its complete source is at the URL above;',
   'the exact build recipe is native/build.sh in the Droidwire repository.', '')
 
-out.push(rule, 'luck-node-mtp', rule, LUCK_NODE_MTP, '')
+if (bundleMtp) out.push(rule, 'luck-node-mtp', rule, LUCK_NODE_MTP, '')
 out.push(rule, 'Artwork', rule, ROBOT, '')
 
 out.push(rule, 'JavaScript packages shipped in the app', rule, '')
@@ -182,7 +189,9 @@ md.push('', '## Runtime and bundled JavaScript', '', '| Package | Version | Lice
 md.push(`| electron (runtime; Chromium notices ship with it) | ${desktopPkg.devDependencies.electron.replace('^', '')} | MIT |`)
 for (const p of jsPackages) md.push(`| ${p.name} | ${p.version} | ${p.license} |`)
 md.push('', '## Other', '',
-  '- **luck-node-mtp** 1.0.0 (MTP addon, patched): declared ISC; upstream ships no license file (see `docs/LICENSING.md`).',
+  bundleMtp
+    ? '- **luck-node-mtp** 1.0.0 (MTP addon, patched): declared ISC; upstream ships no license file (see `docs/LICENSING.md`).'
+    : '- **MTP is not shipped in this release.** Neither the luck-node-mtp addon nor libmtp is in the app or the archives (see `docs/LICENSING.md`).',
   '- **Android robot artwork**: CC BY 3.0 (Google); attribution is in the README, the app notices and the site.',
   '- **Fonts**: none are bundled or downloaded.', '')
 fs.writeFileSync(path.join(root, 'docs', 'third-party-inventory.md'), md.join('\n'))

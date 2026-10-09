@@ -20,6 +20,8 @@
 import { spawnSync, execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import fs from 'node:fs'
+import { builderConfig, bundleMtpFromEnv } from './lib/builder-config.ts'
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const requireSigned = process.argv.includes('--require-signed')
@@ -35,7 +37,13 @@ const haveNotary = !!((env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_AP
   || (env.APPLE_ID && env.APPLE_APP_SPECIFIC_PASSWORD && env.APPLE_TEAM_ID)
   || (env.APPLE_KEYCHAIN && env.APPLE_KEYCHAIN_PROFILE))
 
-const builderArgs = ['electron-builder', '--publish', 'never']
+// The release configuration (no MTP) is derived from package.json at packaging time; see scripts/lib/builder-config.ts
+const bundleMtp = bundleMtpFromEnv(env)
+const pkg = JSON.parse(fs.readFileSync(path.join(desktop, 'package.json'), 'utf8'))
+const configFile = path.join(desktop, '.builder-config.generated.json')
+fs.writeFileSync(configFile, JSON.stringify(builderConfig(pkg.build, { bundleMtp }), null, 2))
+console.log(`\nMTP: ${bundleMtp ? 'INCLUDED (DROIDWIRE_BUNDLE_MTP=1; not the release configuration)' : 'not included (release configuration: USB/ADB and Wi-Fi only)'}`)
+const builderArgs = ['electron-builder', '--config', configFile, '--publish', 'never']
 let mode
 if (!haveIdentity) {
   // Ad-hoc signature only: gives the bundle a valid seal (required on Apple Silicon) without
@@ -57,7 +65,11 @@ if (requireSigned && !(haveIdentity && haveNotary)) {
 }
 
 const build = spawnSync('npx', builderArgs, { cwd: desktop, stdio: 'inherit', env })
+fs.rmSync(configFile, { force: true })
 if (build.status !== 0) process.exit(build.status ?? 1)
 
 const check = spawnSync(process.execPath, [path.join(desktop, 'scripts', 'check-package.mjs'), ...(requireSigned ? ['--require-signed'] : [])], { cwd: desktop, stdio: 'inherit' })
-process.exit(check.status ?? 1)
+if (check.status !== 0) process.exit(check.status ?? 1)
+// The archives people actually download must match the app that was checked
+const archives = spawnSync(process.execPath, [path.join(desktop, 'scripts', 'check-archives.mjs'), ...(bundleMtp ? ['--with-mtp'] : [])], { cwd: desktop, stdio: 'inherit' })
+process.exit(archives.status ?? 1)

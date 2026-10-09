@@ -15,10 +15,10 @@ Build tools needed (not shipped): Xcode command line tools, `cmake`, `ninja`, `p
 |---|---|---|---|
 | `adb` | AOSP `platform-tools-37.0.0`, via the [android-tools](https://github.com/nmeum/android-tools) CMake build | Apache-2.0 | zstd, LZ4, Brotli, PCRE2, Abseil, Protobuf, BoringSSL and {fmt} are statically linked. libusb is the only non-system dynamic dependency |
 | `libusb-1.0.0.dylib` | libusb 1.0.29 | LGPL-2.1+ | shared, replaceable |
-| `libmtp.9.dylib` | libmtp 1.1.22 | LGPL-2.1+ | shared, replaceable; `--disable-mtpz` |
+| `libmtp.9.dylib` | libmtp 1.1.22 | LGPL-2.1+ | **only with `DROIDWIRE_BUILD_LIBMTP=1`** (MTP development); shared, replaceable; `--disable-mtpz` |
 | `droidwire-thumb` | `native/thumb/droidwire-thumb.swift` | MIT (Droidwire) | AVFoundation poster frames; system frameworks only |
 
-`luck-node-mtp.node` (the MTP addon) is compiled by `desktop/scripts/bundle-native.sh` against this libmtp, with the repository's patch applied.
+libmtp is not built by default; `DROIDWIRE_BUILD_LIBMTP=1 bash native/build.sh` builds it for MTP development only. **The release configuration does not ship libmtp or the MTP addon**: `desktop/scripts/bundle-native.sh` stages them (compiling `luck-node-mtp.node` against this libmtp with the repository's patch) only when `DROIDWIRE_BUNDLE_MTP=1` (`npm --prefix desktop run dist:with-mtp`).
 
 ## Why adb is built from source
 

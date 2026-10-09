@@ -7,8 +7,9 @@ on:
 
 jobs:
   verify:
-    # Droidwire is a macOS app: the native MTP addon, the smoke test and the
-    # packaging scripts only make sense on a Mac runner.
+    # Droidwire is a macOS app: the smoke test and the packaging scripts only make
+    # sense on a Mac runner. The release configuration ships no MTP, so nothing
+    # here compiles the MTP addon.
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -19,12 +20,8 @@ jobs:
           node-version: 24
           cache: npm
 
-      # libmtp is needed to compile the optional MTP addon during install
-      - name: Install native libraries
-        run: brew install libmtp libusb
-
-      - name: Install dependencies
-        run: node scripts/bootstrap.mjs
+      - name: Install dependencies (plain npm ci; no MTP addon)
+        run: npm ci
 
       # The AVFoundation helper is a few seconds of swiftc; building it lets the
       # thumbnail tests run for real instead of skipping

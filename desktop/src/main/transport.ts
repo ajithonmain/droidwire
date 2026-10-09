@@ -41,6 +41,9 @@ export interface Transport {
    * Transports without Unix permission bits implement only this subset.
    */
   statObject?(serial: string, path: string): Promise<string | null>
+
+  /** Forget a remembered "this phone is stuck" verdict so the next call probes the phone again (Rescan, replug). */
+  resetHealth?(): void
 }
 
 export function cancelledError(): Error {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createMtpTransport, type MtpEnv } from '../src/main/mtp-transport-core.ts'
+import { createMtpTransport, MTP_STOPPING_MESSAGE, MTP_STUCK_MESSAGE, type MtpEnv } from '../src/main/mtp-transport-core.ts'
 
 // A tiny in-memory MTP device behind the same call() interface as the worker.
 interface Obj { type: 'FILE' | 'FOLDER'; size: number }
@@ -15,7 +15,10 @@ function fakeDevice(initial: Record<string, Obj>) {
   let connected: string | null = null
   let failNext: string | null = null
   let stopped = 0
+  let cancelled = 0
   let exitCb: (() => void) | null = null
+  let forcedCb: ((reason: string) => void) | null = null
+  let enumerated: Array<{ vendor: string; vendor_id: number; product: string; product_id: number }> = [{ vendor: 'G', vendor_id: 1, product: 'P', product_id: 2 }]
   const parent = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
   const join = (dir: string, name: string) => (dir === '/' ? '' : dir) + '/' + name
 
@@ -25,7 +28,11 @@ function fakeDevice(initial: Record<string, Obj>) {
       if (failNext === method) { failNext = null; throw new Error(`${method} exploded`) }
       const a = args as string[]
       switch (method) {
-        case 'connect': connected = `mtp-${args[0]}-${args[1]}`; return true as T
+        // libmtp cannot open a device its own worker already has open: seen on a real Pixel 4a as
+        // "Unable to open MTP device - its USB interface is held by another process"
+        case 'connect':
+          if (connected) throw new Error('Unable to open MTP device - its USB interface is held by another process.')
+          connected = `mtp-${args[0]}-${args[1]}`; return true as T
         case 'release': connected = null; return true as T
         case 'get': {
           const o = objects.get(a[0])
@@ -55,12 +62,16 @@ function fakeDevice(initial: Record<string, Obj>) {
           objects.set(dest, { type: 'FILE', size: fs.statSync(a[0]).size })
           return true as T
         }
+        case 'getDeviceInfo': return enumerated as T
+        case 'getCurrentDeviceStorageInfo': return [] as T
         case 'download': downloads.push({ remote: a[0], device: connected }); return true as T
         default: throw new Error(`unexpected ${method}`)
       }
     },
+    cancelTransfer() { cancelled++ },
     stopWorker() { stopped++ },
     onWorkerExit(cb) { exitCb = cb },
+    onForcedStop(cb) { forcedCb = cb },
     async evictPtpcamerad() {},
   }
   return {
@@ -68,7 +79,10 @@ function fakeDevice(initial: Record<string, Obj>) {
     failNext: (m: string) => { failNext = m },
     names: () => [...objects.keys()].sort(),
     stoppedCount: () => stopped,
+    cancelCount: () => cancelled,
     crash: () => { connected = null; exitCb?.() },
+    forceStop: () => { forcedCb?.('test'); connected = null; exitCb?.() },
+    setEnumerated: (list: typeof enumerated) => { enumerated = list },
   }
 }
 
@@ -166,7 +180,7 @@ test('an operation cancelled while waiting for the session never starts', async 
   assert.equal(dev.downloads.length, 1)
 })
 
-test('aborting a running transfer restarts the worker (the only way to interrupt libmtp)', async () => {
+test('aborting a running transfer asks libmtp to cancel it cleanly instead of killing the worker', async () => {
   const dev = fakeDevice({})
   const t = createMtpTransport({
     ...dev.env,
@@ -182,7 +196,8 @@ test('aborting a running transfer restarts the worker (the only way to interrupt
   const p = t.pullFile(SERIAL, '/sdcard/f', '/tmp/ignored', { signal: ac.signal })
   setTimeout(() => ac.abort(), 5)
   await assert.rejects(p, /cancelled/i)
-  assert.equal(dev.stoppedCount(), 1)
+  assert.equal(dev.cancelCount(), 1)
+  assert.equal(dev.stoppedCount(), 0, 'a clean cancel must not kill the worker (that wedges the phone)')
 })
 
 test('after the worker dies the next operation reconnects instead of running session-less', async () => {
@@ -193,4 +208,81 @@ test('after the worker dies the next operation reconnects instead of running ses
   await t.pullFile(SERIAL, '/sdcard/f', '/tmp/y')
   assert.equal(dev.calls.filter(c => c.startsWith('connect')).length, 2)
   assert.equal(dev.downloads[1].device, SERIAL)
+})
+
+test('after a failed operation the next call releases the stale session instead of colliding with it', async () => {
+  // Real-phone bug: a download of a missing file made every later operation fail with "Could not open MTP session"
+  const dev = fakeDevice({ '/a.txt': { type: 'FILE', size: 1 }, '/b.txt': { type: 'FILE', size: 1 } })
+  const t = createMtpTransport(dev.env)
+  await t.deleteFile(SERIAL, '/sdcard/a.txt')
+  dev.failNext('download')
+  await assert.rejects(t.pullFile(SERIAL, '/sdcard/missing.txt', path.join(os.tmpdir(), 'dw-never.txt')), /MTP download failed/)
+  await t.deleteFile(SERIAL, '/sdcard/b.txt') // must reconnect cleanly
+  assert.deepEqual(dev.names(), [])
+  assert.ok(dev.calls.some(c => c.startsWith('release')), 'stale session was never released')
+})
+
+test('a worker that died does not trigger a pointless release before reconnecting', async () => {
+  const dev = fakeDevice({ '/a.txt': { type: 'FILE', size: 1 }, '/b.txt': { type: 'FILE', size: 1 } })
+  const t = createMtpTransport(dev.env)
+  await t.deleteFile(SERIAL, '/sdcard/a.txt')
+  dev.crash()
+  const before = dev.calls.filter(c => c.startsWith('release')).length
+  await t.deleteFile(SERIAL, '/sdcard/b.txt')
+  assert.equal(dev.calls.filter(c => c.startsWith('release')).length, before)
+})
+
+test('after a force-stopped worker new operations are refused with recovery instructions, until Rescan or a replug', async () => {
+  const dev = fakeDevice({ '/a.txt': { type: 'FILE', size: 1 }, '/b.txt': { type: 'FILE', size: 1 } })
+  const t = createMtpTransport(dev.env)
+  await t.deleteFile(SERIAL, '/sdcard/a.txt')
+  dev.forceStop()
+  await assert.rejects(t.deleteFile(SERIAL, '/sdcard/b.txt'), (e: Error) => e.message === MTP_STUCK_MESSAGE)
+  assert.match(MTP_STUCK_MESSAGE, /Unplug the cable.*File transfer.*Rescan/s)
+  assert.ok(dev.names().includes('/b.txt'), 'nothing was attempted against the stuck phone')
+  t.resetHealth?.() // Rescan
+  await t.deleteFile(SERIAL, '/sdcard/b.txt')
+  assert.deepEqual(dev.names(), [])
+})
+
+test('unplugging the phone clears the stuck verdict', async () => {
+  const dev = fakeDevice({ '/a.txt': { type: 'FILE', size: 1 } })
+  const t = createMtpTransport(dev.env)
+  dev.forceStop()
+  await assert.rejects(t.deleteFile(SERIAL, '/sdcard/a.txt'), /not answering/)
+  dev.setEnumerated([])
+  assert.deepEqual(await t.getDevices(), [])
+  await t.deleteFile(SERIAL, '/sdcard/a.txt').catch(() => {})
+  assert.deepEqual(dev.names(), [], 'after the unplug the phone is probed again')
+})
+
+test('while a cancelled transfer is still being stopped, new operations are refused instead of queueing blindly', async () => {
+  const dev = fakeDevice({ '/b.txt': { type: 'FILE', size: 1 } })
+  let release: () => void = () => {}
+  const t = createMtpTransport({
+    ...dev.env,
+    call: async (method, args, onProgress) => {
+      if (method === 'download') { await new Promise<void>(r => { release = r }); throw new Error('cancelled by libmtp') }
+      return dev.env.call(method, args, onProgress)
+    },
+  })
+  const ac = new AbortController()
+  const transfer = t.pullFile(SERIAL, '/sdcard/f', '/tmp/ignored', { signal: ac.signal })
+  transfer.catch(() => {})
+  await new Promise(r => setTimeout(r, 10))
+  ac.abort()
+  await assert.rejects(t.deleteFile(SERIAL, '/sdcard/b.txt'), (e: Error) => e.message === MTP_STOPPING_MESSAGE)
+  release()
+  await assert.rejects(transfer, /cancelled/i)
+  await t.deleteFile(SERIAL, '/sdcard/b.txt') // the phone is free again
+  assert.deepEqual(dev.names(), [])
+})
+
+test('an MTP refusal of a name Android rejects says why; other failures get no such hint', async () => {
+  const dev = fakeDevice({ '/a.txt': { type: 'FILE', size: 1 } })
+  const t = createMtpTransport(dev.env)
+  dev.failNext('setFileName')
+  await assert.rejects(t.renameFile(SERIAL, '/sdcard/a.txt', 'say "hi".txt'), /MTP rename failed:.*Android does not allow "\"" in file names/)
+  dev.failNext('setFileName')
+  await assert.rejects(t.renameFile(SERIAL, '/sdcard/a.txt', 'plain.txt'), (e: Error) => /MTP rename failed/.test(e.message) && !/Android does not allow/.test(e.message))
 })

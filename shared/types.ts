@@ -34,9 +34,15 @@ export interface TransferProgress {
   totalBytes: number
   transferredBytes: number
   speedBps: number
-  status: 'pending' | 'active' | 'paused' | 'done' | 'error' | 'cancelled'
+  /**
+   * 'cancelling': the user asked to cancel but the native transfer has not stopped yet (MTP can take a while to
+   * wind one down). Only 'cancelled' means the work really stopped.
+   */
+  status: 'pending' | 'active' | 'paused' | 'cancelling' | 'done' | 'error' | 'cancelled'
   error?: string
   localPath?: string
+  /** When a cancel was requested for a transfer that is still winding down (renderer-side bookkeeping). */
+  cancelRequestedAt?: number
   /** Device the transfer was queued against (renderer-side bookkeeping). */
   device?: DeviceContext
   /** 'folder' downloads are zipped; everything else is a single file. */
@@ -63,7 +69,8 @@ export interface UpdateCheckResult {
 export interface Diagnostics {
   app: { version: string; packaged: boolean; electron: string; arch: string; macos: string }
   adb: { path: string; source: 'override' | 'bundled' | 'sdk' | 'homebrew' | 'path'; version: string | null; error: string | null }
-  mtp: { available: boolean; error: string | null; addon: string | null }
+  /** `excluded`: this build deliberately ships without MTP (not a failure to load it). */
+  mtp: { available: boolean; error: string | null; addon: string | null; excluded?: boolean }
   thumbnails: { native: string | null; ffmpeg: string | null }
 }
 

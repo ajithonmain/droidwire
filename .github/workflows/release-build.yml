@@ -1,6 +1,6 @@
 name: Release build
 
-# Builds the self-contained macOS app (adb from AOSP source, libusb/libmtp, native
+# Builds the self-contained macOS app (adb from AOSP source, libusb, native
 # thumbnails), packages it, runs the package checks and the packaged-app smoke test,
 # and uploads the .dmg/.zip as workflow artifacts. It never publishes a release:
 # pushing a v* tag additionally creates a DRAFT release for the owner to review.
@@ -41,8 +41,8 @@ jobs:
             native/.cache
           key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/versions.env', 'native/build.sh', 'native/thumb/**') }}
 
-      - name: Install JavaScript dependencies (the MTP addon is built later against our own libmtp)
-        run: node scripts/bootstrap.mjs --no-mtp
+      - name: Install JavaScript dependencies (plain npm ci; the release ships no MTP addon)
+        run: npm ci
 
       - name: Build native toolchain
         run: bash native/build.sh

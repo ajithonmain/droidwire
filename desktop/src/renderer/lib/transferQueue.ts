@@ -31,8 +31,10 @@ export interface QueueOptions {
 type ProgressEvent = Partial<TransferProgress> & { id: string }
 type DownloadKind = 'file' | 'folder'
 
-const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e))
-const isBusy = (t: TransferProgress): boolean => t.status === 'active' || t.status === 'pending' || t.status === 'paused'
+import { cleanIpcError } from './errors.ts'
+
+const errorMessage = (e: unknown): string => cleanIpcError(e instanceof Error ? e.message : String(e))
+const isBusy = (t: TransferProgress): boolean => t.status === 'active' || t.status === 'pending' || t.status === 'paused' || t.status === 'cancelling'
 
 export class TransferQueue {
   private entries: TransferProgress[] = []
@@ -94,7 +96,8 @@ export class TransferQueue {
     if (this.pumping) return
     this.pumping = true
     try {
-      let slots = this.maxActive - this.entries.filter(t => t.status === 'active').length
+      // A transfer that is being cancelled still occupies the phone until the native work has really stopped
+      let slots = this.maxActive - this.entries.filter(t => t.status === 'active' || t.status === 'cancelling').length
       for (let i = this.entries.length - 1; i >= 0 && slots > 0; i--) {
         const t = this.entries[i]
         if (t.status !== 'pending') continue
@@ -127,7 +130,9 @@ export class TransferQueue {
   private markError(id: string, error: string): void {
     this.recordFailed(id)
     this.settler.settle(id, false)
-    this.patch(id, t => (t.status === 'paused' || t.status === 'cancelled' ? t : { ...t, status: 'error', error }))
+    // A cancel that was requested is now complete: the native work has ended, whatever error it ended with
+    this.patch(id, t => (t.status === 'cancelling' ? { ...t, status: 'cancelled', speedBps: 0 }
+      : t.status === 'paused' || t.status === 'cancelled' ? t : { ...t, status: 'error', error }))
   }
 
   private markActive(id: string): void {
@@ -140,6 +145,12 @@ export class TransferQueue {
     this.patch(p.id, t => {
       // Killing a paused/cancelled transfer makes adb emit a late error - the user's chosen state wins
       if (t.status === 'paused' || t.status === 'cancelled') return t
+      if (t.status === 'cancelling') {
+        // Still winding down: only the end of the native work changes anything
+        if (p.status === 'error') { this.recordFailed(t.id); this.settler.settle(t.id, false); return { ...t, status: 'cancelled', speedBps: 0 } }
+        if (p.status === 'done') { const done = { ...t, ...p }; this.recordDone(done); this.settler.settle(t.id, true); return done }
+        return t
+      }
       const merged = { ...t, ...p }
       if (merged.status === 'done') this.recordDone(merged)
       if (merged.status === 'error') {
@@ -160,7 +171,8 @@ export class TransferQueue {
         : this.api.pullFile(remotePath, fileName, id, ctx)
       run
         .then(localPath => this.patch(id, t => {
-          const merged = { ...t, localPath }
+          // Finished anyway before the cancel took effect: the file exists, so say so
+          const merged = { ...t, localPath, ...(t.status === 'cancelling' ? { status: 'done' as const, speedBps: 0 } : {}) }
           if (merged.status === 'done') this.recordDone(merged)
           return merged
         }))
@@ -172,7 +184,10 @@ export class TransferQueue {
     return () => {
       this.markActive(id)
       this.api.pushFile(localPath, remotePath, id, ctx)
-        .then(() => this.settler.settle(id, true))
+        .then(() => {
+          this.settler.settle(id, true)
+          this.patch(id, t => (t.status === 'cancelling' ? { ...t, status: 'done', speedBps: 0 } : t))
+        })
         // markError also settles the upload as failed, so a failed push can never leave its caller waiting
         .catch(e => this.markError(id, errorMessage(e)))
     }
@@ -213,10 +228,20 @@ export class TransferQueue {
 
   // --- user actions -----------------------------------------------------------------------
 
+  /**
+   * Cancel a transfer. One that never started (queued or paused) is cancelled at once. One that is running is
+   * 'cancelling' until the native work has really stopped - which is when the main process answers - so the UI never
+   * claims a cancellation that is still in progress. An upload waits for that point before its promise settles.
+   */
   async cancel(id: string): Promise<void> {
+    const t = this.entries.find(x => x.id === id)
     this.starters.delete(id)
-    this.settler.settle(id, false)
-    this.patch(id, t => ({ ...t, status: 'cancelled' }))
+    if (t?.status === 'active') {
+      this.patch(id, x => ({ ...x, status: 'cancelling', speedBps: 0, cancelRequestedAt: Date.now() }))
+    } else {
+      this.settler.settle(id, false)
+      this.patch(id, x => ({ ...x, status: 'cancelled' }))
+    }
     try { await this.api.cancelTransfer(id) } catch { /* already finished */ }
   }
 

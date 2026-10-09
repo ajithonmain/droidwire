@@ -5,9 +5,11 @@ interface Props {
   onSelect: (type: 'adb' | 'wireless' | 'mtp') => void
   /** Why MTP cannot work in this install, if it cannot (shown on the MTP card) */
   mtpUnavailable?: string | null
+  /** This release deliberately ships without MTP (not a load failure): shown as deferred */
+  mtpDeferred?: boolean
 }
 
-export function ConnectionTypePicker({ onSelect, mtpUnavailable }: Props) {
+export function ConnectionTypePicker({ onSelect, mtpUnavailable, mtpDeferred }: Props) {
   const { theme } = useTheme()
 
   const ADB_ICON = (
@@ -158,7 +160,7 @@ export function ConnectionTypePicker({ onSelect, mtpUnavailable }: Props) {
           </svg>
         </button>
 
-        {/* MTP - limited features */}
+        {/* MTP - experimental: cancel/recovery limitation is stated before the user connects */}
         <button
           onClick={() => onSelect('mtp')}
           disabled={!!mtpUnavailable}
@@ -192,11 +194,11 @@ export function ConnectionTypePicker({ onSelect, mtpUnavailable }: Props) {
                 padding: '1px 5px',
                 letterSpacing: '0.4px',
               }}>
-                LIMITED
+                {mtpDeferred ? 'DEFERRED' : 'EXPERIMENTAL'}
               </span>
             </div>
-            <span style={{ fontSize: '13px', color: mtpUnavailable ? theme.error : theme.textSecondary }}>
-              {mtpUnavailable ? `Not available in this install: ${mtpUnavailable}` : 'Fallback option - no APK install, no device tools'}
+            <span style={{ fontSize: '13px', color: mtpUnavailable && !mtpDeferred ? theme.error : theme.textSecondary }}>
+              {mtpDeferred ? 'Not included in this release. Use USB (ADB) or Wi-Fi.' : mtpUnavailable ? `Not available in this install: ${mtpUnavailable}` : 'Experimental. Cancelling a transfer can leave the phone unresponsive until you unplug and replug it. No device tools or APK install. Prefer USB or Wi-Fi.'}
             </span>
           </div>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>

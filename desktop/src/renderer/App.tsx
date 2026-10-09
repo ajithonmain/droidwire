@@ -31,6 +31,7 @@ import { WirelessConnectModal } from './components/WirelessConnectModal'
 import { LicensesModal } from './components/LicensesModal'
 import { MessageBanners } from './components/MessageBanners'
 import { useTheme } from './lib/ThemeContext'
+import { cleanIpcError } from './lib/errors'
 import { TooltipLayer } from './components/TooltipLayer'
 
 type SortField = 'name' | 'size' | 'date' | 'type'
@@ -372,6 +373,7 @@ export default function App() {
       refresh()
     } catch (e) {
       console.error('Rename failed', e)
+      setToast({ msg: `Rename failed: ${cleanIpcError(e instanceof Error ? e.message : String(e))}`, kind: 'error' })
     } finally {
       setRenameTarget(null)
     }
@@ -384,6 +386,7 @@ export default function App() {
       refresh()
     } catch (e) {
       console.error('Create folder failed', e)
+      setToast({ msg: `Could not create folder: ${cleanIpcError(e instanceof Error ? e.message : String(e))}`, kind: 'error' })
     } finally {
       setShowNewFolder(false)
     }
@@ -530,7 +533,7 @@ export default function App() {
       }
     }
     if (failures.length > 0) {
-      setToast({ msg: `${clipboard.mode === 'cut' ? 'Move' : 'Copy'} failed: ${failures[0]}`, kind: 'error' })
+      setToast({ msg: `${clipboard.mode === 'cut' ? 'Move' : 'Copy'} failed: ${cleanIpcError(failures[0])}`, kind: 'error' })
     }
     // Keep the cut selection if anything failed so the user can retry
     if (clipboard.mode === 'cut' && failures.length === 0) setClipboard(null)
@@ -999,7 +1002,7 @@ export default function App() {
                 <span style={{ fontSize: '12px', color: theme.textMuted }}>Looking for your device…</span>
               </div>
             ) : !connectionPicked ? (
-              <ConnectionTypePicker mtpUnavailable={diagnostics && !diagnostics.mtp.available ? (diagnostics.mtp.error ?? 'component failed to load') : null} onSelect={type => {
+              <ConnectionTypePicker mtpDeferred={!!diagnostics?.mtp.excluded} mtpUnavailable={diagnostics && !diagnostics.mtp.available ? (diagnostics.mtp.error ?? 'component failed to load') : null} onSelect={type => {
                 setConnectionTypeState(type)
                 setDeviceContext(null)
                 window.droidwire.setConnectionType(type).catch(() => {})

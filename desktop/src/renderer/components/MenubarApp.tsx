@@ -197,7 +197,7 @@ export function MenubarApp() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: running ? '4px' : 0 }}>
                     <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.fileName}</span>
                     <span style={{ fontSize: '11px', color, flexShrink: 0 }}>
-                      {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'pending' ? 'Queued' : `${pct}% · ${formatSpeed(t.speedBps)}`}
+                      {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'pending' ? 'Queued' : t.status === 'cancelling' ? 'Cancelling…' : t.status === 'cancelled' ? 'Cancelled' : `${pct}% · ${formatSpeed(t.speedBps)}`}
                     </span>
                   </div>
                   {running && (

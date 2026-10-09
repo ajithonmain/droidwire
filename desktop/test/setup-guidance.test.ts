@@ -70,3 +70,22 @@ test('the native thumbnail helper is found in Resources, with an env override fo
   assert.equal(findThumbHelper(look(['/mine']), '/dev/out'), null)
   assert.equal(findThumbHelper(look(['/mine'], { DROIDWIRE_THUMB: '/mine' })), '/mine')
 })
+
+test('MTP guidance states the experimental status and the cancel/replug limitation before connecting', () => {
+  const steps = guideSteps('mtp')
+  const limitation = steps.find(s => /limitation/i.test(s.title))
+  assert.ok(limitation, 'no limitation step')
+  assert.match(limitation!.body, /experimental/i)
+  assert.match(limitation!.body, /unplug/i)
+  assert.ok(!guideSteps('adb').some(s => /limitation/i.test(s.title)), 'ADB has no such limitation')
+})
+
+test('a release built without MTP says so plainly and points to USB or Wi-Fi instead of suggesting a reinstall', () => {
+  const diag = { app: { version: '1', packaged: true, electron: '', arch: 'arm64', macos: '' }, adb: { path: '', source: 'bundled', version: 'v', error: null }, thumbnails: { native: null, ffmpeg: null },
+    mtp: { available: false, error: 'MTP is not included in this release (deferred). Use USB (ADB) or Wi-Fi instead.', addon: null, excluded: true } } as unknown as Parameters<typeof guideNotices>[2]
+  const n = guideNotices('mtp', [], diag)
+  assert.equal(n.length, 1)
+  assert.match(n[0].title, /not included in this release/i)
+  assert.match(n[0].body, /USB.*Wi-Fi/)
+  assert.ok(!/reinstall/i.test(n[0].body))
+})

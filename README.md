@@ -1,8 +1,10 @@
 # Droidwire
 
-Browse, transfer and edit the files on an Android phone from a Mac. Droidwire is an Electron app for macOS that talks to the phone over **USB ADB**, **wireless ADB** or **MTP**. Nothing is installed on the phone, and files only travel over the cable or your local network - there is no cloud service, account or sign-up.
+Browse, transfer and edit the files on an Android phone from a Mac. Droidwire is an Electron app for macOS that talks to the phone over **USB ADB** or **wireless ADB**. (MTP is deferred and is not part of this release.) Nothing is installed on the phone, and files only travel over the cable or your local network - there is no cloud service, account or sign-up.
 
 > **Status: beta.** Release builds are self-contained (nothing to install first) but **not yet signed or notarized**, and behaviour has been verified on only a few phones (see [Verified devices](#verified-devices)). Keep backups of anything irreplaceable before large transfers or deletes.
+>
+> **Free:** Droidwire is free to use, with no paid tier, no ads, no sign-up and no data collected. Terms of use are on the [project site](https://droidwire.vercel.app/#terms).
 >
 > **License:** [MIT](LICENSE). Release binaries also contain third-party components under their own licenses; see [docs/LICENSING.md](docs/LICENSING.md) and the in-app notices.
 
@@ -12,7 +14,7 @@ Browse, transfer and edit the files on an Android phone from a Mac. Droidwire is
 |---|---|---|---|
 | **USB (ADB)** | `adb` over the USB cable | Everything. Fastest, most complete | Needs Developer options and **USB debugging** on, and the on-phone RSA prompt accepted once |
 | **Wi-Fi (wireless ADB)** | `adb pair` / `adb connect` over the local network (Android 11+) | Cable-free use; pairing by 6-digit code or QR code | Same network required; slower than USB; needs **Wireless debugging** on |
-| **MTP** | libmtp, the protocol used by "File Transfer" USB mode | Phones where you cannot or will not enable USB debugging | Fallback: no APK install, no device tools, no storage figures, no folder sizes; one device at a time; some operations (such as moving between folders) depend on the phone supporting them |
+| **MTP (deferred - not in this release)** | libmtp, the protocol used by "File Transfer" USB mode | Phones where you cannot or will not enable USB debugging | The code is in the repository but the release does not ship it: cancelling a transfer could leave a phone unresponsive until replugged, and the MTP addon's licence is unresolved (see [docs/LICENSING.md](docs/LICENSING.md)). Use USB or Wi-Fi. No APK install, no device tools, no storage figures, no folder sizes; one device at a time; some operations (such as moving between folders) depend on the phone supporting them |
 
 ## Features
 
@@ -38,14 +40,14 @@ Implemented in the code today (see [CHANGELOG.md](CHANGELOG.md)):
 
 ### Verified devices
 
-Hardware testing is manual and limited. According to the maintainer's notes, USB ADB and QR wireless pairing were exercised on a **Pixel 10 Pro**, MTP operations on a Pixel (model not recorded), and device tools on a **Pixel 4a**. Nothing else has been verified. **The current build, with its bundled adb and rebuilt MTP libraries, has not yet been tested on a phone** - only with automated tests and a packaged-app smoke test that uses fake devices. The manual checklist is [docs/HARDWARE-CHECKLIST.md](docs/HARDWARE-CHECKLIST.md); please report what works and what does not ([CONTRIBUTING.md](CONTRIBUTING.md#hardware-testing-and-bug-reports)).
+Hardware testing is manual and limited. **Verified on the current build:** USB ADB and wireless ADB (QR pairing, Wi-Fi-only transfers, reconnect after a Wi-Fi drop) on a **Google Pixel 4a, Android 13**, with a Mac running macOS 26 on Apple Silicon; see [docs/HARDWARE-CHECKLIST.md](docs/HARDWARE-CHECKLIST.md) for exactly what was and was not covered. **MTP is not shipped in this release**: it passed most checks on that phone, but cancelling a download left it unresponsive until replugged. Nothing else has been verified (no other phone, no Intel Mac, no macOS older than 26). Please report what works and what does not ([CONTRIBUTING.md](CONTRIBUTING.md#hardware-testing-and-bug-reports)).
 
 ## Installing a release build
 
-Everything Droidwire needs is inside the app: **adb, the MTP libraries and the video-thumbnail helper are bundled.** You do not need Homebrew, the Android SDK or any other download, and there is nothing to install on the phone. (Until the app is signed, macOS also makes you run one Terminal command to open it - see Signing status below.)
+Everything Droidwire needs is inside the app: **adb (with its libusb) and the video-thumbnail helper are bundled.** You do not need Homebrew, the Android SDK or any other download, and there is nothing to install on the phone. (Until the app is signed, macOS also makes you run one Terminal command to open it - see Signing status below.)
 
 1. Download the `.dmg` from the [GitHub Releases page](https://github.com/ajithonmain/droidwire/releases), open it, and drag **Droidwire** onto **Applications**.
-2. Open Droidwire. Choose how to connect (USB, Wi-Fi or MTP); the app tells you the phone-side steps.
+2. Open Droidwire. Choose how to connect (USB or Wi-Fi); the app tells you the phone-side steps.
 
 **Signing status: not signed or notarized yet** (that needs an Apple Developer ID; the pipeline is ready, see [docs/RELEASING.md](docs/RELEASING.md)). Until it is, macOS Gatekeeper blocks a downloaded copy on first launch, usually with *"Droidwire is damaged and can't be opened"*. This is macOS's response to any unsigned, quarantined app. To open it anyway you must clear the quarantine flag yourself, once:
 
@@ -59,7 +61,7 @@ xattr -dr com.apple.quarantine /Applications/Droidwire.app
 
 - **USB (ADB):** enable Developer options (tap Build number 7 times), turn on **USB debugging**, plug in the cable and tap **Allow** on the "Allow USB debugging?" prompt (tick "Always allow from this computer"). Droidwire shows which step is outstanding, including a phone that is connected but not yet authorized.
 - **Wi-Fi (wireless ADB, Android 11+):** turn on **Wireless debugging** and pair once, with a QR code or a 6-digit code, from Droidwire's pairing dialog.
-- **MTP:** unlock the phone and choose **File transfer** in the USB notification.
+- **MTP:** not available in this release (the picker shows it as deferred).
 
 ## Building from source
 
@@ -68,14 +70,14 @@ Prerequisites (macOS, Apple Silicon): Node.js **22.18 or newer** (24 LTS recomme
 ```bash
 git clone https://github.com/ajithonmain/droidwire.git
 cd droidwire
-node scripts/bootstrap.mjs      # installs JavaScript dependencies
-npm run native:build            # adb (from AOSP source), libusb, libmtp, thumbnail helper: ~20 min, cached
+npm ci                          # JavaScript dependencies; nothing native is compiled here
+npm run native:build            # adb (from AOSP source), libusb, thumbnail helper: ~20 min, cached
 npm run verify                  # typecheck + unit tests + production build
 npm run desktop:dev             # run the app with hot reload
 npm --prefix desktop run dist   # package an unsigned .dmg/.zip into desktop/release/
 ```
 
-For day-to-day development you can skip `native:build`: in a development checkout the app falls back to an `adb` on your PATH, Homebrew or the Android SDK (or `DROIDWIRE_ADB=/path/to/adb`). `bootstrap` finds Homebrew's libmtp if present and builds the MTP addon against it; without libmtp it installs everything else and MTP reports itself unavailable.
+For day-to-day development you can skip `native:build`: in a development checkout the app falls back to an `adb` on your PATH, Homebrew or the Android SDK (or `DROIDWIRE_ADB=/path/to/adb`). A plain `npm ci` is all the release configuration needs: the MTP addon (`luck-node-mtp`) is not in any `package.json`, so no addon is compiled and libmtp is not required. MTP development is opt-in: `brew install libmtp libusb`, then `node scripts/bootstrap.mjs --with-mtp`.
 
 Other commands (from the repository root; each forwards to `desktop/`):
 
@@ -94,7 +96,7 @@ The dev scripts run Electron with `env -u ELECTRON_RUN_AS_NODE`. That is require
 
 ### Packaging notes
 
-`npm --prefix desktop run dist` stages the MTP addon, libmtp, libusb, `adb` and the thumbnail helper into the app (rewriting library paths to `@loader_path`), builds the `.dmg` and `.zip`, and then runs `scripts/check-package.mjs`, which **fails the build** if a required file is missing, any Mach-O has the wrong architecture or needs a newer macOS than 12.0, a staged binary depends on a library that will not exist on a user's Mac or embeds a build-machine path, the MTP addon lacks the repository patch, or `app.asar` contains native code or grows unexpectedly. Signing and notarization are described in [docs/RELEASING.md](docs/RELEASING.md).
+`npm --prefix desktop run dist` stages `adb`, libusb and the thumbnail helper into the app (no MTP addon, libmtp or MTP worker; `dist:with-mtp` is the development variant that adds them) (rewriting library paths to `@loader_path`), builds the `.dmg` and `.zip`, and then runs `scripts/check-package.mjs`, which **fails the build** if a required file is missing, any Mach-O has the wrong architecture or needs a newer macOS than 12.0, a staged binary depends on a library that will not exist on a user's Mac or embeds a build-machine path, an MTP component is present in the release configuration, or `app.asar` contains native code or grows unexpectedly. Signing and notarization are described in [docs/RELEASING.md](docs/RELEASING.md).
 
 **Why adb is built from source:** Google's prebuilt platform-tools are distributed under the Android SDK License, which forbids redistribution. Droidwire builds adb from AOSP's Apache-2.0 source and ships the notices. Details and provenance: [docs/LICENSING.md](docs/LICENSING.md), [native/README.md](native/README.md).
 
@@ -122,7 +124,7 @@ desktop/                 Electron + React client (the whole product)
 shared/                  Types only, including the `DroidwireAPI` contract used by main, preload and renderer
 patches/                 Local patch to luck-node-mtp (storage-root handling, crash on busy device)
 native/                  Pinned-source build of adb, libusb, libmtp and the AVFoundation thumbnail helper
-scripts/                 bootstrap, MTP addon build, license inventory
+scripts/                 opt-in MTP bootstrap/addon build, license inventory
 site/                    Landing page
 ```
 
@@ -157,15 +159,15 @@ Earlier beta builds (up to 1.2.1) asked for an email address and sent it, with t
 ## Known limitations
 
 - **Not signed or notarized:** first launch of a downloaded copy needs the `xattr` step above. Apple Silicon only; Intel Macs unsupported.
-- **Not yet tested on a phone in its current form** (bundled adb, rebuilt libraries); most phone models have never been tested at all.
-- MTP: one device at a time; no storage capacity, folder sizes, battery or APK tools; moving between folders relies on the phone supporting `MoveObject` and fails with an explanation otherwise; cancelling a transfer restarts the MTP worker; large folder listings are slow (libmtp lists object by object).
-- Wireless ADB needs Android 11+ and a network that allows device-to-device traffic.
+- **Tested on one phone only** (Google Pixel 4a, Android 13, Apple Silicon Mac, macOS 26): USB and Wi-Fi, see [docs/HARDWARE-CHECKLIST.md](docs/HARDWARE-CHECKLIST.md). Other phones, Intel Macs and macOS 12-25 are untested. Wi-Fi pairing by 6-digit code and reconnecting after an app restart are not verified.
+- **MTP is not included in this release** (the picker shows it as deferred). The implementation stays in the repository for future work; it needs an unresolved licence question answered and a fix for cancelling a download, which left a phone unresponsive until replugged. Build it yourself with `npm --prefix desktop run dist:with-mtp`; the package check then also requires the matching notices.
+- Wireless ADB needs Android 11+ and a network that allows device-to-device traffic. The bundled adb has no mDNS, so Droidwire discovers the phone with macOS's `dns-sd` (macOS may ask for Local Network permission). After an app restart reconnect with the Connect field; within a session a dropped phone is reconnected automatically, but only the same phone (matched by hardware serial). Android sometimes switches Wireless debugging off by itself when Wi-Fi drops (once in testing); turn it back on and Droidwire reconnects.
 - If another adb server is already running on the Mac (for example from Android Studio) and speaks a different adb protocol version, the first client to connect restarts it. The bundled adb uses the current protocol (version 41), the same as current Google platform-tools.
 - Video thumbnails come from macOS AVFoundation (H.264/HEVC in MP4/MOV/3GP). WebM, MKV and AVI show a generic icon unless an `ffmpeg` is installed (optional; not bundled).
 - Text previews show only the start of a file; images and audio above 25 MB are not previewed.
 - Pause/resume restarts a download from the beginning (adb cannot resume); uploads can be cancelled but not paused once running.
 - Folder zip on a phone without `zip` downloads the whole tree first and needs temporary disk space on the Mac.
-- Real USB, wireless ADB and MTP behaviour cannot be exercised in CI; see the hardware checklist.
+- Real USB and wireless ADB behaviour cannot be exercised in CI; see the hardware checklist.
 
 ## Roadmap
 
@@ -175,7 +177,7 @@ Realistic next steps, in rough priority order. None are promises.
 2. Signed and notarized builds (the pipeline exists; it needs an Apple Developer ID), then in-app update installation.
 3. Resumable downloads where the transport allows it; richer queue controls.
 4. A tested Intel build.
-5. Upstream or replace the unmaintained MTP addon (see [docs/LICENSING.md](docs/LICENSING.md)).
+5. Bring MTP back: resolve the addon's licence (upstream, or an in-house libmtp binding) and make cancelling a download recover reliably (see [docs/LICENSING.md](docs/LICENSING.md)).
 6. UI-level automated tests for the renderer (queue logic is already unit-tested).
 
 ## Contributing, security, license

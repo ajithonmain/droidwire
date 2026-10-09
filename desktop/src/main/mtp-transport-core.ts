@@ -7,6 +7,7 @@ import { cancelledError, throwIfAborted, type Transport, type TransportDevice, t
 import { guessMime } from './lib/mime.ts'
 import { sortNodes } from './lib/ls-parse.ts'
 import { posixBase, posixDir } from './lib/paths.ts'
+import { androidForbiddenChars } from './lib/android-names.ts'
 
 // luck-node-mtp: synchronous libmtp bindings with a singleton connection,
 // proxied through mtp-worker-client (see that file for why - a real SIGSEGV
@@ -52,21 +53,41 @@ interface MtpEntry {
 export interface MtpEnv {
   call<T = unknown>(method: string, args: unknown[], onProgress?: (sent: number, total: number) => void): Promise<T>
   /** Kill the worker (the only way to interrupt a blocking native call). */
+  /** Abort the running transfer cleanly (the worker falls back to being killed if it does not stop). */
+  cancelTransfer(): void
+  /** Kill the worker. */
   stopWorker(): void
   onWorkerExit(cb: () => void): void
+  /** The worker was killed in the middle of a native call; the phone's MTP responder may be stuck. */
+  onForcedStop(cb: (reason: string) => void): void
   /** macOS ptpcamerad claims MTP interfaces; evict it before opening a session. */
   evictPtpcamerad(): Promise<void>
 }
 
+export const MTP_STUCK_MESSAGE =
+  'The phone is not answering over MTP: the last transfer had to be force-stopped and the phone is probably still stuck in it. ' +
+  'Unplug the cable, plug it back in, choose "File transfer" in the phone\'s USB notification, then press Rescan. (USB or Wi-Fi mode does not have this problem.)'
+export const MTP_STOPPING_MESSAGE =
+  'A cancelled MTP transfer is still being stopped by the phone (this can take up to two minutes). Wait until it shows "Cancelled" in the transfers list, and keep the cable connected.'
+
 export function createMtpTransport(env: MtpEnv): Transport {
   let connectedSerial: string | null = null
+  // An operation failed but the worker is still alive, so libmtp still holds the session it opened.
+  // Reconnecting without releasing it first fails ("USB interface is held by another process" - by us).
+  let staleSession = false
+  // Set when the worker had to be killed mid-call. New operations are refused (with instructions) instead of being
+  // pushed into a session that cannot answer; cleared by Rescan or when the phone re-appears after an unplug.
+  let stuck = false
+  // Cancelled transfers whose native work has not stopped yet
+  let cancelling = 0
   // Device names captured during enumeration, so later lookups don't need to
   // re-enumerate USB (which contends with an open session)
   const deviceNames = new Map<string, string>()
 
   // A dead worker took the libmtp session with it - forget it so the next
   // call reconnects instead of running session-less
-  env.onWorkerExit(() => { connectedSerial = null })
+  env.onWorkerExit(() => { connectedSerial = null; staleSession = false })
+  env.onForcedStop(() => { stuck = true })
 
   function serialOf(d: MtpRawDevice): string {
     return `mtp-${d.vendor_id}-${d.product_id}`
@@ -77,8 +98,11 @@ export function createMtpTransport(env: MtpEnv): Transport {
   let lockTail: Promise<unknown> = Promise.resolve()
 
   function withSession<T>(serial: string, signal: AbortSignal | undefined, fn: () => Promise<T>): Promise<T> {
+    if (stuck) return Promise.reject(new Error(MTP_STUCK_MESSAGE))
+    if (cancelling > 0) return Promise.reject(new Error(MTP_STOPPING_MESSAGE))
     const run = async (): Promise<T> => {
       throwIfAborted(signal) // cancelled while waiting for its turn
+      if (stuck) throw new Error(MTP_STUCK_MESSAGE) // the worker was force-stopped while this call waited
       await ensureConnected(serial)
       return fn()
     }
@@ -87,17 +111,25 @@ export function createMtpTransport(env: MtpEnv): Transport {
     return result
   }
 
-  /** Abort -> restart the worker (the only way to interrupt a blocking native call). */
+  /** Abort -> ask libmtp to stop the transfer; the worker is only killed if it does not (a blocking native call cannot be interrupted any other way). */
   function bindAbort<T>(signal: AbortSignal | undefined, fn: () => Promise<T>): Promise<T> {
     if (!signal) return fn()
-    const onAbort = () => env.stopWorker()
+    let counted = false
+    const onAbort = () => { counted = true; cancelling++; env.cancelTransfer() }
     signal.addEventListener('abort', onAbort, { once: true })
-    return fn().finally(() => signal.removeEventListener('abort', onAbort))
+    return fn().finally(() => {
+      signal.removeEventListener('abort', onAbort)
+      if (counted) cancelling--
+    })
   }
 
   async function ensureConnected(serial: string): Promise<void> {
     if (connectedSerial === serial) return
     if (connectedSerial) await releaseMtpConnection()
+    if (staleSession) {
+      staleSession = false
+      try { await env.call('release', []) } catch { /* already closed */ }
+    }
     await env.evictPtpcamerad()
     const m = serial.match(/^mtp-(\d+)-(\d+)$/)
     const connectArgs = m ? [Number(m[1]), Number(m[2])] : []
@@ -136,13 +168,19 @@ export function createMtpTransport(env: MtpEnv): Transport {
   // On any op failure the session state is suspect (unplug mid-op, worker
   // crash/restart, etc.) - drop it so the next call reconnects fresh.
   function invalidate(): void {
+    if (connectedSerial) staleSession = true
     connectedSerial = null
   }
 
-  function fail(what: string, err: unknown): never {
+  /** `name`: the file/folder name involved, so a refusal caused by characters Android rejects can say so. */
+  function fail(what: string, err: unknown, name?: string): never {
     invalidate()
     const msg = err instanceof Error ? err.message : String(err)
-    throw new Error(`MTP ${what} failed: ${msg}`)
+    const bad = name ? androidForbiddenChars(name) : []
+    const hint = bad.length > 0
+      ? ` Android does not allow ${bad.map(c => `"${c}"`).join(' ')} in file names; if that is the cause, rename "${name}" without ${bad.length > 1 ? 'those characters' : 'that character'} and try again.`
+      : ''
+    throw new Error(`MTP ${what} failed: ${msg}${hint}`)
   }
 
   // --- path mapping -----------------------------------------------------------
@@ -211,6 +249,7 @@ export function createMtpTransport(env: MtpEnv): Transport {
           }
         }
         const raw = await env.call<MtpRawDevice[]>('getDeviceInfo', [])
+        if (stuck && (raw ?? []).length === 0) stuck = false // unplugged: the next plug-in starts a fresh session
         lastDevices = (raw ?? []).map(d => {
           const serial = serialOf(d)
           deviceNames.set(serial, d.product || d.vendor || 'MTP Device')
@@ -224,6 +263,8 @@ export function createMtpTransport(env: MtpEnv): Transport {
         pollInFlight = false
       }
     },
+
+    resetHealth() { stuck = false },
 
     getDeviceInfo(serial) {
       return withSession(serial, undefined, async () => ({
@@ -259,7 +300,7 @@ export function createMtpTransport(env: MtpEnv): Transport {
           const ok = await env.call<boolean>('download', [toMtpPath(remotePath), localPath], opts.onProgress)
           if (!ok) throw new Error('download returned failure')
         } catch (err) {
-          if (opts.signal?.aborted) throw cancelledError()
+          if (opts.signal?.aborted) { invalidate(); throw cancelledError() }
           return fail('download', err)
         }
       }))
@@ -295,8 +336,8 @@ export function createMtpTransport(env: MtpEnv): Transport {
             await renameObject(joinRemote(targetFolder, uploadName), wantedName)
           }
         } catch (err) {
-          if (opts.signal?.aborted) throw cancelledError()
-          return fail('upload', err)
+          if (opts.signal?.aborted) { invalidate(); throw cancelledError() }
+          return fail('upload', err, wantedName)
         } finally {
           if (stagedDir) fs.rmSync(stagedDir, { recursive: true, force: true })
         }
@@ -319,7 +360,7 @@ export function createMtpTransport(env: MtpEnv): Transport {
         try {
           await renameObject(toMtpPath(oldPath), newName)
         } catch (err) {
-          return fail('rename', err)
+          return fail('rename', err, newName)
         }
       })
     },
@@ -375,7 +416,7 @@ export function createMtpTransport(env: MtpEnv): Transport {
         try {
           await env.call('createFolder', [posixDir(target), posixBase(target)])
         } catch (err) {
-          return fail('mkdir', err)
+          return fail('mkdir', err, posixBase(dirPath))
         }
       })
     },
@@ -395,7 +436,7 @@ export function createMtpTransport(env: MtpEnv): Transport {
             await renameObject(joinRemote(targetFolder, srcName), wantedName)
           }
         } catch (err) {
-          return fail('copy', err)
+          return fail('copy', err, posixBase(dstPath))
         }
       })
     },

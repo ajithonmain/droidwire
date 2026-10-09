@@ -8,6 +8,7 @@ import { findAdb } from './lib/adb-path.ts'
 import { parseAdbDevices, dedupeByHardware, type AdbDeviceRow } from './lib/adb-devices.ts'
 import { parseLsLa } from './lib/ls-parse.ts'
 import { shQuote } from './lib/shell.ts'
+import { explainRemoteNameError } from './lib/android-names.ts'
 import { treeSize } from './lib/fsx.ts'
 import { posixBase, posixDir, isProtectedRemotePath } from './lib/paths.ts'
 import path from 'path'
@@ -275,7 +276,7 @@ export const AdbTransport: Transport = {
       pollMs: 400,
       probe: () => remoteSize(serial, remotePath),
       onProgress: n => opts.onProgress?.(n, total),
-    })
+    }).catch(err => { throw explainRemoteNameError(err, posixBase(remotePath)) })
   },
 
   async deleteFile(serial, filePath): Promise<void> {
@@ -286,19 +287,23 @@ export const AdbTransport: Transport = {
   async renameFile(serial, oldPath, newName): Promise<void> {
     if (newName.includes('/') || newName === '' || newName === '.' || newName === '..') throw new Error('Invalid name')
     await adbShell(serial, `mv ${shQuote(oldPath)} ${shQuote(posixDir(oldPath).replace(/\/$/, '') + '/' + newName)}`)
+      .catch(err => { throw explainRemoteNameError(err, newName) })
   },
 
   async moveFile(serial, srcPath, destPath): Promise<void> {
     if (isProtectedRemotePath(srcPath)) throw new Error('Refusing to move a storage root')
     await adbShell(serial, `mv ${shQuote(srcPath)} ${shQuote(destPath)}`)
+      .catch(err => { throw explainRemoteNameError(err, posixBase(destPath)) })
   },
 
   async makeDir(serial, dirPath): Promise<void> {
     await adbShell(serial, `mkdir -p ${shQuote(dirPath)}`)
+      .catch(err => { throw explainRemoteNameError(err, posixBase(dirPath)) })
   },
 
   async copy(serial, srcPath, dstPath): Promise<void> {
     await adbShell(serial, `cp -r ${shQuote(srcPath)} ${shQuote(dstPath)}`, { timeout: 120_000 })
+      .catch(err => { throw explainRemoteNameError(err, posixBase(dstPath)) })
   },
 
   async getStorage(serial): Promise<StorageInfo> {

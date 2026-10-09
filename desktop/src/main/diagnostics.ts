@@ -6,6 +6,7 @@ import { execFile } from 'child_process'
 import type { Diagnostics } from '@droidwire/shared'
 import { getAdbBinary } from './adb-transport.ts'
 import { callMtp } from './mtp-worker-client.ts'
+import { MTP_EXCLUDED_MESSAGE, mtpExcluded } from './mtp-availability.ts'
 import { adbSource } from './lib/adb-path.ts'
 import { ffmpegBin, thumbHelperBin } from './ipc/preview.ts'
 import { PRODUCT_VERSION } from './app-info.ts'
@@ -29,8 +30,11 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
   const lookup = { resourcesDir: process.resourcesPath, env: process.env, homeDir: os.homedir(), exists: fs.existsSync }
   const [adb, mtp] = await Promise.all([
     runVersion(adbPath),
-    callMtp<{ available: boolean; error: string | null; addon: string | null }>('status', [])
-      .catch((e: unknown) => ({ available: false, error: e instanceof Error ? e.message : String(e), addon: null })),
+    // A release built without MTP never starts the worker: there is nothing to probe
+    mtpExcluded()
+      ? Promise.resolve({ available: false, error: MTP_EXCLUDED_MESSAGE, addon: null, excluded: true })
+      : callMtp<{ available: boolean; error: string | null; addon: string | null; excluded?: boolean }>('status', [])
+        .catch((e: unknown) => ({ available: false, error: e instanceof Error ? e.message : String(e), addon: null })),
   ])
   return {
     app: {
@@ -50,7 +54,7 @@ export function formatDiagnostics(d: Diagnostics): string {
   return [
     `Droidwire ${d.app.version} (${d.app.packaged ? 'packaged' : 'development'}), Electron ${d.app.electron}, ${d.app.arch}, Darwin ${d.app.macos}`,
     `adb: ${d.adb.version ?? 'NOT RUNNING'} [${d.adb.source}] ${d.adb.path}${d.adb.error ? ` - ${d.adb.error}` : ''}`,
-    `mtp: ${d.mtp.available ? 'available' : 'UNAVAILABLE'}${d.mtp.error ? ` - ${d.mtp.error}` : ''}${d.mtp.addon ? ` (${path.basename(d.mtp.addon)})` : ''}`,
+    `mtp: ${d.mtp.excluded ? 'not included in this release' : d.mtp.available ? 'available' : 'UNAVAILABLE'}${d.mtp.error && !d.mtp.excluded ? ` - ${d.mtp.error}` : ''}${d.mtp.addon ? ` (${path.basename(d.mtp.addon)})` : ''}`,
     `video thumbnails: native ${d.thumbnails.native ? 'yes' : 'no'}, ffmpeg ${d.thumbnails.ffmpeg ? 'yes' : 'no (optional)'}`,
   ].join('\n')
 }

@@ -9,6 +9,7 @@ import { registerTransferHandlers } from './ipc/transfers.ts'
 import { registerPreviewHandlers, shutdownPreview } from './ipc/preview.ts'
 import { registerDeviceToolHandlers } from './ipc/device-tools.ts'
 import { registerWirelessHandlers, stopQrPairing } from './ipc/wireless.ts'
+import { stopWirelessReconnect } from './wireless-reconnect.ts'
 import { registerAppHandlers } from './ipc/app.ts'
 import { registerEditHandlers } from './edit-sessions.ts'
 import { clearEjectedSerials } from './adb-transport.ts'
@@ -144,5 +145,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   cancelAllOperations()
   stopQrPairing()
+  stopWirelessReconnect()
   shutdownPreview()
 })

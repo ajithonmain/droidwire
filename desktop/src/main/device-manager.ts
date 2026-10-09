@@ -2,11 +2,15 @@ import type { TransportKind } from '@droidwire/shared'
 import type { Transport } from './transport.ts'
 import { AdbTransport, addEjectedSerial, adbDeviceRows, clearEjectedSerials, forgetDeviceCaches } from './adb-transport.ts'
 import { MtpTransport } from './mtp-transport.ts'
-import { activeTransportKind, getActiveSerial, setActiveSerial } from './active-device.ts'
+import { assertMtpIncluded } from './mtp-availability.ts'
+import { activeTransportKind, getActiveSerial, getConnectionType, setActiveSerial } from './active-device.ts'
+import { isWirelessSerial } from './lib/adb-devices.ts'
+import { tryWirelessReconnect } from './wireless-reconnect.ts'
 
 export { resolveContext } from './active-device.ts'
 
 export function transportFor(kind: TransportKind): Transport {
+  if (kind === 'mtp') assertMtpIncluded() // a release without MTP can never reach the MTP transport, whatever the renderer asks
   return kind === 'mtp' ? MtpTransport : AdbTransport
 }
 
@@ -25,6 +29,8 @@ export async function enumerateDevices(): Promise<{
 }> {
   const kind = activeTransportKind()
   const found = await transportFor(kind).getDevices()
+  // Wi-Fi mode, phone gone: bring back a phone this session had connected (adb has no mDNS here to do it)
+  if (kind === 'adb' && getConnectionType() === 'wireless' && !found.some(d => isWirelessSerial(d.serial))) tryWirelessReconnect()
   const current = getActiveSerial(kind)
   if (!current || !found.some(d => d.serial === current)) {
     setActiveSerial(kind, found[0]?.serial ?? null)
@@ -54,5 +60,6 @@ export function uneject(): void {
 }
 
 export function resetDeviceCaches(): void {
+  if (MtpTransport.resetHealth) MtpTransport.resetHealth()
   forgetDeviceCaches()
 }

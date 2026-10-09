@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { fork } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { MtpWorkerHost, type WorkerChild } from './mtp-worker-host.ts'
 
 // luck-node-mtp (libmtp/libusb) has been observed to SIGSEGV when its native
@@ -46,15 +47,23 @@ function workerScriptPath(): string {
   return found
 }
 
+// One cancel-flag file per worker process; the worker checks it from libmtp's progress callback
+const cancelFlags = new WeakMap<object, string>()
+let workerSeq = 0
+
 function forkWorker(): WorkerChild {
-  return fork(workerScriptPath(), [], {
+  const cancelFile = path.join(os.tmpdir(), `droidwire-mtp-cancel-${process.pid}-${++workerSeq}`)
+  const child = fork(workerScriptPath(), [], {
     // Electron doubles as a Node runtime under this flag. The addon is
     // N-API, so it is ABI-stable across Node and Electron versions.
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DROIDWIRE_MTP_CANCEL_FILE: cancelFile },
     execPath: process.execPath,
     silent: false,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-  }) as unknown as WorkerChild
+  })
+  cancelFlags.set(child, cancelFile)
+  child.on('exit', () => { try { fs.rmSync(cancelFile, { force: true }) } catch { /* nothing to remove */ } })
+  return child as unknown as WorkerChild
 }
 
 const host = new MtpWorkerHost(
@@ -64,12 +73,27 @@ const host = new MtpWorkerHost(
       console.error('[mtp-worker]', d.toString().trim()))
     return child
   },
-  { quietTimeoutMs: timeoutFor, log: m => console.error('[mtp-worker]', m) },
+  {
+    quietTimeoutMs: timeoutFor,
+    // Diagnostic knob for hardware testing; the default (see mtp-worker-host.ts) is what ships
+    cancelGraceMs: Number(process.env.DROIDWIRE_MTP_CANCEL_GRACE_MS) || undefined,
+    log: m => console.error('[mtp-worker]', m),
+    requestCancel: child => {
+      const file = cancelFlags.get(child)
+      if (!file) throw new Error('worker has no cancel flag')
+      fs.writeFileSync(file, '1')
+    },
+  },
 )
 
 /** Register a callback fired when the worker (and its libmtp session) dies. */
 export function onMtpWorkerExit(cb: () => void): void {
   host.onExit(cb)
+}
+
+/** Register a callback fired when the worker had to be killed mid-call (the phone may be stuck until replugged). */
+export function onMtpForcedStop(cb: (reason: string) => void): void {
+  host.onForcedStop(cb)
 }
 
 export function callMtp<T = unknown>(
@@ -78,6 +102,11 @@ export function callMtp<T = unknown>(
   onProgress?: (sent: number, total: number) => void,
 ): Promise<T> {
   return host.call<T>(method, args, onProgress)
+}
+
+/** Cancel the running transfer without killing the worker unless it fails to stop. */
+export function cancelMtpTransfer(): void {
+  host.cancelTransfer()
 }
 
 export function stopMtpWorker(): void {

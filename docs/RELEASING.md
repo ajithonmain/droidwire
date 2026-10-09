@@ -3,11 +3,14 @@
 ## Build a release candidate
 
 ```bash
-npm run native:build                 # once, then cached: adb from AOSP, libusb, libmtp, thumbnail helper
+npm ci                               # no MTP addon, no libmtp, nothing native compiled
+npm run native:build                 # once, then cached: adb from AOSP, libusb, thumbnail helper (no libmtp unless DROIDWIRE_BUILD_LIBMTP=1)
 npm run verify                       # typecheck, unit tests, production build
-npm --prefix desktop run dist        # stage + package + package checks
+npm --prefix desktop run dist        # stage + package + package checks + archive checks (RELEASE configuration: no MTP)
 node desktop/driver.mjs --app desktop/release/mac-arm64/Droidwire.app    # packaged-app smoke test
 ```
+
+**The release configuration ships no MTP** (USB/ADB and Wi-Fi only): no `luck-node-mtp` addon, no libmtp, no MTP worker script; the app finds `Resources/MTP-NOT-INCLUDED.txt` and shows MTP as deferred. `dist` states this (`MTP: not included`), and `check-package.mjs` and `check-archives.mjs` (which also inspect the finished `.dmg` and `.zip`) fail the build if any MTP component, or any notice for one, is present. `npm --prefix desktop run dist:with-mtp` (`DROIDWIRE_BUNDLE_MTP=1`; needs `node scripts/bootstrap.mjs --with-mtp` and `DROIDWIRE_BUILD_LIBMTP=1 npm run native:build` first) builds the variant that includes MTP; that is **not** a release configuration, and its package check demands the matching licence notices (see `docs/LICENSING.md` before ever shipping it).
 
 `dist` prints which signing mode it is using. Without credentials it produces an **unsigned** build (ad-hoc sealed so macOS will run it, but Gatekeeper still blocks a downloaded copy until the user clears the quarantine flag). `scripts/check-package.mjs` runs automatically and fails the build if a required component is missing or would not run on another Mac.
 
@@ -27,7 +30,7 @@ Gatekeeper only lets a downloaded app open without friction if it is signed with
    | Notarization, API key | `APPLE_API_KEY` (path to the .p8), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
    | Notarization, Apple ID | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` |
 
-4. Build with `npm --prefix desktop run dist -- --require-signed`. It refuses to produce anything unless signing and notarization are possible, signs every Mach-O (the bundled adb, libusb, libmtp, MTP addon and thumbnail helper are signed with the same identity as the app, so macOS library validation stays on), uses the entitlements in `desktop/build/entitlements.mac.plist`, notarizes, staples, and then `check-package.mjs --require-signed` verifies the Developer ID signature, hardened runtime and stapled ticket.
+4. Build with `npm --prefix desktop run dist -- --require-signed`. It refuses to produce anything unless signing and notarization are possible, signs every Mach-O (the bundled adb, libusb and thumbnail helper are signed with the same identity as the app, so macOS library validation stays on), uses the entitlements in `desktop/build/entitlements.mac.plist`, notarizes, staples, and then `check-package.mjs --require-signed` verifies the Developer ID signature, hardened runtime and stapled ticket.
 
 The signing and notarization steps have been written against electron-builder 25's documented options but **could not be executed** here: no Developer ID identity or Apple credentials were available. Expect to iterate on the first real run (the most likely issues are certificate import and notarization credentials, not the app).
 

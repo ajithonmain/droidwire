@@ -10,7 +10,8 @@
 // Always run against a throwaway profile. Checks the first-run experience, the renderer
 // security boundary, what the install can do (bundled adb, MTP addon, thumbnail helper),
 // the menu bar window, and that failures are explained in the UI. It cannot exercise USB,
-// wireless ADB or MTP transfers - there is no phone here; see docs/HARDWARE-CHECKLIST.md.
+// wireless ADB or MTP transfers; real-phone coverage lives in driver-hw.mjs / driver-hw-ui.mjs
+// (see docs/HARDWARE-CHECKLIST.md).
 import { _electron as electron } from 'playwright-core'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
@@ -25,6 +26,8 @@ const require = createRequire(import.meta.url)
 const argv = process.argv.slice(2)
 const flagValue = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined }
 const allowUpdateCheck = argv.includes('--allow-update-check')
+// A packaged release is built WITHOUT MTP; pass --with-mtp to check an MTP build (DROIDWIRE_BUNDLE_MTP=1) instead.
+const expectMtp = argv.includes('--with-mtp')
 const appBundle = flagValue('--app') ? path.resolve(flagValue('--app')) : null
 const shotDir = process.env.DROIDWIRE_SHOT_DIR ?? path.join(os.tmpdir(), 'droidwire-shots')
 fs.mkdirSync(shotDir, { recursive: true })
@@ -94,7 +97,8 @@ async function baseline() {
       assert.ok(bodyText.includes('Droidwire'), `unexpected body: ${bodyText.slice(0, 120)}`)
       assert.equal(await page.locator('input[type="email"], input[type="password"]').count(), 0)
       assert.ok(!/email|register|sign ?up|beta tester/i.test(bodyText), 'body mentions registration')
-      assert.match(bodyText, /Connect via ADB/)
+      // With no phone attached the picker is shown; with an authorized phone attached the app connects straight away
+      assert.match(bodyText, /Connect via ADB|Connected/)
     })
 
     await check('renderer exposes only the typed bridge', async () => {
@@ -136,15 +140,31 @@ async function baseline() {
 
     // What this install can actually do
     const diag = await page.evaluate(() => window.droidwire.getDiagnostics())
-    console.log(`  diagnostics: adb ${diag.adb.version ?? 'NONE'} [${diag.adb.source}], mtp ${diag.mtp.available ? 'ok' : 'UNAVAILABLE'}, native thumbs ${diag.thumbnails.native ? 'yes' : 'no'}`)
+    console.log(`  diagnostics: adb ${diag.adb.version ?? 'NONE'} [${diag.adb.source}], mtp ${diag.mtp.excluded ? 'not included (release)' : diag.mtp.available ? 'ok' : 'UNAVAILABLE'}, native thumbs ${diag.thumbnails.native ? 'yes' : 'no'}`)
     await check('adb starts and reports its version', async () => {
       assert.equal(diag.adb.error, null, diag.adb.error ?? '')
       assert.match(diag.adb.version ?? '', /Android Debug Bridge version/)
     })
-    await check('MTP worker loads its addon and libraries', async () => {
-      assert.equal(diag.mtp.available, true, diag.mtp.error ?? '')
-      assert.ok(diag.mtp.addon, 'worker did not report which addon it loaded')
-    })
+    if (appBundle && !expectMtp) {
+      await check('release build: MTP is reported as deliberately not included, and no MTP worker was started', async () => {
+        assert.equal(diag.mtp.excluded, true, JSON.stringify(diag.mtp))
+        assert.equal(diag.mtp.available, false)
+        assert.match(diag.mtp.error ?? '', /not included in this release/i)
+        assert.equal(diag.mtp.addon, null)
+        const workers = spawnSync('pgrep', ['-fl', 'mtp-worker']).stdout.toString().trim()
+        assert.equal(workers, '', `an MTP worker is running: ${workers}`)
+      })
+      await check('release build: asking for MTP is refused by the main process, not just hidden in the UI', async () => {
+        const r = await page.evaluate(() => window.droidwire.setConnectionType('mtp').then(() => 'accepted', e => String(e.message)))
+        assert.match(r, /not included in this release/i)
+        assert.equal(await page.evaluate(() => window.droidwire.getConnectionType()), 'adb', 'connection type must not change')
+      })
+    } else {
+      await check('MTP worker loads its addon and libraries', async () => {
+        assert.equal(diag.mtp.available, true, diag.mtp.error ?? '')
+        assert.ok(diag.mtp.addon, 'worker did not report which addon it loaded')
+      })
+    }
     await check('video thumbnail helper is present', async () => {
       assert.ok(diag.thumbnails.native, 'native thumbnail helper not found')
     })
@@ -155,11 +175,12 @@ async function baseline() {
         assert.equal(diag.app.packaged, true)
         assert.equal(diag.adb.source, 'bundled', `adb resolved from ${diag.adb.path}`)
         assert.ok(diag.adb.path.startsWith(resources), diag.adb.path)
-        assert.ok(diag.mtp.addon.startsWith(resources), `MTP addon loaded from ${diag.mtp.addon}`)
+        if (expectMtp) assert.ok(diag.mtp.addon.startsWith(resources), `MTP addon loaded from ${diag.mtp.addon}`)
+        else for (const f of ['luck-node-mtp.node', 'libmtp.9.dylib', 'mtp-worker.cjs']) assert.ok(!fs.existsSync(path.join(resources, f)), `Resources/${f} must not ship in the release build`)
         assert.ok(diag.thumbnails.native.startsWith(resources), diag.thumbnails.native)
       })
       await check('macOS tools used for previews and archives are present', async () => {
-        for (const tool of ['/usr/bin/sips', '/usr/bin/qlmanage', '/usr/bin/zip', '/usr/bin/killall']) {
+        for (const tool of ['/usr/bin/sips', '/usr/bin/qlmanage', '/usr/bin/zip', '/usr/bin/killall', '/usr/bin/dns-sd']) {
           assert.ok(fs.existsSync(tool), `${tool} is missing on this Mac`)
         }
       })
@@ -181,7 +202,7 @@ async function baseline() {
       await page.waitForFunction(() => /bundled programs and libraries/i.test(document.body.innerText), null, { timeout: 8000 })
         .catch(async e => { await page.screenshot({ path: path.join(shotDir, '02-licenses-FAILED.png') }); throw e })
       const text = await page.evaluate(() => document.body.innerText)
-      for (const needle of ['Android Debug Bridge', 'Apache License', 'libusb', 'libmtp', 'luck-node-mtp', 'Copyright (c) lucksoft', 'Creative Commons']) {
+      for (const needle of ['Android Debug Bridge', 'Apache License', 'libusb', 'Creative Commons']) {
         assert.ok(text.includes(needle), `licenses dialog is missing "${needle}"`)
       }
       await page.screenshot({ path: path.join(shotDir, '02-licenses.png') })

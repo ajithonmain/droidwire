@@ -2,6 +2,8 @@ import crypto from 'crypto'
 import type { WebContents } from 'electron'
 import { handle, safeSend } from './common.ts'
 import { adbHost } from '../adb-transport.ts'
+import { mdnsServices } from '../lib/dnssd.ts'
+import { rememberWirelessAddress } from '../wireless-reconnect.ts'
 import {
   assertHostPort, assertPairingCode, isConnectSuccess, isPairSuccess, mdnsFind,
 } from '../lib/wireless.ts'
@@ -11,16 +13,17 @@ import {
 
 type WirelessEvent = { type: 'waiting' | 'pairing' | 'connecting' | 'connected' | 'error'; message?: string }
 
-let qrSession: { cancelled: boolean } | null = null
+let qrSession: { cancelled: boolean; abort: AbortController } | null = null
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // QR pairing (Android Studio flow): show a WIFI:T:ADB QR; the phone scans it
-// and advertises _adb-tls-pairing over mDNS; we spot the service, pair with
+// and advertises _adb-tls-pairing over mDNS (discovered with macOS dns-sd: the
+// bundled adb has no mDNS support); we spot the service, pair with
 // the password from the QR, then find _adb-tls-connect and connect.
 async function runQrPairLoop(
-  session: { cancelled: boolean },
+  session: { cancelled: boolean; abort: AbortController },
   name: string,
   password: string,
   sender: WebContents,
@@ -33,7 +36,7 @@ async function runQrPairLoop(
   const deadline = Date.now() + 180_000
   while (!session.cancelled && Date.now() < deadline) {
     let out = ''
-    try { out = await adbHost(['mdns', 'services'], 5000) } catch { /* retry */ }
+    try { out = await mdnsServices(['_adb-tls-pairing'], undefined, undefined, session.abort.signal) } catch { /* retry */ }
     const pairAddr = mdnsFind(out, '_adb-tls-pairing', name)
     if (!pairAddr) { await sleep(1500); continue }
 
@@ -52,12 +55,12 @@ async function runQrPairLoop(
     const connectDeadline = Date.now() + 30_000
     while (!session.cancelled && Date.now() < connectDeadline) {
       let out2 = ''
-      try { out2 = await adbHost(['mdns', 'services'], 5000) } catch { /* retry */ }
+      try { out2 = await mdnsServices(['_adb-tls-connect'], undefined, undefined, session.abort.signal) } catch { /* retry */ }
       const connectAddr = mdnsFind(out2, '_adb-tls-connect', ip)
       if (connectAddr) {
         try {
           const conOut = await adbHost(['connect', connectAddr], 20_000)
-          if (isConnectSuccess(conOut)) send({ type: 'connected' })
+          if (isConnectSuccess(conOut)) { void rememberWirelessAddress(connectAddr); send({ type: 'connected' }) }
           else throw new Error(conOut.trim() || 'Connection failed')
         } catch (e) {
           send({ type: 'error', message: errText(e) })
@@ -73,7 +76,7 @@ async function runQrPairLoop(
 }
 
 export function stopQrPairing(): void {
-  if (qrSession) qrSession.cancelled = true
+  if (qrSession) { qrSession.cancelled = true; qrSession.abort.abort() } // also ends any dns-sd lookup in flight
   qrSession = null
 }
 
@@ -92,6 +95,7 @@ export function registerWirelessHandlers(): void {
     try {
       const out = await adbHost(['connect', assertHostPort(hostPort)], 20_000)
       const ok = isConnectSuccess(out)
+      if (ok) void rememberWirelessAddress(assertHostPort(hostPort))
       return { ok, message: out.trim() || (ok ? 'Connected' : 'Connection failed') }
     } catch (e) {
       return { ok: false, message: errText(e) }
@@ -100,10 +104,10 @@ export function registerWirelessHandlers(): void {
 
   handle('adb:qr-pair-start', event => {
     stopQrPairing()
-    const session = { cancelled: false }
+    const session = { cancelled: false, abort: new AbortController() }
     qrSession = session
     // The window closing ends the session; nobody is left to show progress to
-    event.sender.once('destroyed', () => { session.cancelled = true })
+    event.sender.once('destroyed', () => { session.cancelled = true; session.abort.abort() })
     const name = `droidwire-${crypto.randomBytes(4).toString('hex')}`
     const password = crypto.randomBytes(6).toString('hex')
     void runQrPairLoop(session, name, password, event.sender)

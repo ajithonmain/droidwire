@@ -39,6 +39,8 @@ try {
   }
 }
 
+const fs = require('fs')
+
 // Exit with the parent. Without this an orphaned worker would keep running
 // (and keep the phone's USB interface claimed) if the app dies uncleanly.
 process.on('disconnect', () => process.exit(0))
@@ -48,10 +50,23 @@ process.on('uncaughtException', (err) => {
   process.exit(1)
 })
 
+// A transfer is a single blocking native call, so this process cannot read IPC messages while it runs.
+// To cancel one cleanly the parent creates this file; the progress callback below looks for it and
+// returns 1, which makes libmtp abort the PTP transaction itself. (Killing the process mid-transfer
+// instead leaves the phone's MTP responder wedged until the cable is replugged.)
+const cancelFlag = process.env.DROIDWIRE_MTP_CANCEL_FILE || null
+const clearCancelFlag = () => { if (cancelFlag) { try { fs.rmSync(cancelFlag, { force: true }) } catch { /* nothing to clear */ } } }
+
 function callWithProgress(fn, args, id) {
-  return fn(...args, (sent, total) => {
-    try { process.send({ id, type: 'progress', sent, total }) } catch { /* parent gone */ }
-  })
+  clearCancelFlag()
+  try {
+    return fn(...args, (sent, total) => {
+      try { process.send({ id, type: 'progress', sent, total }) } catch { /* parent gone */ }
+      return cancelFlag && fs.existsSync(cancelFlag) ? 1 : 0
+    })
+  } finally {
+    clearCancelFlag()
+  }
 }
 
 process.on('message', (msg) => {

@@ -28,7 +28,7 @@ function TransferRow({ t, onDismiss, onCancel, onPause, onResume, pausable, onRe
   const { theme } = useTheme()
   const pct = formatPercent(t.transferredBytes, t.totalBytes)
   const remaining = t.totalBytes - t.transferredBytes
-  const statusColor = t.status === 'done' ? theme.accent : t.status === 'error' ? theme.error : t.status === 'cancelled' || t.status === 'paused' ? theme.warning : theme.textMuted
+  const statusColor = t.status === 'done' ? theme.accent : t.status === 'error' ? theme.error : t.status === 'cancelled' || t.status === 'paused' || t.status === 'cancelling' ? theme.warning : theme.textMuted
   const isActive = t.status === 'active' || t.status === 'pending'
   const label = t.direction === 'download' ? 'DL' : 'UL'
 
@@ -48,7 +48,7 @@ function TransferRow({ t, onDismiss, onCancel, onPause, onResume, pausable, onRe
             {t.fileName}
           </span>
           <span style={{ fontSize: '13px', color: statusColor, flexShrink: 0, marginLeft: '8px' }}>
-            {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'cancelled' ? 'Cancelled' : t.status === 'paused' ? 'Paused' : t.status === 'pending' ? 'Queued' : `${pct}%`}
+            {t.status === 'done' ? 'Done' : t.status === 'error' ? 'Error' : t.status === 'cancelling' ? 'Cancelling…' : t.status === 'cancelled' ? 'Cancelled' : t.status === 'paused' ? 'Paused' : t.status === 'pending' ? 'Queued' : `${pct}%`}
           </span>
         </div>
 
@@ -114,6 +114,14 @@ function TransferRow({ t, onDismiss, onCancel, onPause, onResume, pausable, onRe
           </div>
         )}
 
+        {t.status === 'cancelling' && (
+          <span style={{ fontSize: '12px', color: theme.textMuted, lineHeight: 1.4 }}>
+            {t.device?.transport === 'mtp'
+              ? 'Waiting for the phone to stop the transfer - MTP can take up to two minutes. Keep the cable connected.'
+              : 'Stopping the transfer…'}
+          </span>
+        )}
+
         {t.status === 'paused' && (
           <div style={{ display: 'flex', gap: '10px' }}>
             <span
@@ -163,12 +171,15 @@ function TransferRow({ t, onDismiss, onCancel, onPause, onResume, pausable, onRe
         )}
       </div>
 
-      <button
-        onClick={onDismiss}
-        style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
-      >
-        <XIcon />
-      </button>
+      {/* A transfer that is still being stopped stays visible until the phone has really let go of it */}
+      {t.status !== 'cancelling' && (
+        <button
+          onClick={onDismiss}
+          style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+        >
+          <XIcon />
+        </button>
+      )}
     </div>
   )
 }

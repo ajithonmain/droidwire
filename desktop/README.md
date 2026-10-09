@@ -30,7 +30,7 @@ npm run smoke       # run after `build`: launches the app offline with a temp pr
 npm run dist        # build + stage native binaries + electron-builder -> release/
 ```
 
-Install dependencies from the repository root with `node scripts/bootstrap.mjs`. The `dev`/`electron`/`smoke` scripts deliberately use `env -u ELECTRON_RUN_AS_NODE`; do not remove it.
+Install dependencies from the repository root with `npm ci`. The `dev`/`electron`/`smoke` scripts deliberately use `env -u ELECTRON_RUN_AS_NODE`; do not remove it.
 
 ## Conventions
 
