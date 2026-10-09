@@ -79,7 +79,11 @@ try {
   } else {
   const picker = page.getByText('Connect via Wi-Fi').first()
   if (await picker.isVisible({ timeout: 4000 }).catch(() => false)) await picker.click()
-  else await page.getByText('Pair a phone').first().click({ timeout: 20000 }) // Wi-Fi setup screen
+  else if (await page.getByText('Pair a phone').first().isVisible({ timeout: 4000 }).catch(() => false)) await page.getByText('Pair a phone').first().click() // Wi-Fi setup screen
+  else { // a phone is already connected over USB: the setup screen is not shown, so use the toolbar's Add device menu
+    await page.locator('[data-tip="Add device"]').click({ timeout: 20000 })
+    await page.getByText('Add wireless device').click({ timeout: 10000 })
+  }
   await page.getByAltText('ADB pairing QR code').waitFor({ timeout: 20000 })
   await sleep(800); await page.screenshot({ path: qrPng })
   console.log(`${T()} QR code is on screen (saved ${qrPng})`)

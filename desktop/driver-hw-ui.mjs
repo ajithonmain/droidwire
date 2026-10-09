@@ -528,43 +528,6 @@ try {
     })
   }
 
-  if (want('i')) {
-    console.log('Section I: window closed mid-transfer, quit mid-transfer')
-    for (const f of fs.readdirSync(downloads)) fs.rmSync(path.join(downloads, f), { recursive: true, force: true })
-    await page.keyboard.press('Meta+r'); await sleep(1000)
-    await openFolderByName('q'); await sleep(800)
-    await check('closing the window during a download: app survives, activate opens a new window, transfer settles, no .part, no stray adb', async () => {
-      await contextMenu('c1.bin', 'Download')
-      await page.waitForFunction(() => /\d+%/.test(document.body.innerText), null, { timeout: 15000 })
-      await app.evaluate(({ BrowserWindow }) => { for (const w of BrowserWindow.getAllWindows()) w.close() })
-      await sleep(800)
-      assert.equal(app.windows().length, 0, 'window did not close')
-      // Dock-icon click path: the app must be able to open a fresh window while the old transfer is still running
-      await app.evaluate(({ app }) => { app.emit('activate') }); await sleep(3000)
-      const w2 = app.windows()[0]; assert.ok(w2, 'no window after activate')
-      await w2.waitForFunction(() => /Pixel 4a/.test(document.body.innerText), null, { timeout: 20000 })
-      await sleep(15000)
-      const parts = fs.readdirSync(downloads).filter(n => n.includes('.part-'))
-      const final = fs.existsSync(path.join(downloads, 'c1.bin'))
-      const procs = spawnSync('pgrep', ['-fl', 'adb.*(pull|exec-out)']).stdout.toString().trim()
-      if (final) assert.equal(hashOf(path.join(downloads, 'c1.bin')), remoteHash(`${UI}/q/c1.bin`), 'completed file is corrupt')
-      return `final file present: ${final}; .part files: ${parts.length}; adb pull procs: ${procs || 'none'}`
-    })
-    await check('quit during a download: no adb child processes, no .part files', async () => {
-      for (const f of fs.readdirSync(downloads)) fs.rmSync(path.join(downloads, f), { recursive: true, force: true })
-      const w = app.windows()[0]
-      const ctx = await w.evaluate(async () => { const d = await window.droidwire.getDevices(); return { transport: 'adb', serial: d.devices[0].serial } })
-      w.evaluate(([p, c]) => window.droidwire.pullFile(p, 'c2.bin', 'quitdl1', c).catch(() => {}), [`${UI}/q/c2.bin`, ctx]).catch(() => {})
-      await sleep(3000)
-      assert.ok(spawnSync('pgrep', ['-fl', 'adb.*pull']).stdout.toString().trim() !== '', 'test premise: a pull should be running')
-      await app.close().catch(() => {}); await sleep(2500)
-      const procs = spawnSync('pgrep', ['-fl', 'adb.*(pull|push|exec-out)|Droidwire.app/Contents']).stdout.toString().trim()
-      const parts = fs.readdirSync(downloads).filter(n => n.includes('.part-'))
-      assert.equal(procs, '', `leftover processes: ${procs}`); assert.deepEqual(parts, [], 'part files left after quit')
-      quitDone = true
-    })
-  }
-
   if (want('r')) {
     console.log('Section R: names the phone refuses (double quote)')
     if (mode === 'adb') adbShell(`rm -rf ${sh(UI)}; mkdir -p ${sh(UI)}; echo x > ${sh(`${UI}/victim.txt`)}`)
@@ -610,11 +573,14 @@ try {
     }
   }
 
-  if (want('k')) {
+  // K needs a freshly launched app that starts at the storage root, so it only runs when asked for alone (--section k);
+  // after the other sections the app is inside a test folder and the premise would not hold
+  if (only.includes('k')) {
     console.log('Section K: fresh download after a reconnect-style start (UI at the storage root), destination taken from the current path')
     await page.evaluate(d => window.droidwire.setDownloadDir(d), downloads)
     await check('upload to the current (root) path, then download it back via the context menu; hashes match', async () => {
-      const cur = await page.evaluate(() => document.body.innerText)
+      // A fresh launch needs a moment to detect the phone; dropping before that finds no connection and no upload dialog
+      await page.waitForFunction(() => /Pixel 4a/.test(document.body.innerText) && /free of/.test(document.body.innerText), null, { timeout: 30000 })
       const f = path.join(fixtures, 'binary-32M.bin')
       const rootName = `Droidwire-Test-${stamp}-root.bin`; const tmp = path.join(scratch, rootName); fs.copyFileSync(f, tmp)
       // current path from the app itself (breadcrumb), not assumed
@@ -629,6 +595,50 @@ try {
       assert.equal(hashOf(path.join(downloads, rootName)), hashOf(tmp))
       adbShell(`rm -f ${sh(remote)}`)
       return `current path "${crumb.slice(-3).join(' > ')}"; file at ${remote.replace(rootName, '<name>')}; both hashes match`
+    })
+  }
+
+  // Last on purpose: its final check quits the app, so nothing can run after it
+  if (want('i')) {
+    console.log('Section I: window closed mid-transfer, quit mid-transfer')
+    // Earlier sections reset ${UI}; this one needs its own 200 MB payloads, made on the phone from the IPC harness's big2.bin
+    adbShell(`mkdir -p ${sh(UI)}/q && cd ${sh(UI)}/q && for i in c1 c2; do dd if=${sh(`${ROOT}/big2.bin`)} of=$i.bin bs=1048576 count=200 2>/dev/null; done`)
+    await page.evaluate(d => window.droidwire.setDownloadDir(d), downloads)
+    for (const f of fs.readdirSync(downloads)) fs.rmSync(path.join(downloads, f), { recursive: true, force: true })
+    await page.keyboard.press('Meta+r'); await sleep(1000)
+    await openFolderByName('q'); await sleep(800)
+    await check('closing the window during a download: app survives, activate opens a new window, transfer settles, no .part, no stray adb', async () => {
+      await contextMenu('c1.bin', 'Download')
+      await page.waitForFunction(() => /\d+%/.test(document.body.innerText), null, { timeout: 15000 })
+      await app.evaluate(({ BrowserWindow }) => { for (const w of BrowserWindow.getAllWindows()) w.close() })
+      await sleep(800)
+      assert.equal(app.windows().length, 0, 'window did not close')
+      // Dock-icon click path: the app must be able to open a fresh window while the old transfer is still running
+      await app.evaluate(({ app }) => { app.emit('activate') }); await sleep(3000)
+      const w2 = app.windows()[0]; assert.ok(w2, 'no window after activate')
+      await w2.waitForFunction(() => /Pixel 4a/.test(document.body.innerText), null, { timeout: 20000 })
+      await sleep(15000)
+      const parts = fs.readdirSync(downloads).filter(n => n.includes('.part-'))
+      const final = fs.existsSync(path.join(downloads, 'c1.bin'))
+      const procs = spawnSync('pgrep', ['-fl', 'adb.*(pull|exec-out)']).stdout.toString().trim()
+      if (final) assert.equal(hashOf(path.join(downloads, 'c1.bin')), remoteHash(`${UI}/q/c1.bin`), 'completed file is corrupt')
+      return `final file present: ${final}; .part files: ${parts.length}; adb pull procs: ${procs || 'none'}`
+    })
+    await check('quit during a download: no adb child processes, no .part files', async () => {
+      for (const f of fs.readdirSync(downloads)) fs.rmSync(path.join(downloads, f), { recursive: true, force: true })
+      const w = app.windows()[0]
+      const ctx = await w.evaluate(async () => { const d = await window.droidwire.getDevices(); return { transport: 'adb', serial: d.devices[0].serial } })
+      w.evaluate(([p, c]) => window.droidwire.pullFile(p, 'c2.bin', 'quitdl1', c).catch(() => {}), [`${UI}/q/c2.bin`, ctx]).catch(() => {})
+      await sleep(3000)
+      assert.ok(spawnSync('pgrep', ['-fl', 'adb.*pull']).stdout.toString().trim() !== '', 'test premise: a pull should be running')
+      await app.close().catch(() => {}); await sleep(2500)
+      // Only processes whose executable lives in the tested app bundle count; matching the command line text would also
+      // catch the shell that started this script (its own arguments name the app and adb)
+      const procs = spawnSync('ps', ['-axo', 'pid=,command=']).stdout.toString().split('\n')
+        .filter(l => l.trim().split(/\s+/).slice(1).join(' ').startsWith(appBundle + '/Contents/')).join('\n').trim()
+      const parts = fs.readdirSync(downloads).filter(n => n.includes('.part-'))
+      assert.equal(procs, '', `leftover processes: ${procs}`); assert.deepEqual(parts, [], 'part files left after quit')
+      quitDone = true
     })
   }
 } catch (e) {
