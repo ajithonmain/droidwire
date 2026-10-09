@@ -64,6 +64,15 @@ if (requireSigned && !(haveIdentity && haveNotary)) {
   process.exit(1)
 }
 
+// Electron 42 does not populate node_modules/electron/dist when dependencies are installed, but the package
+// copies the Electron and Chromium license files from there; a fresh clone would otherwise fail the notices check.
+const electronDist = path.join(desktop, '..', 'node_modules', 'electron', 'dist')
+if (!fs.existsSync(path.join(electronDist, 'LICENSE')) || !fs.existsSync(path.join(electronDist, 'LICENSES.chromium.html'))) {
+  console.log('Fetching the Electron distribution (needed for its license files)...')
+  const fetched = spawnSync(process.execPath, [path.join(desktop, '..', 'node_modules', 'electron', 'install.js')], { cwd: desktop, stdio: 'inherit', env })
+  if (fetched.status !== 0) { fs.rmSync(configFile, { force: true }); process.exit(fetched.status ?? 1) }
+}
+
 const build = spawnSync('npx', builderArgs, { cwd: desktop, stdio: 'inherit', env })
 fs.rmSync(configFile, { force: true })
 if (build.status !== 0) process.exit(build.status ?? 1)
