@@ -61,7 +61,6 @@ jobs:
 
       - name: Smoke-test the packaged app (minimal environment, offline)
         run: node desktop/driver.mjs --app desktop/release/mac-arm64/Droidwire.app
-        continue-on-error: true
 
       - name: Checksums
         run: cd desktop/release && shasum -a 256 Droidwire-*.dmg Droidwire-*.zip | tee SHA256SUMS

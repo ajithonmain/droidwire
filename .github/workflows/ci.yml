@@ -36,4 +36,3 @@ jobs:
       # NOT exercise USB/wireless ADB or MTP: CI has no phone attached.
       - name: Smoke test (offline)
         run: npm --prefix desktop run smoke
-        continue-on-error: true

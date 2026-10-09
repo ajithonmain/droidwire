@@ -159,6 +159,13 @@ async function baseline() {
         assert.match(r, /not included in this release/i)
         assert.equal(await page.evaluate(() => window.droidwire.getConnectionType()), 'adb', 'connection type must not change')
       })
+    } else if (!appBundle && !expectMtp) {
+      // A development checkout installs no MTP addon (opt-in via scripts/bootstrap.mjs --with-mtp): the app must
+      // then say so cleanly instead of crashing; it is also fine if a developer has built the addon.
+      await check('dev checkout: MTP is optional - the status is reported coherently without the addon', async () => {
+        if (diag.mtp.available) assert.ok(diag.mtp.addon, 'MTP reported available but no addon path')
+        else assert.ok((diag.mtp.error ?? '').length > 0, 'MTP unavailable without an explanation')
+      })
     } else {
       await check('MTP worker loads its addon and libraries', async () => {
         assert.equal(diag.mtp.available, true, diag.mtp.error ?? '')
