@@ -36,11 +36,18 @@ The signing and notarization steps have been written against electron-builder 25
 
 ## Publishing (owner action)
 
-Nothing in this repository publishes automatically. After testing the artifacts:
+Nothing in this repository publishes automatically, and no workflow reacts to a tag.
+
+1. Run **Release build** (Actions > Release build > Run workflow) on the commit to ship. Wait for it to pass.
+2. Download that run's artifact (`droidwire-macos-arm64`), check its `SHA256SUMS` (`shasum -a 256 -c SHA256SUMS`) and confirm the artifact digest GitHub records for the run matches the zip you downloaded. Publish **those files**, not a local build: the builds are not reproducible, so a rebuild has different hashes.
+3. Put the build commit and the file hashes in the release notes (`docs/release-prep/RELEASE-NOTES-X.Y.Z.md`), update `CHANGELOG.md`, commit, and push. The tag goes on a commit whose source matches the build commit apart from documentation and workflow files (check with `git diff <build-commit>..<tag-commit> --stat`); say so in the notes.
+4. Create the release and the tag together, as a prerelease for a beta:
 
 ```bash
-gh release create vX.Y.Z desktop/release/Droidwire-X.Y.Z-arm64.dmg desktop/release/Droidwire-X.Y.Z-arm64-mac.zip \
-  --repo ajithonmain/droidwire --title "Droidwire X.Y.Z" --notes-file <notes>
+gh release create vX.Y.Z Droidwire-X.Y.Z-arm64.dmg Droidwire-X.Y.Z-arm64-mac.zip SHA256SUMS \
+  --repo ajithonmain/droidwire --target <tag-commit> --prerelease --title "Droidwire X.Y.Z" --notes-file <notes>
 ```
 
-Update `CHANGELOG.md` first, run the hardware checklist, and check that the README's claims (supported Macs, signing status, verified devices) still match what you are shipping.
+5. Download the published assets and check them against `SHA256SUMS`.
+
+Run the hardware checklist and check that the README's claims (supported Macs, signing status, verified devices) match what you are shipping before step 1.

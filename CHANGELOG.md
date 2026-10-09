@@ -2,7 +2,7 @@
 
 Compiled from the repository's git history and the changes made for the open-source beta. Dates are commit dates. Versions are those set in `desktop/package.json`; the repository does not record which versions were published as releases beyond the `v1.0.0-beta` tag.
 
-## 1.4.0 - unreleased (release candidate)
+## 1.4.0 - 2026-10-09 (beta prerelease, unsigned)
 
 The self-contained build. Download, open, connect a phone: no Homebrew, no separate adb, no ffmpeg. **USB (ADB) and Wi-Fi (wireless ADB) are the supported modes. MTP is deferred and is not part of this release**: the MTP addon (`luck-node-mtp`), its worker and libmtp are not in the app or the archives.
 
